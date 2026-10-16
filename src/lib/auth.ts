@@ -1,0 +1,102 @@
+import { cookies } from 'next/headers';
+import crypto from 'node:crypto';
+import { AuthSession, StudentProfile } from '@/types';
+
+const SESSION_COOKIE_NAME = 'etlab_session';
+const SESSION_SECRET = process.env.SESSION_SECRET || 'etlab-modern-tkmce-portal-secure-key-2026';
+
+export interface ExtendedSession extends AuthSession {
+  profile?: StudentProfile;
+}
+
+/**
+ * Sign payload using HMAC-SHA256
+ */
+function sign(data: string): string {
+  const hmac = crypto.createHmac('sha256', SESSION_SECRET);
+  hmac.update(data);
+  const signature = hmac.digest('base64url');
+  return `${Buffer.from(data).toString('base64url')}.${signature}`;
+}
+
+/**
+ * Verify and parse signed session token
+ */
+function verify(token: string): ExtendedSession | null {
+  try {
+    const [encodedData, signature] = token.split('.');
+    if (!encodedData || !signature) return null;
+
+    const data = Buffer.from(encodedData, 'base64url').toString('utf-8');
+    const expectedHmac = crypto.createHmac('sha256', SESSION_SECRET);
+    expectedHmac.update(data);
+    const expectedSignature = expectedHmac.digest('base64url');
+
+    if (crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature))) {
+      const parsed = JSON.parse(data) as ExtendedSession;
+      if (parsed.expiresAt && Date.now() > parsed.expiresAt) {
+        return null; // Expired
+      }
+      return parsed;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Set session cookie in Next.js
+ */
+export async function createSession(
+  sessionData: {
+    mode: 'live' | 'demo';
+    username: string;
+    displayName: string;
+    sessionId?: string;
+    profile?: StudentProfile;
+  }
+): Promise<void> {
+  const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 days
+  const session: ExtendedSession = {
+    ...sessionData,
+    expiresAt,
+  };
+
+  const token = sign(JSON.stringify(session));
+  const cookieStore = await cookies();
+
+  cookieStore.set(SESSION_COOKIE_NAME, token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 7 * 24 * 60 * 60,
+  });
+}
+
+/**
+ * Retrieve session from cookie
+ */
+export async function getSession(): Promise<ExtendedSession | null> {
+  const cookieStore = await cookies();
+  const sessionCookie = cookieStore.get(SESSION_COOKIE_NAME);
+  if (!sessionCookie || !sessionCookie.value) {
+    return null;
+  }
+  return verify(sessionCookie.value);
+}
+
+/**
+ * Clear session cookie
+ */
+export async function destroySession(): Promise<void> {
+  const cookieStore = await cookies();
+  cookieStore.set(SESSION_COOKIE_NAME, '', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 0,
+  });
+}
