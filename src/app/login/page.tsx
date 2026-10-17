@@ -11,14 +11,11 @@ import {
   ShieldCheck,
   AlertCircle,
   ArrowRight,
-  Sparkles,
   ExternalLink,
-  CheckCircle2,
 } from 'lucide-react';
 
 export default function LoginPage() {
   const router = useRouter();
-  const [mode, setMode] = useState<'live' | 'demo'>('live');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -35,9 +32,9 @@ export default function LoginPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          mode,
-          username: mode === 'live' ? username.trim() : undefined,
-          password: mode === 'live' ? password : undefined,
+          mode: 'live',
+          username: username.trim(),
+          password,
         }),
       });
 
@@ -60,31 +57,6 @@ export default function LoginPage() {
     }
   };
 
-  const handleDemoSignIn = async (account: 'A' | 'B' = 'A') => {
-    setErrorMessage('');
-    setLoading(true);
-    try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          mode: 'demo',
-          account,
-          username: account === 'B' ? 'student-b' : '25CTA12',
-        }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        router.push('/dashboard');
-        router.refresh();
-      }
-    } catch {
-      setErrorMessage('Failed to start demo session.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-[#fdfcfb] dark:bg-[#141518] flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       {/* Top institution header */}
@@ -93,79 +65,33 @@ export default function LoginPage() {
           <GraduationCap className="w-6 h-6" />
         </div>
         <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#1c1917] dark:text-[#f3f4f6]">
-          ETLAB Modern Portal
+          ETPlus
         </h1>
         <p className="text-xs font-medium text-[#78716c] dark:text-[#9ca3af] mt-1 uppercase tracking-wider">
           TKM College of Engineering, Kollam
         </p>
         <p className="text-xs text-[#78716c] dark:text-[#9ca3af] mt-1">
-          Redesigned academic intelligence, attendance analytics, and timetable dashboard
+          Academic intelligence, attendance analytics, and timetable dashboard
         </p>
       </div>
 
       {/* Main card */}
       <div className="mt-6 sm:mx-auto sm:w-full sm:max-w-md px-4">
         <div className="bg-white dark:bg-[#1b1d22] py-7 px-6 sm:px-8 rounded-xl border border-[#e7e4de] dark:border-[#2a2d35] shadow-xs">
-          {/* Mode Switcher Tabs */}
-          <div className="flex p-1 bg-[#f4f1eb] dark:bg-[#202227] rounded-lg mb-5">
-            <button
-              type="button"
-              onClick={() => {
-                setMode('live');
-                setErrorMessage('');
-              }}
-              className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-all flex items-center justify-center gap-1.5 ${
-                mode === 'live'
-                  ? 'bg-white dark:bg-[#1b1d22] text-[#1c1917] dark:text-[#f3f4f6] shadow-xs'
-                  : 'text-[#78716c] hover:text-[#1c1917] dark:text-[#9ca3af] dark:hover:text-[#f3f4f6]'
-              }`}
-            >
-              <ShieldCheck className="w-3.5 h-3.5 text-[#1c1917] dark:text-[#f3f4f6]" />
-              Live ETLAB (TKMCE)
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setMode('demo');
-                setErrorMessage('');
-              }}
-              className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-all flex items-center justify-center gap-1.5 ${
-                mode === 'demo'
-                  ? 'bg-white dark:bg-[#1b1d22] text-[#1c1917] dark:text-[#f3f4f6] shadow-xs'
-                  : 'text-[#78716c] hover:text-[#1c1917] dark:text-[#9ca3af] dark:hover:text-[#f3f4f6]'
-              }`}
-            >
-              <Sparkles className="w-3.5 h-3.5 text-[#78716c] dark:text-[#9ca3af]" />
-              Interactive Demo
-            </button>
+          {/* Connection Banner */}
+          <div className="mb-5 p-3 rounded-lg bg-[#f9f8f5] dark:bg-[#202227] border border-[#e7e4de] dark:border-[#2a2d35] text-xs text-[#1c1917] dark:text-[#f3f4f6] space-y-1">
+            <div className="flex items-center gap-1.5 font-semibold text-xs">
+              <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <span>Authorized TKMCE ETLAB Connection</span>
+            </div>
+            <p className="text-[11px] leading-relaxed text-[#78716c] dark:text-[#9ca3af]">
+              Sign in with your institutional credentials. Your session is authenticated directly with{' '}
+              <code className="px-1 py-0.5 rounded bg-[#f4f1eb] dark:bg-[#282b33] font-mono text-[10px] text-[#1c1917] dark:text-[#f3f4f6]">
+                tkmce.etlab.in
+              </code>
+              . Passwords are never stored or logged anywhere.
+            </p>
           </div>
-
-          {/* Mode Explanation Banner */}
-          {mode === 'live' ? (
-            <div className="mb-5 p-3 rounded-lg bg-[#f9f8f5] dark:bg-[#202227] border border-[#e7e4de] dark:border-[#2a2d35] text-xs text-[#1c1917] dark:text-[#f3f4f6] space-y-1">
-              <div className="flex items-center gap-1.5 font-semibold text-xs">
-                <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                <span>Authorized TKMCE ETLAB Connection</span>
-              </div>
-              <p className="text-[11px] leading-relaxed text-[#78716c] dark:text-[#9ca3af]">
-                Sign in with your standard TKMCE credentials. Your session is established directly via HTTPS with{' '}
-                <code className="px-1 py-0.5 rounded bg-[#f4f1eb] dark:bg-[#282b33] font-mono text-[10px] text-[#1c1917] dark:text-[#f3f4f6]">
-                  tkmce.etlab.in
-                </code>
-                . Passwords are never stored or logged anywhere.
-              </p>
-            </div>
-          ) : (
-            <div className="mb-5 p-3 rounded-lg bg-[#f9f8f5] dark:bg-[#202227] border border-[#e7e4de] dark:border-[#2a2d35] text-xs text-[#1c1917] dark:text-[#f3f4f6] space-y-1">
-              <div className="flex items-center gap-1.5 font-semibold text-xs">
-                <Sparkles className="w-4 h-4 text-[#1c1917] dark:text-[#f3f4f6] shrink-0" />
-                <span>Synthetic Demo Exploration</span>
-              </div>
-              <p className="text-[11px] leading-relaxed text-[#78716c] dark:text-[#9ca3af]">
-                Explore the full attendance simulator, timetable, and academic dashboard instantly using realistic KTU S6 Computer Science data.
-              </p>
-            </div>
-          )}
 
           {/* Error Message Alert */}
           {errorMessage && (
@@ -175,123 +101,73 @@ export default function LoginPage() {
             </div>
           )}
 
-          {mode === 'live' ? (
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-[#1c1917] dark:text-[#f3f4f6] mb-1.5">
-                  ETLAB Username / Admission No.
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-[#1c1917] dark:text-[#f3f4f6] mb-1.5">
+                ETLAB Username / Admission No.
+              </label>
+              <div className="relative">
+                <User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#78716c] dark:text-[#9ca3af]" />
+                <input
+                  type="text"
+                  required
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="e.g. 23CS1042 or admission no."
+                  className="w-full pl-9 pr-3 py-2 text-xs font-medium rounded-lg bg-[#fdfcfb] dark:bg-[#202227] border border-[#e7e4de] dark:border-[#2a2d35] text-[#1c1917] dark:text-[#f3f4f6] placeholder:text-[#a8a29e] dark:placeholder:text-[#6b7280] outline-none focus:border-[#1c1917] dark:focus:border-[#f3f4f6]"
+                />
+              </div>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-semibold text-[#1c1917] dark:text-[#f3f4f6]">
+                  ETLAB Password
                 </label>
-                <div className="relative">
-                  <User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#78716c] dark:text-[#9ca3af]" />
-                  <input
-                    type="text"
-                    required
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    placeholder="e.g. 23CS1042 or admission no."
-                    className="w-full pl-9 pr-3 py-2 text-xs font-medium rounded-lg bg-[#fdfcfb] dark:bg-[#202227] border border-[#e7e4de] dark:border-[#2a2d35] text-[#1c1917] dark:text-[#f3f4f6] placeholder:text-[#a8a29e] dark:placeholder:text-[#6b7280] outline-none focus:border-[#1c1917] dark:focus:border-[#f3f4f6]"
-                  />
-                </div>
+                <a
+                  href="https://tkmce.etlab.in/user/resetpassword"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[11px] text-[#78716c] dark:text-[#9ca3af] hover:underline flex items-center gap-1"
+                >
+                  Forgot password? <ExternalLink className="w-3 h-3" />
+                </a>
               </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-semibold text-[#1c1917] dark:text-[#f3f4f6]">
-                    ETLAB Password
-                  </label>
-                  <a
-                    href="https://tkmce.etlab.in/user/resetpassword"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-[11px] text-[#78716c] dark:text-[#9ca3af] hover:underline flex items-center gap-1"
-                  >
-                    Forgot password? <ExternalLink className="w-3 h-3" />
-                  </a>
-                </div>
-                <div className="relative">
-                  <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#78716c] dark:text-[#9ca3af]" />
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Enter your ETLAB password"
-                    className="w-full pl-9 pr-10 py-2 text-xs font-medium rounded-lg bg-[#fdfcfb] dark:bg-[#202227] border border-[#e7e4de] dark:border-[#2a2d35] text-[#1c1917] dark:text-[#f3f4f6] placeholder:text-[#a8a29e] dark:placeholder:text-[#6b7280] outline-none focus:border-[#1c1917] dark:focus:border-[#f3f4f6]"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#78716c] hover:text-[#1c1917] dark:text-[#9ca3af] dark:hover:text-[#f3f4f6]"
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full mt-2 py-2.5 px-4 rounded-lg font-medium text-xs bg-[#1c1917] hover:bg-[#292524] text-white dark:bg-[#f3f4f6] dark:hover:bg-white dark:text-[#141518] shadow-xs flex items-center justify-center gap-2 transition-all disabled:opacity-50"
-              >
-                {loading ? (
-                  <span>Authenticating with ETLAB...</span>
-                ) : (
-                  <>
-                    <span>Sign in with ETLAB</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </>
-                )}
-              </button>
-            </form>
-          ) : (
-            <div className="space-y-4">
-              <div className="p-3.5 rounded-lg bg-[#fdfcfb] dark:bg-[#202227] border border-[#e7e4de] dark:border-[#2a2d35] space-y-1.5 text-xs">
-                <div className="flex items-center gap-2 font-semibold text-[#1c1917] dark:text-[#f3f4f6]">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                  <span>Account A: Primary Student Fixture</span>
-                </div>
-                <p className="text-[#78716c] dark:text-[#9ca3af] leading-relaxed">
-                  Adwait S. • B.Tech Computer Science (AI), Semester 3 • TKM College of Engineering
-                </p>
-                <div className="pt-1 flex items-center gap-3 text-[11px] text-[#78716c] dark:text-[#9ca3af]">
-                  <span>Admission: 25CTA12</span>
-                  <span>• Target: 75%</span>
-                  <span>• Verified S3 Courses</span>
-                </div>
-              </div>
-
-              <button
-                onClick={() => handleDemoSignIn('A')}
-                disabled={loading}
-                className="w-full py-2.5 px-4 rounded-lg font-medium text-xs bg-[#1c1917] hover:bg-[#292524] text-white dark:bg-[#f3f4f6] dark:hover:bg-white dark:text-[#141518] shadow-xs flex items-center justify-center gap-2 transition-all disabled:opacity-50 cursor-pointer"
-              >
-                {loading ? (
-                  <span>Launching Workspace...</span>
-                ) : (
-                  <>
-                    <Sparkles className="w-4 h-4" />
-                    <span>Enter as Student Account A</span>
-                  </>
-                )}
-              </button>
-
-              <div className="pt-2 border-t border-[#e7e4de] dark:border-[#2a2d35]">
-                <div className="flex items-center justify-between text-[11px] text-[#78716c] dark:text-[#9ca3af] mb-2">
-                  <span>Cross-Account Isolation Testing:</span>
-                  <span className="font-mono text-[10px]">Account B (Isolated)</span>
-                </div>
+              <div className="relative">
+                <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#78716c] dark:text-[#9ca3af]" />
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter your ETLAB password"
+                  className="w-full pl-9 pr-10 py-2 text-xs font-medium rounded-lg bg-[#fdfcfb] dark:bg-[#202227] border border-[#e7e4de] dark:border-[#2a2d35] text-[#1c1917] dark:text-[#f3f4f6] placeholder:text-[#a8a29e] dark:placeholder:text-[#6b7280] outline-none focus:border-[#1c1917] dark:focus:border-[#f3f4f6]"
+                />
                 <button
                   type="button"
-                  onClick={() => handleDemoSignIn('B')}
-                  disabled={loading}
-                  className="w-full py-2 px-3 rounded-lg text-xs font-semibold bg-[#f4f1eb] hover:bg-[#e7e4de] text-[#1c1917] dark:bg-[#202227] dark:hover:bg-[#282b33] dark:text-[#f3f4f6] border border-[#e7e4de] dark:border-[#2a2d35] flex items-center justify-center gap-2 transition-all disabled:opacity-50 cursor-pointer"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#78716c] hover:text-[#1c1917] dark:text-[#9ca3af] dark:hover:text-[#f3f4f6]"
                 >
-                  <User className="w-3.5 h-3.5" />
-                  <span>Sign In as Account B (Kavya N. • 25CTA99)</span>
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
             </div>
-          )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full mt-2 py-2.5 px-4 rounded-lg font-medium text-xs bg-[#1c1917] hover:bg-[#292524] text-white dark:bg-[#f3f4f6] dark:hover:bg-white dark:text-[#141518] shadow-xs flex items-center justify-center gap-2 transition-all disabled:opacity-50 cursor-pointer"
+            >
+              {loading ? (
+                <span>Authenticating with ETLAB...</span>
+              ) : (
+                <>
+                  <span>Sign in with ETLAB</span>
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
+            </button>
+          </form>
 
           {/* Security Features Badges */}
           <div className="mt-6 pt-5 border-t border-[#e7e4de] dark:border-[#2a2d35] grid grid-cols-2 gap-2 text-[11px] text-[#78716c] dark:text-[#9ca3af]">
@@ -327,7 +203,7 @@ export default function LoginPage() {
               tkmce.etlab.in <ExternalLink className="w-3 h-3 inline" />
             </a>
           </p>
-          <p>© 2026 TKM College of Engineering Academic Portal Interface</p>
+          <p>© 2026 ETPlus • TKM College of Engineering Student Interface</p>
         </div>
       </div>
     </div>
