@@ -1,36 +1,85 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🎓 ETPlus
 
-## Getting Started
+**A cleaner, student-friendly interface for ETLAB.**
 
-First, run the development server:
+ETPlus is a student-focused dashboard designed to make academic information easier to access and understand. It brings essential student tools into one place, with a cleaner interface and useful insights.
+
+## ✨ Features
+
+- 📊 **Attendance** — Track attendance and explore attendance projections.
+- 📅 **Timetable** — View your class schedule in an organized layout.
+- 📝 **Assignments** — Keep track of assignments, deadlines, and submission status.
+- 📚 **Study Materials** — Access and share previous question papers and study notes.
+- 📈 **Results** — View available academic results and internal assessment marks.
+- 🏆 **End-Sem Results** — Check published end-semester results and grades.
+- 📢 **Announcements** — Share and view updates with your student cohort.
+- 👤 **Student Profile** — Access your student information and preferences.
+- 🌙 **Dark Interface** — A minimal, responsive interface designed for comfortable everyday use.
+
+## 🛠️ Built With
+
+ETPlus uses modern web technologies. The exact stack and integrations are documented in the project source.
+
+## 🚀 Getting Started
+
+### Prerequisites
+
+Install the following before running the project:
+
+- [Node.js](https://nodejs.org/)
+- npm
+- Git
+
+### Installation
+
+Clone the repository:
+
+```bash
+git clone https://github.com/adwaith620/ET-PLUS.git
+cd ET-PLUS
+```
+
+Install dependencies:
+
+```bash
+npm install
+```
+
+Configure the required environment variables using the project's environment example file or setup documentation. Do not commit credentials, passwords, API keys, or session tokens.
+
+Start the development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open the local URL displayed in your terminal, usually:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```text
+http://localhost:3000
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 🔐 Security & Privacy
 
-## Learn More
+- Student-specific information should only be accessible to the authenticated student.
+- Authentication and data access must follow authorized access controls.
+- Credentials and session tokens must not be exposed in client-side code or committed to the repository.
+- Official academic records should come from the authorized ETLAB integration, not fabricated sample data.
 
-To learn more about Next.js, take a look at the following resources:
+## ⚠️ Disclaimer
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+ETPlus is an independent student-focused project and is not an official product of ETLAB or TKM College of Engineering. ETLAB remains the source of truth for official academic records.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Use ETPlus only with authorized access and in accordance with the relevant platform's rules.
 
-## Deploy on Vercel
+## 🤝 Contributing
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Contributions, bug reports, and suggestions are welcome. Before submitting changes, test them locally and ensure that no credentials or private student information are included.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 📄 License
+
+A license has not been specified here. Refer to the repository's license file for the applicable terms.
+
+---
+
+Made with 💻 for a better student dashboard experience.
