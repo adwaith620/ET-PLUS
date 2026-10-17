@@ -95,7 +95,11 @@ export default function LoginPage() {
 
           {/* Error Message Alert */}
           {errorMessage && (
-            <div className="mb-5 p-3 rounded-lg bg-rose-50 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200/60 dark:border-rose-900/40 flex items-start gap-2.5 text-xs">
+            <div
+              role="alert"
+              aria-live="assertive"
+              className="mb-5 p-3 rounded-lg bg-rose-50 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200/60 dark:border-rose-900/40 flex items-start gap-2.5 text-xs"
+            >
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-600 dark:text-rose-400" />
               <span>{errorMessage}</span>
             </div>
@@ -103,32 +107,33 @@ export default function LoginPage() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-[#1c1917] dark:text-[#f3f4f6] mb-1.5">
+              <label htmlFor="login-username" className="block text-xs font-semibold text-[#1c1917] dark:text-[#f3f4f6] mb-1.5">
                 ETLAB Username / Admission No.
               </label>
               <div className="relative">
                 <User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#78716c] dark:text-[#9ca3af]" />
                 <input
+                  id="login-username"
                   type="text"
                   required
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder="e.g. 23CS1042 or admission no."
-                  className="w-full pl-9 pr-3 py-2 text-xs font-medium rounded-lg bg-[#fdfcfb] dark:bg-[#202227] border border-[#e7e4de] dark:border-[#2a2d35] text-[#1c1917] dark:text-[#f3f4f6] placeholder:text-[#a8a29e] dark:placeholder:text-[#6b7280] outline-none focus:border-[#1c1917] dark:focus:border-[#f3f4f6]"
+                  className="w-full pl-9 pr-3 py-2.5 min-h-[44px] text-xs font-medium rounded-lg bg-[#fdfcfb] dark:bg-[#202227] border border-[#e7e4de] dark:border-[#2a2d35] text-[#1c1917] dark:text-[#f3f4f6] placeholder:text-[#a8a29e] dark:placeholder:text-[#6b7280] outline-none focus:border-[#1c1917] dark:focus:border-[#f3f4f6]"
                 />
               </div>
             </div>
 
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-xs font-semibold text-[#1c1917] dark:text-[#f3f4f6]">
+                <label htmlFor="login-password" className="block text-xs font-semibold text-[#1c1917] dark:text-[#f3f4f6]">
                   ETLAB Password
                 </label>
                 <a
                   href="https://tkmce.etlab.in/user/resetpassword"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-[11px] text-[#78716c] dark:text-[#9ca3af] hover:underline flex items-center gap-1"
+                  className="text-[11px] text-[#78716c] dark:text-[#9ca3af] hover:underline flex items-center gap-1 min-h-[36px]"
                 >
                   Forgot password? <ExternalLink className="w-3 h-3" />
                 </a>
@@ -136,17 +141,19 @@ export default function LoginPage() {
               <div className="relative">
                 <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#78716c] dark:text-[#9ca3af]" />
                 <input
+                  id="login-password"
                   type={showPassword ? 'text' : 'password'}
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter your ETLAB password"
-                  className="w-full pl-9 pr-10 py-2 text-xs font-medium rounded-lg bg-[#fdfcfb] dark:bg-[#202227] border border-[#e7e4de] dark:border-[#2a2d35] text-[#1c1917] dark:text-[#f3f4f6] placeholder:text-[#a8a29e] dark:placeholder:text-[#6b7280] outline-none focus:border-[#1c1917] dark:focus:border-[#f3f4f6]"
+                  className="w-full pl-9 pr-12 py-2.5 min-h-[44px] text-xs font-medium rounded-lg bg-[#fdfcfb] dark:bg-[#202227] border border-[#e7e4de] dark:border-[#2a2d35] text-[#1c1917] dark:text-[#f3f4f6] placeholder:text-[#a8a29e] dark:placeholder:text-[#6b7280] outline-none focus:border-[#1c1917] dark:focus:border-[#f3f4f6]"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#78716c] hover:text-[#1c1917] dark:text-[#9ca3af] dark:hover:text-[#f3f4f6]"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  className="absolute right-1 top-1/2 -translate-y-1/2 p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center text-[#78716c] hover:text-[#1c1917] dark:text-[#9ca3af] dark:hover:text-[#f3f4f6]"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -156,7 +163,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full mt-2 py-2.5 px-4 rounded-lg font-medium text-xs bg-[#1c1917] hover:bg-[#292524] text-white dark:bg-[#f3f4f6] dark:hover:bg-white dark:text-[#141518] shadow-xs flex items-center justify-center gap-2 transition-all disabled:opacity-50 cursor-pointer"
+              className="w-full mt-2 py-3 min-h-[44px] px-4 rounded-lg font-medium text-xs bg-[#1c1917] hover:bg-[#292524] text-white dark:bg-[#f3f4f6] dark:hover:bg-white dark:text-[#141518] shadow-xs flex items-center justify-center gap-2 transition-all disabled:opacity-50 cursor-pointer"
             >
               {loading ? (
                 <span>Authenticating with ETLAB...</span>

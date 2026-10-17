@@ -3,11 +3,25 @@ import { etlabLogin } from '@/lib/etlab-client';
 import { createSession } from '@/lib/auth';
 import { DEMO_PROFILE, DEMO_PROFILE_B } from '@/lib/demo-data';
 import { clearAssignmentCache } from '@/lib/assignment-service';
+import { verifySameOrigin, checkRateLimit, PRIVATE_CACHE_HEADERS } from '@/lib/security';
 
 export async function POST(request: Request) {
   try {
+    if (!verifySameOrigin(request)) {
+      return NextResponse.json({ success: false, error: 'Forbidden: Invalid request origin.' }, { status: 403 });
+    }
+
     const body = await request.json();
     const { mode, username, password, account } = body;
+
+    const rateKey = `login_${(username && typeof username === 'string' ? username.trim() : 'anon')}`;
+    const rateCheck = checkRateLimit(rateKey, 10, 60000);
+    if (!rateCheck.allowed) {
+      return NextResponse.json(
+        { success: false, error: 'Too many login attempts. Please wait a minute and try again.' },
+        { status: 429, headers: PRIVATE_CACHE_HEADERS }
+      );
+    }
 
     if (mode === 'demo') {
       const isAccountB =

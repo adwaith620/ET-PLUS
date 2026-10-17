@@ -148,7 +148,7 @@ export function ResultsClient({
             <button
               key={cat.label}
               onClick={() => setSelectedCategory(cat.label)}
-              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
+              className={`flex items-center gap-1.5 px-3.5 py-2 min-h-[38px] shrink-0 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
                 isActive
                   ? 'bg-[#1c1917] text-white dark:bg-[#f3f4f6] dark:text-[#141518] shadow-xs font-semibold'
                   : 'text-[#78716c] dark:text-[#9ca3af] hover:bg-[#f4f1eb] dark:hover:bg-[#202227]'
@@ -161,7 +161,6 @@ export function ResultsClient({
         })}
       </div>
 
-      {/* 4. Total count indicator: "Total X results." */}
       {/* 4. Total count indicator */}
       <div className="flex items-center justify-between">
         <p className="text-xs font-medium text-[#78716c] dark:text-[#9ca3af]">
@@ -176,7 +175,12 @@ export function ResultsClient({
       </div>
 
       {/* 5. Main Results Table */}
-      <div className="overflow-x-auto rounded-xl border border-[#e7e4de] dark:border-[#2a2d35] bg-white dark:bg-[#1b1d22] shadow-xs animate-fade-in-up animate-delay-1">
+      <div
+        className="overflow-x-auto rounded-xl border border-[#e7e4de] dark:border-[#2a2d35] bg-white dark:bg-[#1b1d22] shadow-xs animate-fade-in-up animate-delay-1 focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:outline-hidden"
+        tabIndex={0}
+        role="region"
+        aria-label="Student examination evaluation records"
+      >
         <table className="w-full text-xs text-left border-collapse min-w-[780px]">
           <thead>
             <tr className="bg-[#f9f8f5] dark:bg-[#181a1f] border-b border-[#e7e4de] dark:border-[#2a2d35]">

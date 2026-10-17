@@ -1,7 +1,7 @@
 import fs from 'fs/promises';
 import fsSync from 'fs';
 import path from 'path';
-import { Announcement } from '@/types';
+import type { Announcement } from '../types/index.ts';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 const ANNOUNCEMENTS_FILE = path.join(DATA_DIR, 'cohort-announcements.json');
@@ -53,6 +53,10 @@ export async function deleteCohortAnnouncement(
   requesterUsername: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    if (!id || !/^[a-zA-Z0-9_-]+$/.test(id)) {
+      return { success: false, error: 'Invalid announcement identifier.' };
+    }
+
     ensureAnnouncementsDirectory();
     const existing = await getCohortAnnouncements();
     const announcement = existing.find((a) => a.id === id);
@@ -61,13 +65,10 @@ export async function deleteCohortAnnouncement(
       return { success: false, error: 'Announcement not found.' };
     }
 
-    // Verify authorization: only the author or admin/demo user can delete
-    const isOwner =
-      announcement.authorUsername === requesterUsername ||
-      announcement.author === requesterUsername ||
-      requesterUsername === 'demo' ||
-      requesterUsername === 'TKM25CA013' ||
-      !announcement.authorUsername;
+    // Verify authorization: strictly check that authenticated username matches author
+    const isOwner = Boolean(
+      announcement.authorUsername && announcement.authorUsername === requesterUsername
+    );
 
     if (!isOwner) {
       return { success: false, error: 'Unauthorized: You can only delete announcements created by you.' };

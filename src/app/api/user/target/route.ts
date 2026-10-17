@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { getSession } from '@/lib/auth';
+import { verifySameOrigin, PRIVATE_CACHE_HEADERS } from '@/lib/security';
 
 export async function GET() {
   const session = await getSession();
@@ -12,11 +13,15 @@ export async function GET() {
   const parsed = val ? parseFloat(val) : 75;
   const target = !isNaN(parsed) && parsed >= 50 && parsed <= 100 ? parsed : 75;
 
-  return NextResponse.json({ success: true, target });
+  return NextResponse.json({ success: true, target }, { headers: PRIVATE_CACHE_HEADERS });
 }
 
 export async function POST(req: NextRequest) {
   try {
+    if (!verifySameOrigin(req)) {
+      return NextResponse.json({ success: false, error: 'Forbidden: Invalid request origin.' }, { status: 403 });
+    }
+
     const body = await req.json();
     const rawTarget = typeof body.target === 'number' ? body.target : parseFloat(body.target);
 

@@ -98,7 +98,12 @@ export function AttendanceRadial({
       {/* Enlarged Centered Circular Gauge */}
       <div className="flex flex-col items-center justify-center py-2">
         <div className="relative w-48 h-48 sm:w-56 sm:h-56 flex items-center justify-center shrink-0">
-          <svg className="w-full h-full transform -rotate-90" viewBox="0 0 170 170">
+          <svg
+            className="w-full h-full transform -rotate-90"
+            viewBox="0 0 170 170"
+            role="img"
+            aria-label={`Attendance radial gauge: ${percentage}%, attended ${attended} of ${total} hours, active target ${targetPercentage}%`}
+          >
             {/* Background track */}
             <circle
               cx="85"

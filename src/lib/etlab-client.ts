@@ -377,9 +377,20 @@ export async function etlabFetchResults(
       if (!location || location.toLowerCase().includes('login') || location.toLowerCase().includes('/user/')) {
         return { success: false, error: 'Session expired' };
       }
-      const targetUrl = location.startsWith('http')
-        ? location
-        : `${BASE_URL}${location.startsWith('/') ? '' : '/'}${location}`;
+      let targetUrl: string;
+      if (location.startsWith('http://') || location.startsWith('https://')) {
+        try {
+          const parsedLoc = new URL(location);
+          if (parsedLoc.origin !== new URL(BASE_URL).origin) {
+            return { success: false, error: 'Session expired' };
+          }
+          targetUrl = location;
+        } catch {
+          return { success: false, error: 'Session expired' };
+        }
+      } else {
+        targetUrl = `${BASE_URL}${location.startsWith('/') ? '' : '/'}${location}`;
+      }
       currentRes = await fetch(targetUrl, {
         method: 'GET',
         headers: {

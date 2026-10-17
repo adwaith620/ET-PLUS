@@ -16,6 +16,7 @@ import {
   Check,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { isSafeUrl } from '@/lib/security';
 
 interface AnnouncementsClientProps {
   announcements: Announcement[];
@@ -257,9 +258,10 @@ export function AnnouncementsClient({
                       <button
                         onClick={() => setItemToDelete(ann)}
                         title="Delete announcement"
-                        className="p-1 text-[#a8a29e] hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 rounded transition-colors cursor-pointer"
+                        aria-label="Delete announcement"
+                        className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center text-[#a8a29e] hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg transition-colors cursor-pointer"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        <Trash2 className="w-4 h-4" />
                       </button>
                     )}
                   </div>
@@ -273,15 +275,15 @@ export function AnnouncementsClient({
                   {ann.content}
                 </p>
 
-                {ann.link && (
+                {ann.link && isSafeUrl(ann.link) && (
                   <div className="mt-3">
                     <a
                       href={ann.link}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:underline"
+                      className="inline-flex items-center gap-1.5 text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:underline min-h-[36px]"
                     >
-                      <ExternalLink className="w-3 h-3" />
+                      <ExternalLink className="w-3.5 h-3.5" />
                       <span>{ann.link}</span>
                     </a>
                   </div>
@@ -308,24 +310,30 @@ export function AnnouncementsClient({
 
       {/* Create Announcement Modal */}
       {isCreateOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
-          <div className="w-full max-w-lg rounded-2xl bg-white dark:bg-[#1b1d22] border border-[#e7e4de] dark:border-[#2a2d35] shadow-xl overflow-hidden animate-fade-in-up">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-[#e7e4de] dark:border-[#2a2d35]">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="modal-announcement-title"
+        >
+          <div className="w-full max-w-lg max-h-[90vh] flex flex-col rounded-2xl bg-white dark:bg-[#1b1d22] border border-[#e7e4de] dark:border-[#2a2d35] shadow-xl overflow-hidden animate-fade-in-up">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-[#e7e4de] dark:border-[#2a2d35] shrink-0">
               <div className="flex items-center gap-2">
                 <Users className="w-4 h-4 text-indigo-500" />
-                <h2 className="text-sm font-semibold text-[#1c1917] dark:text-[#f3f4f6]">
+                <h2 id="modal-announcement-title" className="text-sm font-semibold text-[#1c1917] dark:text-[#f3f4f6]">
                   Post Cohort Announcement
                 </h2>
               </div>
               <button
                 onClick={() => setIsCreateOpen(false)}
-                className="p-1 rounded-md text-[#78716c] hover:text-[#1c1917] dark:text-[#9ca3af] dark:hover:text-[#f3f4f6] hover:bg-[#f4f1eb] dark:hover:bg-[#202227] cursor-pointer"
+                aria-label="Close dialog"
+                className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-md text-[#78716c] hover:text-[#1c1917] dark:text-[#9ca3af] dark:hover:text-[#f3f4f6] hover:bg-[#f4f1eb] dark:hover:bg-[#202227] cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateAnnouncement} className="p-5 space-y-4">
+            <form onSubmit={handleCreateAnnouncement} className="p-5 space-y-4 overflow-y-auto">
               {createError && (
                 <div className="flex items-center gap-2 p-3 text-xs rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/40 text-red-700 dark:text-red-300">
                   <AlertCircle className="w-4 h-4 shrink-0" />

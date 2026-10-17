@@ -37,6 +37,27 @@ export function MobileNav({
   const pathname = usePathname();
   const router = useRouter();
 
+  // Prevent background scroll and support Escape key dismissal when modal drawer is open
+  React.useEffect(() => {
+    if (!isOpen) return;
+
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, onClose]);
+
   const handleLogout = async () => {
     try {
       await fetch('/api/auth/logout', { method: 'POST' });
@@ -91,7 +112,7 @@ export function MobileNav({
             <Link
               key={item.href}
               href={item.href}
-              className={`flex flex-col items-center justify-center w-14 py-1 rounded transition-colors ${
+              className={`flex flex-col items-center justify-center min-w-[48px] min-h-[44px] py-1 rounded transition-colors ${
                 isActive
                   ? 'text-stone-900 dark:text-white font-semibold'
                   : 'text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200'
@@ -106,7 +127,12 @@ export function MobileNav({
 
       {/* Slide-over Drawer for all pages on mobile */}
       {isOpen && (
-        <div className="fixed inset-0 z-50 md:hidden flex">
+        <div
+          className="fixed inset-0 z-50 md:hidden flex"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Mobile Navigation Menu"
+        >
           {/* Backdrop */}
           <div
             className="fixed inset-0 bg-black/40 backdrop-blur-xs animate-in fade-in"
@@ -128,9 +154,10 @@ export function MobileNav({
               </div>
               <button
                 onClick={onClose}
-                className="p-1 rounded text-stone-400 hover:text-stone-600 dark:hover:text-stone-200"
+                aria-label="Close navigation menu"
+                className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-md text-stone-400 hover:text-stone-600 dark:hover:text-stone-200"
               >
-                <X className="w-4 h-4" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
@@ -144,7 +171,7 @@ export function MobileNav({
                     key={item.href}
                     href={item.href}
                     onClick={onClose}
-                    className={`flex items-center justify-between px-3 py-2 rounded-md text-xs font-medium transition-colors ${
+                    className={`flex items-center justify-between px-3 py-2.5 min-h-[44px] rounded-md text-xs font-medium transition-colors ${
                       isActive
                         ? 'bg-[#f4f1eb] dark:bg-[#23262c] text-stone-900 dark:text-stone-100 font-semibold'
                         : 'text-stone-600 dark:text-stone-400 hover:bg-[#faf8f5] dark:hover:bg-[#1e2026]'
@@ -176,7 +203,8 @@ export function MobileNav({
               </div>
               <button
                 onClick={handleLogout}
-                className="p-1.5 rounded text-stone-400 hover:text-stone-700 dark:hover:text-stone-200"
+                aria-label="Sign out"
+                className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded text-stone-400 hover:text-stone-700 dark:hover:text-stone-200"
                 title="Sign out"
               >
                 <LogOut className="w-4 h-4" />

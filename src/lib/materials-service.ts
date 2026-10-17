@@ -1,7 +1,7 @@
 import fs from 'fs/promises';
 import fsSync from 'fs';
 import path from 'path';
-import { StudyMaterial } from '@/types';
+import type { StudyMaterial } from '../types/index.ts';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 const UPLOADS_DIR = path.join(DATA_DIR, 'uploads');
@@ -71,6 +71,10 @@ export async function deleteSharedMaterial(
   requesterUsername: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    if (!id || !/^[a-zA-Z0-9_-]+$/.test(id)) {
+      return { success: false, error: 'Invalid resource identifier.' };
+    }
+
     ensureDirectories();
     const existing = await getSharedMaterials();
     const material = existing.find((m) => m.id === id);
@@ -79,24 +83,24 @@ export async function deleteSharedMaterial(
       return { success: false, error: 'Resource not found.' };
     }
 
-    // Verify ownership: only the uploader or demo user in demo mode can delete
-    const isOwner =
-      material.uploaderUsername === requesterUsername ||
-      material.uploadedBy === requesterUsername ||
-      requesterUsername === 'demo' ||
-      requesterUsername === 'TKM25CA013' ||
-      !material.uploaderUsername; // Legacy item created without uploaderUsername
+    // Verify ownership: strictly check that authenticated username matches uploader
+    const isOwner = Boolean(
+      material.uploaderUsername && material.uploaderUsername === requesterUsername
+    );
 
     if (!isOwner) {
       return { success: false, error: 'Unauthorized: You can only delete resources you uploaded.' };
     }
 
-    // Delete stored file if exists
+    // Delete stored file if exists with strict path boundary check
     try {
       const files = await fs.readdir(UPLOADS_DIR);
       const matchedFile = files.find((f) => f.startsWith(`${id}-`) || f === id);
       if (matchedFile) {
-        await fs.unlink(path.join(UPLOADS_DIR, matchedFile));
+        const targetPath = path.resolve(UPLOADS_DIR, path.basename(matchedFile));
+        if (targetPath.startsWith(path.resolve(UPLOADS_DIR) + path.sep)) {
+          await fs.unlink(targetPath);
+        }
       }
     } catch {
       // Ignore file deletion if already gone
@@ -129,6 +133,10 @@ export async function getCombinedMaterials(officialMaterials: StudyMaterial[]): 
 }
 
 export async function getSharedMaterialFile(id: string): Promise<{ material: StudyMaterial; absolutePath: string } | null> {
+  if (!id || !/^[a-zA-Z0-9_-]+$/.test(id)) {
+    return null;
+  }
+
   const shared = await getSharedMaterials();
   const material = shared.find((m) => m.id === id);
   if (!material) return null;
@@ -137,7 +145,8 @@ export async function getSharedMaterialFile(id: string): Promise<{ material: Stu
   const matchedFile = files.find((f) => f.startsWith(`${id}-`) || f === id);
   if (!matchedFile) return null;
 
-  const absolutePath = path.join(UPLOADS_DIR, matchedFile);
+  const absolutePath = path.resolve(UPLOADS_DIR, path.basename(matchedFile));
+  if (!absolutePath.startsWith(path.resolve(UPLOADS_DIR) + path.sep)) return null;
   if (!fsSync.existsSync(absolutePath)) return null;
 
   return { material, absolutePath };

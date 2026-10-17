@@ -1,9 +1,11 @@
 import { cookies } from 'next/headers';
 import crypto from 'node:crypto';
 import { AuthSession, StudentProfile } from '@/types';
+import { getSessionSecret } from './security';
 
 const SESSION_COOKIE_NAME = 'etlab_session';
-const SESSION_SECRET = process.env.SESSION_SECRET || 'etlab-modern-tkmce-portal-secure-key-2026';
+
+export { getSessionSecret };
 
 export interface ExtendedSession extends AuthSession {
   profile?: StudentProfile;
@@ -13,7 +15,7 @@ export interface ExtendedSession extends AuthSession {
  * Sign payload using HMAC-SHA256
  */
 function sign(data: string): string {
-  const hmac = crypto.createHmac('sha256', SESSION_SECRET);
+  const hmac = crypto.createHmac('sha256', getSessionSecret());
   hmac.update(data);
   const signature = hmac.digest('base64url');
   return `${Buffer.from(data).toString('base64url')}.${signature}`;
@@ -28,12 +30,17 @@ function verify(token: string): ExtendedSession | null {
     if (!encodedData || !signature) return null;
 
     const data = Buffer.from(encodedData, 'base64url').toString('utf-8');
-    const expectedHmac = crypto.createHmac('sha256', SESSION_SECRET);
+    const expectedHmac = crypto.createHmac('sha256', getSessionSecret());
     expectedHmac.update(data);
     const expectedSignature = expectedHmac.digest('base64url');
 
-    if (crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature))) {
+    const sigBuf = Buffer.from(signature);
+    const expBuf = Buffer.from(expectedSignature);
+
+    if (sigBuf.length === expBuf.length && crypto.timingSafeEqual(sigBuf, expBuf)) {
       const parsed = JSON.parse(data) as ExtendedSession;
+      if (!parsed || typeof parsed !== 'object') return null;
+      if (!parsed.username || typeof parsed.username !== 'string') return null;
       if (parsed.expiresAt && Date.now() > parsed.expiresAt) {
         return null; // Expired
       }

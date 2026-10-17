@@ -65,7 +65,8 @@ export function TimetableClient({ slots }: TimetableClientProps) {
           <div className="flex items-center bg-[#f4f1eb] dark:bg-[#202227] p-1 rounded-lg">
             <button
               onClick={() => setViewMode('daily')}
-              className={`p-1.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition-all ${
+              aria-label="Daily list view"
+              className={`px-3 py-2 min-h-[40px] rounded-md text-xs font-medium flex items-center gap-1.5 transition-all ${
                 viewMode === 'daily'
                   ? 'bg-white dark:bg-[#1b1d22] text-[#1c1917] dark:text-[#f3f4f6] shadow-xs'
                   : 'text-[#78716c] dark:text-[#9ca3af]'
@@ -76,7 +77,8 @@ export function TimetableClient({ slots }: TimetableClientProps) {
             </button>
             <button
               onClick={() => setViewMode('weekly')}
-              className={`p-1.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition-all ${
+              aria-label="Weekly grid view"
+              className={`px-3 py-2 min-h-[40px] rounded-md text-xs font-medium flex items-center gap-1.5 transition-all ${
                 viewMode === 'weekly'
                   ? 'bg-white dark:bg-[#1b1d22] text-[#1c1917] dark:text-[#f3f4f6] shadow-xs'
                   : 'text-[#78716c] dark:text-[#9ca3af]'
@@ -89,7 +91,8 @@ export function TimetableClient({ slots }: TimetableClientProps) {
 
           <button
             onClick={handleExportCsv}
-            className="px-3 py-1.5 rounded-lg text-xs font-medium bg-white dark:bg-[#1b1d22] border border-[#e7e4de] dark:border-[#2a2d35] text-[#1c1917] dark:text-[#f3f4f6] hover:bg-[#f9f8f5] dark:hover:bg-[#202227] flex items-center gap-1.5 shadow-xs transition-colors"
+            aria-label="Export timetable as CSV"
+            className="px-3.5 py-2 min-h-[40px] rounded-lg text-xs font-medium bg-white dark:bg-[#1b1d22] border border-[#e7e4de] dark:border-[#2a2d35] text-[#1c1917] dark:text-[#f3f4f6] hover:bg-[#f9f8f5] dark:hover:bg-[#202227] flex items-center gap-1.5 shadow-xs transition-colors"
           >
             <Download className="w-3.5 h-3.5 text-[#78716c] dark:text-[#9ca3af]" />
             <span>Export CSV</span>
@@ -105,7 +108,7 @@ export function TimetableClient({ slots }: TimetableClientProps) {
               <button
                 key={day}
                 onClick={() => setSelectedDay(day)}
-                className={`flex-1 min-w-[70px] py-1.5 text-xs font-medium rounded-lg transition-all ${
+                className={`flex-1 min-w-[70px] min-h-[40px] py-2 text-xs font-medium rounded-lg transition-all ${
                   selectedDay === day
                     ? 'bg-[#1c1917] text-white dark:bg-[#f3f4f6] dark:text-[#141518] shadow-xs'
                     : 'text-[#78716c] dark:text-[#9ca3af] hover:bg-[#f4f1eb] dark:hover:bg-[#202227]'
@@ -215,7 +218,12 @@ export function TimetableClient({ slots }: TimetableClientProps) {
         </div>
       ) : (
         /* Weekly Grid View */
-        <div className="overflow-x-auto rounded-xl border border-[#e7e4de] dark:border-[#2a2d35] bg-white dark:bg-[#1b1d22] shadow-xs">
+        <div
+          className="overflow-x-auto rounded-xl border border-[#e7e4de] dark:border-[#2a2d35] bg-white dark:bg-[#1b1d22] shadow-xs focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:outline-hidden"
+          tabIndex={0}
+          role="region"
+          aria-label="Weekly class timetable grid"
+        >
           <table className="w-full text-xs text-left border-collapse min-w-[700px]">
             <thead>
               <tr className="bg-[#f9f8f5] dark:bg-[#181a1f] border-b border-[#e7e4de] dark:border-[#2a2d35]">

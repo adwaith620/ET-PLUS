@@ -40,7 +40,8 @@ export function TargetSelector({
           <button
             key={target}
             onClick={() => onTargetChange(target)}
-            className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+            aria-label={`Set target to ${target}%`}
+            className={`px-3 py-1.5 min-h-[38px] rounded text-xs font-medium transition-colors ${
               currentTarget === target
                 ? 'bg-white dark:bg-[#18191d] text-stone-900 dark:text-white font-semibold shadow-xs border border-[#e7e4de] dark:border-[#2f323c]'
                 : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-white'
@@ -57,13 +58,14 @@ export function TargetSelector({
             min="50"
             max="100"
             value={currentTarget}
+            aria-label="Custom attendance target percentage"
             onChange={(e) => {
               const val = parseFloat(e.target.value);
               if (!isNaN(val) && val >= 0 && val <= 100) {
                 onTargetChange(val);
               }
             }}
-            className="w-12 px-1.5 py-0.5 text-xs text-center font-semibold bg-white dark:bg-[#18191d] rounded border border-[#e7e4de] dark:border-[#2f323c] text-stone-900 dark:text-white outline-none focus:ring-1 focus:ring-stone-400"
+            className="w-12 px-1.5 py-1 min-h-[38px] text-xs text-center font-semibold bg-white dark:bg-[#18191d] rounded border border-[#e7e4de] dark:border-[#2f323c] text-stone-900 dark:text-white outline-none focus:ring-1 focus:ring-stone-400"
             title="Custom target percentage"
           />
           <span className="text-xs font-semibold text-stone-400 ml-1 pr-1">%</span>

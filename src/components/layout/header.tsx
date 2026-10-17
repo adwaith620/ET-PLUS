@@ -88,15 +88,16 @@ export function Header({
         <div className="flex items-center gap-3">
           <button
             onClick={onOpenMobileNav}
-            className="p-1.5 -ml-1 rounded-md text-stone-600 dark:text-stone-300 hover:bg-[#f4f1eb] dark:hover:bg-[#23262c] md:hidden transition-colors"
+            className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center -ml-1 rounded-md text-stone-600 dark:text-stone-300 hover:bg-[#f4f1eb] dark:hover:bg-[#23262c] md:hidden transition-colors"
             aria-label="Open menu"
           >
-            <Menu className="w-4 h-4" />
+            <Menu className="w-5 h-5" />
           </button>
 
           <button
             onClick={() => setIsSearchOpen(true)}
-            className="flex items-center gap-2 px-2.5 py-1.5 rounded-md bg-[#f7f6f3] dark:bg-[#202227] border border-[#e7e4de] dark:border-[#2a2d35] hover:bg-[#f0ece5] dark:hover:bg-[#262930] text-stone-500 dark:text-stone-400 text-xs font-medium transition-colors w-40 sm:w-60"
+            aria-label="Search records"
+            className="flex items-center gap-2 px-2.5 py-1.5 min-h-[38px] rounded-md bg-[#f7f6f3] dark:bg-[#202227] border border-[#e7e4de] dark:border-[#2a2d35] hover:bg-[#f0ece5] dark:hover:bg-[#262930] text-stone-500 dark:text-stone-400 text-xs font-medium transition-colors w-36 sm:w-60"
           >
             <Search className="w-3.5 h-3.5 text-stone-400 shrink-0" />
             <span className="truncate">Search records...</span>
@@ -114,9 +115,10 @@ export function Header({
             <button
               onClick={handleRefresh}
               title="Refresh from ETLAB"
-              className="p-1 rounded hover:bg-[#f4f1eb] dark:hover:bg-[#23262c] text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors"
+              aria-label="Refresh from ETLAB"
+              className="p-1.5 min-w-[36px] min-h-[36px] flex items-center justify-center rounded hover:bg-[#f4f1eb] dark:hover:bg-[#23262c] text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors"
             >
-              <RefreshCw className={`w-3 h-3 ${isRefreshing ? 'animate-spin text-stone-700 dark:text-stone-200' : ''}`} />
+              <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-stone-700 dark:text-stone-200' : ''}`} />
             </button>
           </div>
 
@@ -124,12 +126,12 @@ export function Header({
           <div className="relative">
             <button
               onClick={handleOpenNotifications}
-              className="p-1.5 rounded-md text-stone-600 dark:text-stone-300 hover:bg-[#f4f1eb] dark:hover:bg-[#23262c] relative transition-colors cursor-pointer"
+              className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-md text-stone-600 dark:text-stone-300 hover:bg-[#f4f1eb] dark:hover:bg-[#23262c] relative transition-colors cursor-pointer"
               aria-label="Notifications"
             >
               <Bell className="w-4 h-4" />
               {unreadCount > 0 && (
-                <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-amber-600 ring-2 ring-white dark:ring-[#18191d]" />
+                <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-amber-600 ring-2 ring-white dark:ring-[#18191d]" />
               )}
             </button>
 
@@ -139,7 +141,7 @@ export function Header({
                   className="fixed inset-0 z-40"
                   onClick={() => setIsNotifOpen(false)}
                 />
-                <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white dark:bg-[#1b1d22] rounded-lg shadow-lg border border-[#e7e4de] dark:border-[#2a2d35] z-50 overflow-hidden animate-fade-in-up">
+                <div className="absolute right-0 mt-2 w-[calc(100vw-2rem)] max-w-sm sm:w-96 bg-white dark:bg-[#1b1d22] rounded-lg shadow-lg border border-[#e7e4de] dark:border-[#2a2d35] z-50 overflow-hidden animate-fade-in-up">
                   <div className="px-3.5 py-2.5 border-b border-[#e7e4de] dark:border-[#2a2d35] flex items-center justify-between bg-[#f9f8f5] dark:bg-[#202227]">
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-xs text-stone-900 dark:text-stone-100">

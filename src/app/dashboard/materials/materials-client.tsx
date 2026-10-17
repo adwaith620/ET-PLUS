@@ -335,17 +335,18 @@ export function MaterialsClient({
                   </span>
 
                   <div className="flex items-center gap-2 shrink-0">
-                    {mat.isShared && (mat.uploaderUsername === currentUsername || currentUsername === 'demo' || mat.uploadedBy === currentUserName) && (
+                    {mat.isShared && mat.uploaderUsername && mat.uploaderUsername === currentUsername && (
                       <button
                         type="button"
                         onClick={() => {
                           setMaterialToDelete(mat);
                           setDeleteError(null);
                         }}
-                        className="p-1.5 rounded-lg text-stone-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer"
+                        aria-label="Delete uploaded resource"
+                        className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-stone-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer"
                         title="Delete uploaded resource"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        <Trash2 className="w-4 h-4" />
                       </button>
                     )}
 
@@ -354,7 +355,7 @@ export function MaterialsClient({
                       download
                       target={mat.downloadUrl.startsWith('http') ? '_blank' : undefined}
                       rel="noopener noreferrer"
-                      className="px-3 py-1.5 rounded-lg bg-[#1c1917] hover:bg-[#292524] text-white dark:bg-[#f3f4f6] dark:hover:bg-white dark:text-[#141518] font-medium flex items-center gap-1.5 transition-colors shadow-xs shrink-0"
+                      className="px-3.5 py-2 min-h-[44px] rounded-lg bg-[#1c1917] hover:bg-[#292524] text-white dark:bg-[#f3f4f6] dark:hover:bg-white dark:text-[#141518] font-medium flex items-center gap-1.5 transition-colors shadow-xs shrink-0"
                     >
                       <span>Download</span>
                       <Download className="w-3.5 h-3.5" />
@@ -378,7 +379,12 @@ export function MaterialsClient({
 
       {/* Modal Dialog: Upload Resource */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="modal-material-title"
+        >
           {/* Backdrop */}
           <div
             className="fixed inset-0 bg-black/50 backdrop-blur-xs animate-in fade-in"
@@ -386,11 +392,11 @@ export function MaterialsClient({
           />
 
           {/* Modal Container */}
-          <div className="relative w-full max-w-lg bg-white dark:bg-[#1b1d22] rounded-xl border border-[#e7e4de] dark:border-[#2a2d35] shadow-2xl p-6 z-10 space-y-5 animate-in zoom-in-95 duration-150">
+          <div className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto bg-white dark:bg-[#1b1d22] rounded-xl border border-[#e7e4de] dark:border-[#2a2d35] shadow-2xl p-6 z-10 space-y-5 animate-in zoom-in-95 duration-150">
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-[#e7e4de] dark:border-[#2a2d35] pb-3">
               <div>
-                <h2 className="text-base font-bold text-[#1c1917] dark:text-[#f3f4f6]">
+                <h2 id="modal-material-title" className="text-base font-bold text-[#1c1917] dark:text-[#f3f4f6]">
                   Upload Cohort Resource (R3AI)
                 </h2>
                 <p className="text-xs text-[#78716c] dark:text-[#9ca3af]">
@@ -400,7 +406,8 @@ export function MaterialsClient({
               <button
                 disabled={uploading}
                 onClick={() => setIsModalOpen(false)}
-                className="p-1 rounded-md text-[#78716c] hover:text-[#1c1917] dark:hover:text-white"
+                aria-label="Close dialog"
+                className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-md text-[#78716c] hover:text-[#1c1917] dark:hover:text-white"
               >
                 <X className="w-5 h-5" />
               </button>

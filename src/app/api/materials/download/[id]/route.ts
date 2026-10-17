@@ -26,6 +26,10 @@ export async function GET(
     }
 
     const { id } = await params;
+    if (!id || !/^[a-zA-Z0-9_-]+$/.test(id)) {
+      return NextResponse.json({ error: 'Invalid resource identifier.' }, { status: 400 });
+    }
+
     const fileResult = await getSharedMaterialFile(id);
 
     if (!fileResult) {
@@ -44,6 +48,7 @@ export async function GET(
         'Content-Type': contentType,
         'Content-Disposition': `attachment; filename="${filename}"`,
         'Content-Length': fileBuffer.length.toString(),
+        'X-Content-Type-Options': 'nosniff',
         'Cache-Control': 'private, no-cache, no-store, must-revalidate',
       },
     });

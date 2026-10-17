@@ -8,12 +8,17 @@ import {
 import { DEMO_ANNOUNCEMENTS } from '@/lib/demo-data';
 import { Announcement } from '@/types';
 
+import { verifySameOrigin, isSafeUrl, checkRateLimit, PRIVATE_CACHE_HEADERS } from '@/lib/security';
+
 export const runtime = 'nodejs';
 
 export async function GET() {
   try {
     const combined = await getCombinedAnnouncements(DEMO_ANNOUNCEMENTS);
-    return NextResponse.json({ success: true, announcements: combined });
+    return NextResponse.json(
+      { success: true, announcements: combined },
+      { headers: PRIVATE_CACHE_HEADERS }
+    );
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Failed to retrieve announcements.';
     return NextResponse.json({ error: message }, { status: 500 });
@@ -22,9 +27,21 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    if (!verifySameOrigin(req)) {
+      return NextResponse.json({ error: 'Forbidden: Invalid request origin.' }, { status: 403 });
+    }
+
     const session = await getSession();
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized: You must be logged in to post an announcement.' }, { status: 401 });
+    }
+
+    const rateCheck = checkRateLimit(`announcement_${session.username}`, 15, 60000);
+    if (!rateCheck.allowed) {
+      return NextResponse.json(
+        { error: 'Rate limit exceeded: Too many announcements posted. Please wait a minute.' },
+        { status: 429 }
+      );
     }
 
     const body = await req.json();
@@ -36,6 +53,26 @@ export async function POST(req: NextRequest) {
 
     if (!content || typeof content !== 'string' || !content.trim()) {
       return NextResponse.json({ error: 'Announcement content is required.' }, { status: 400 });
+    }
+
+    if (title.trim().length > 150) {
+      return NextResponse.json({ error: 'Title cannot exceed 150 characters.' }, { status: 400 });
+    }
+
+    if (content.trim().length > 2000) {
+      return NextResponse.json({ error: 'Content cannot exceed 2000 characters.' }, { status: 400 });
+    }
+
+    let sanitizedLink: string | undefined = undefined;
+    if (link && typeof link === 'string' && link.trim()) {
+      const trimmedLink = link.trim();
+      if (!isSafeUrl(trimmedLink)) {
+        return NextResponse.json(
+          { error: 'Invalid URL: Only standard HTTP, HTTPS, or internal relative paths are permitted.' },
+          { status: 400 }
+        );
+      }
+      sanitizedLink = trimmedLink;
     }
 
     const validCategories = ['Academic', 'Exam', 'Hostel', 'Placement', 'Cohort', 'Project', 'General'];
@@ -56,7 +93,7 @@ export async function POST(req: NextRequest) {
       category: chosenCategory as Announcement['category'],
       content: content.trim(),
       pinned: Boolean(pinned),
-      link: link && typeof link === 'string' && link.trim() ? link.trim() : undefined,
+      link: sanitizedLink,
       isCohortShared: true,
       cohort: 'R3AI',
     };
