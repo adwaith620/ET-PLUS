@@ -46,11 +46,15 @@ Never use ETPlus to access another student's private academic information withou
 
 ## ⚠️ Disclaimer
 
-ETPlus is an independent, student-focused project and is **not affiliated with, endorsed by, or an official product of ETLAB or TKM College of Engineering**.
+ETPlus is an independent, student-focused project. It is **not affiliated with, endorsed by, sponsored by, or an official product of ETLAB or TKM College of Engineering**.
 
-ETLAB remains the source of truth for official academic records. Use ETPlus only with authorized access and in accordance with applicable platform rules.
+**ETPlus does not claim ownership of ETLAB, its source code, branding, trademarks, or other proprietary materials.** ETLAB is an external academic platform that ETPlus connects to, where authorized, to retrieve the authenticated student's academic information and present it through an alternative interface.
 
-ETLAB, TKM College of Engineering, and other third-party names, trademarks, institutional content, and assets remain the property of their respective owners.
+ETLAB remains the source of truth for official academic records. ETPlus is not intended to replace ETLAB or bypass its authentication, access controls, or usage restrictions.
+
+All third-party software, trademarks, institutional content, and assets remain the property of their respective owners. The project's license applies only to original code and other materials that the project maintainer has the legal right to license.
+
+Use ETPlus only with authorized access and in accordance with the applicable platform rules and institutional policies.
 
 ## 📄 License
 
