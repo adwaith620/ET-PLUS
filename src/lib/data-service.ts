@@ -2,6 +2,7 @@ import { cookies } from 'next/headers';
 import { getSession } from './auth';
 import {
   DEMO_PROFILE,
+  DEMO_PROFILE_B,
   DEMO_SUBJECTS,
   DEMO_TIMETABLE,
   DEMO_DAY_HISTORY,
@@ -22,6 +23,7 @@ import { getSynchronizedAssignments, AssignmentSyncResult } from './assignment-s
 import {
   StudentProfile,
   AttendanceSummary,
+  SubjectAttendanceData,
   TimetableSlot,
   DayAttendanceHistory,
   Assignment,
@@ -36,6 +38,7 @@ export interface DashboardData {
   mode: 'live' | 'demo';
   profile: StudentProfile;
   attendance: AttendanceSummary;
+  attendanceError?: string;
   timetable: TimetableSlot[];
   dayHistory: DayAttendanceHistory[];
   assignments: Assignment[];
@@ -45,6 +48,7 @@ export interface DashboardData {
   materials: StudyMaterial[];
   results: SemesterResult[];
   assessmentRecords: EtlabAssessmentRecord[];
+  resultsError?: string;
   announcements: Announcement[];
   notifications: NotificationItem[];
   lastSynced: string;
@@ -98,16 +102,20 @@ export async function getDashboardData(targetPercentage?: number): Promise<Dashb
       }
 
       const profile = normalizeStudentProfile(rawProfile || {
-        ...DEMO_PROFILE,
         name: session.displayName || session.username,
+        admissionNo: session.username,
         registerNo: session.username,
       });
 
       const attResult = await etlabFetchAttendance(session.sessionId, profile.semester || 3);
-      const subjects = attResult.success && attResult.subjects && attResult.subjects.length > 0
-        ? attResult.subjects.map(normalizeSubjectAttendance)
-        : DEMO_SUBJECTS; // Graceful fallback if semester attendance table format differs
+      let subjects: SubjectAttendanceData[] = [];
+      let attendanceError: string | undefined;
 
+      if (attResult.success && attResult.subjects && attResult.subjects.length > 0) {
+        subjects = attResult.subjects.map(normalizeSubjectAttendance);
+      } else if (!attResult.success) {
+        attendanceError = attResult.error || 'Attendance records unavailable or not yet published on ETLAB.';
+      }
       const attendance = calculateAttendanceSummary(subjects, effectiveTarget);
 
       const asgSync = await getSynchronizedAssignments(session);
@@ -116,9 +124,17 @@ export async function getDashboardData(targetPercentage?: number): Promise<Dashb
       const upcomingAssignmentsCount = asgSync.upcomingCount;
 
       const resResult = await etlabFetchResults(session.sessionId);
-      const assessmentRecords = resResult.success && resResult.records && resResult.records.length > 0
-        ? resResult.records
-        : DEMO_ASSESSMENT_RECORDS;
+      let assessmentRecords: EtlabAssessmentRecord[] = [];
+      let resultsError: string | undefined;
+
+      if (resResult.success && resResult.records) {
+        assessmentRecords = resResult.records;
+      } else if (!resResult.success) {
+        resultsError = resResult.error || 'Unable to retrieve examination results from ETLAB.';
+      }
+
+      // Live semester results: strictly isolated to currently authenticated student (never return DEMO_RESULTS)
+      const results: SemesterResult[] = [];
 
       const cohortAnnouncements = await getCohortAnnouncements();
       const sharedMaterials = await getSharedMaterials();
@@ -136,6 +152,7 @@ export async function getDashboardData(targetPercentage?: number): Promise<Dashb
         mode: 'live',
         profile,
         attendance,
+        attendanceError,
         timetable: DEMO_TIMETABLE,
         dayHistory: DEMO_DAY_HISTORY,
         assignments,
@@ -143,27 +160,28 @@ export async function getDashboardData(targetPercentage?: number): Promise<Dashb
         assignmentError,
         upcomingAssignmentsCount,
         materials: [],   // In live mode, strictly return verified semester materials (no silent demo fallback)
-        results: DEMO_RESULTS,
+        results,
         assessmentRecords,
+        resultsError,
         announcements,
         notifications,
         lastSynced: now,
         targetPercentage: effectiveTarget,
       };
     } catch {
-      // In case of upstream parsing failure, return session-linked normalized state
+      // In case of upstream parsing failure, return session-linked isolated state
       const profile = normalizeStudentProfile(session.profile || {
-        ...DEMO_PROFILE,
         name: session.displayName || session.username,
+        admissionNo: session.username,
         registerNo: session.username,
       });
-      const attendance = calculateAttendanceSummary(DEMO_SUBJECTS, effectiveTarget);
+      const attendance = calculateAttendanceSummary([], effectiveTarget);
       const cohortAnnouncements = await getCohortAnnouncements();
       const sharedMaterials = await getSharedMaterials();
       const announcements = await getCombinedAnnouncements(DEMO_ANNOUNCEMENTS);
       const notifications = await generateDynamicNotifications({
         username: session.username,
-        subjects: attendance.subjects,
+        subjects: [],
         assignments: [],
         cohortAnnouncements,
         sharedMaterials,
@@ -174,14 +192,16 @@ export async function getDashboardData(targetPercentage?: number): Promise<Dashb
         mode: 'live',
         profile,
         attendance,
+        attendanceError: 'Unable to synchronize attendance from ETLAB portal.',
         timetable: DEMO_TIMETABLE,
         dayHistory: DEMO_DAY_HISTORY,
-        assignments: [], // In live mode, never return synthetic demo assignments on error
+        assignments: [],
         assignmentError: 'Unable to synchronize assignments from ETLAB portal.',
         upcomingAssignmentsCount: 0,
         materials: [],
-        results: DEMO_RESULTS,
-        assessmentRecords: DEMO_ASSESSMENT_RECORDS,
+        results: [],
+        assessmentRecords: [],
+        resultsError: 'Unable to synchronize examination records from ETLAB portal.',
         announcements,
         notifications,
         lastSynced: now,
@@ -190,9 +210,19 @@ export async function getDashboardData(targetPercentage?: number): Promise<Dashb
     }
   }
 
-  // Demo mode
-  const profile = normalizeStudentProfile(DEMO_PROFILE);
-  const attendance = calculateAttendanceSummary(DEMO_SUBJECTS, effectiveTarget);
+  // Demo mode: Strict isolation between Account A (Primary Demo) and Account B (Controlled Test Fixture)
+  const isStudentB =
+    session.username === '25CTA99' ||
+    session.username === 'demo-b' ||
+    session.username === 'student-b' ||
+    session.displayName?.toLowerCase().includes('kavya');
+
+  const activeProfile = isStudentB ? DEMO_PROFILE_B : DEMO_PROFILE;
+  const profile = normalizeStudentProfile(session.profile || activeProfile);
+
+  const demoSubjects = isStudentB ? [] : DEMO_SUBJECTS;
+  const attendance = calculateAttendanceSummary(demoSubjects, effectiveTarget);
+
   const asgSync = await getSynchronizedAssignments(session);
   const assignments = asgSync.assignments;
   const upcomingAssignmentsCount = asgSync.upcomingCount;
@@ -209,6 +239,10 @@ export async function getDashboardData(targetPercentage?: number): Promise<Dashb
     targetPercentage: effectiveTarget,
   });
 
+  // Account B has zero Account A results (isolated test fixture)
+  const demoResults = isStudentB ? [] : DEMO_RESULTS;
+  const demoAssessmentRecords = isStudentB ? [] : DEMO_ASSESSMENT_RECORDS;
+
   return {
     mode: 'demo',
     profile,
@@ -218,9 +252,9 @@ export async function getDashboardData(targetPercentage?: number): Promise<Dashb
     assignments,
     assignmentSyncResult: asgSync,
     upcomingAssignmentsCount,
-    materials: DEMO_MATERIALS,
-    results: DEMO_RESULTS,
-    assessmentRecords: DEMO_ASSESSMENT_RECORDS,
+    materials: isStudentB ? [] : DEMO_MATERIALS,
+    results: demoResults,
+    assessmentRecords: demoAssessmentRecords,
     announcements,
     notifications,
     lastSynced: now,

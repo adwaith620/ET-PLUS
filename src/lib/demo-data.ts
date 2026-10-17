@@ -1,4 +1,4 @@
-import {
+import type {
   StudentProfile,
   SubjectAttendanceData,
   DayAttendanceHistory,
@@ -9,8 +9,8 @@ import {
   EtlabAssessmentRecord,
   Announcement,
   NotificationItem,
-} from '@/types';
-import { normalizeStudentProfile, SEMESTER_3_OFFICIAL_TIMETABLE } from './course-catalog';
+} from '../types/index.ts';
+import { normalizeStudentProfile, SEMESTER_3_OFFICIAL_TIMETABLE } from './course-catalog.ts';
 
 export const DEMO_PROFILE: StudentProfile = normalizeStudentProfile({
   name: 'Adwait S.',
@@ -26,6 +26,22 @@ export const DEMO_PROFILE: StudentProfile = normalizeStudentProfile({
   academicYear: '2025 - 2026',
   institution: 'TKM College of Engineering, Kollam',
   mobile: '+91 98470 12345',
+});
+
+export const DEMO_PROFILE_B: StudentProfile = normalizeStudentProfile({
+  name: 'Kavya N.',
+  admissionNo: '25CTA99',
+  registerNo: 'TKM25CSAI099',
+  rollNo: 'B25CTA99',
+  dob: '2005-11-14',
+  gender: 'Female',
+  department: 'Computer Science (AI)',
+  programme: 'B.Tech in Computer Science and Engineering (Artificial Intelligence)',
+  semester: 3,
+  batch: '2025–2029',
+  academicYear: '2025 - 2026',
+  institution: 'TKM College of Engineering, Kollam',
+  mobile: '+91 94471 99887',
 });
 
 export const DEMO_SUBJECTS: SubjectAttendanceData[] = [
@@ -169,79 +185,11 @@ export const DEMO_DAY_HISTORY: DayAttendanceHistory[] = [
   },
 ];
 
-export const DEMO_ASSIGNMENTS: Assignment[] = [
-  {
-    id: 'asg-01',
-    title: 'Assignment 2: Gradient Descent & Linear Regression from Scratch',
-    subject: 'Introduction to Machine Learning',
-    subjectCode: '24AIJ303',
-    faculty: 'Nisa A K',
-    publishDate: '2026-10-12',
-    dueDate: '2026-10-24',
-    status: 'upcoming',
-    description: 'Implement batch and stochastic gradient descent in Python without high-level ML frameworks. Plot cost function convergence and submit Jupyter notebook.',
-    submissionMode: 'Online',
-    maxMarks: 20,
-    externalUrl: 'https://tkmce.etlab.in/student/assignments',
-  },
-  {
-    id: 'asg-02',
-    title: 'Assignment 2: AVL Tree Balancing and Red-Black Tree Rotations',
-    subject: 'Data Structures and Algorithms',
-    subjectCode: '24CSP304',
-    faculty: 'Aswathy Gandhi S',
-    publishDate: '2026-10-10',
-    dueDate: '2026-10-21',
-    status: 'upcoming',
-    description: 'Implement self-balancing binary search tree insertions, LL/RR/LR/RL rotation algorithms with trace diagrams for a 15-key sequence.',
-    submissionMode: 'Submission mode not specified',
-    maxMarks: 20,
-    externalUrl: 'https://tkmce.etlab.in/student/assignments',
-  },
-  {
-    id: 'asg-03',
-    title: 'Assignment 1: Singular Value Decomposition and Fourier Transforms',
-    subject: 'Advanced Linear Algebra and Transforms',
-    subjectCode: '24MAP300',
-    faculty: 'Fayis Thazhethe Palliyali',
-    publishDate: '2026-09-25',
-    dueDate: '2026-10-08',
-    status: 'completed',
-    description: 'Calculate orthogonal basis projection matrices, image compression rank approximations using SVD, and Fourier transform frequency spectra.',
-    submissionMode: 'Online',
-    maxMarks: 20,
-    obtainedMarks: 19,
-    externalUrl: 'https://tkmce.etlab.in/student/assignments',
-  },
-  {
-    id: 'asg-04',
-    title: 'Assignment 1: CPU Pipelining Hazard Simulation & Forwarding Unit',
-    subject: 'Computing Systems and Organization',
-    subjectCode: '24AIP305',
-    faculty: 'Amina M',
-    publishDate: '2026-10-02',
-    dueDate: '2026-10-15',
-    status: 'submitted',
-    description: 'Design a 5-stage MIPS pipeline simulation handling RAW data hazards and branch stalls using register forwarding.',
-    submissionMode: 'Offline',
-    maxMarks: 15,
-    externalUrl: 'https://tkmce.etlab.in/student/assignments',
-  },
-  {
-    id: 'asg-05',
-    title: 'Problem Set 1: Combinatorics, Generating Functions & Graph Proofs',
-    subject: 'Discrete Mathematics',
-    subjectCode: '24EST382',
-    faculty: 'Manu J Pillai',
-    publishDate: '2026-10-14',
-    dueDate: '2026-10-28',
-    status: 'upcoming',
-    description: 'Solve recurrence relations using characteristic equations and prove graph isomorphism for given planar graphs.',
-    submissionMode: 'Submission mode not specified',
-    maxMarks: 15,
-    externalUrl: 'https://tkmce.etlab.in/student/assignments',
-  },
-];
+/**
+ * All fabricated and artificial assignments have been permanently removed.
+ * Official assignments are synchronized strictly from authentic ETLAB records.
+ */
+export const DEMO_ASSIGNMENTS: Assignment[] = [];
 
 export const DEMO_MATERIALS: StudyMaterial[] = [
   {

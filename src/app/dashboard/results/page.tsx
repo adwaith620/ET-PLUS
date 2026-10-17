@@ -6,5 +6,15 @@ export default async function ResultsPage() {
   const data = await getDashboardData();
   if (!data) return null;
 
-  return <ResultsClient results={data.results} assessmentRecords={data.assessmentRecords || []} mode={data.mode} />;
+  return (
+    <ResultsClient
+      results={data.results}
+      assessmentRecords={data.assessmentRecords || []}
+      resultsError={data.resultsError}
+      admissionNo={data.profile.admissionNo}
+      studentName={data.profile.name}
+      mode={data.mode}
+    />
+  );
 }
+

@@ -54,9 +54,6 @@ export default async function DashboardOverviewPage() {
             <span className="text-xs text-stone-500 dark:text-stone-400 font-medium">
               Semester {profile.semester} • Batch {profile.batch}
             </span>
-            <span className="text-xs text-stone-400 font-mono">
-              Roll No: {profile.rollNo}
-            </span>
           </div>
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-stone-900 dark:text-stone-100">
             Welcome back, {profile.name}

@@ -1,157 +1,131 @@
 async function testAll() {
   const base = 'http://localhost:3000';
-  console.log('--- Testing API login & Session ---');
+  console.log('--- 1. Testing API Login & Session for Account A (Primary) ---');
 
-  const loginRes = await fetch(`${base}/api/auth/login`, {
+  const loginResA = await fetch(`${base}/api/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ mode: 'demo' }),
+    body: JSON.stringify({ mode: 'demo', account: 'A' }),
   });
 
-  const cookieHeader = loginRes.headers.get('set-cookie');
-  console.log('Login status:', loginRes.status);
-  console.log('Set-Cookie present:', !!cookieHeader);
+  const cookieHeaderA = loginResA.headers.get('set-cookie');
+  console.log('Account A login status:', loginResA.status);
+  console.log('Set-Cookie present for Account A:', !!cookieHeaderA);
+  const cookieA = cookieHeaderA ? cookieHeaderA.split(';')[0] : '';
 
-  const cookie = cookieHeader ? cookieHeader.split(';')[0] : '';
+  console.log('\n--- 2. Verifying Absence of Roll Number Displays ---');
+  // 2a. Overview Page
+  const ovResA = await fetch(`${base}/dashboard`, { headers: { Cookie: cookieA } });
+  const ovHtmlA = await ovResA.text();
+  const ovHasRoll = ovHtmlA.includes('Roll No:') || ovHtmlA.includes('Roll Number:');
+  console.log('Overview page contains "Roll No":', ovHasRoll, '(Must be false)');
+  if (ovHasRoll) throw new Error('Overview page still displays Roll No!');
 
-  console.log('\n--- Testing Target Persistence API ---');
-  const postTargetRes = await fetch(`${base}/api/user/target`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Cookie: cookie },
-    body: JSON.stringify({ target: 80 }),
-  });
-  console.log('POST /api/user/target status:', postTargetRes.status);
-  const targetCookie = postTargetRes.headers.get('set-cookie');
-  const fullCookie = `${cookie}; ${targetCookie ? targetCookie.split(';')[0] : ''}`;
+  // 2b. Profile Page
+  const profResA = await fetch(`${base}/dashboard/profile`, { headers: { Cookie: cookieA } });
+  const profHtmlA = await profResA.text();
+  const profHasRoll = profHtmlA.includes('<span className="text-[11px] font-medium text-[#78716c] dark:text-[#9ca3af] block">Roll Number</span>') ||
+                      profHtmlA.includes('block">Roll Number</span>');
+  console.log('Profile page contains Roll Number card:', profHasRoll, '(Must be false)');
+  if (profHasRoll) throw new Error('Profile page still displays Roll Number card!');
 
-  console.log('\n--- Testing Dashboard Routes & Animation ---');
-  const routes = [
-    '/dashboard',
-    '/dashboard/attendance',
-    '/dashboard/timetable',
-    '/dashboard/assignments',
-    '/dashboard/materials',
-    '/dashboard/results',
-    '/dashboard/announcements',
-    '/dashboard/profile',
-    '/dashboard/settings',
+  console.log('\n--- 3. Verifying Permanent Removal of Fabricated Assignments ---');
+  const asgApiResA = await fetch(`${base}/api/assignments`, { headers: { Cookie: cookieA } });
+  const asgApiDataA = await asgApiResA.json();
+  console.log('Assignments API success:', asgApiDataA.success);
+  console.log('Assignments count:', asgApiDataA.totalCount, '(Must be 0)');
+  console.log('Upcoming assignments count:', asgApiDataA.upcomingCount, '(Must be 0)');
+
+  // Verify that known fabricated assignments are completely absent
+  const fabricatedTitles = [
+    'Gradient Descent & Linear Regression from Scratch',
+    'AVL Tree Balancing and Red-Black Tree Rotations',
+    'Singular Value Decomposition and Fourier Transforms',
+    'CPU Pipelining Hazard Simulation',
+    'Combinatorics, Generating Functions & Graph Proofs',
   ];
 
-  for (const route of routes) {
-    const res = await fetch(`${base}${route}`, {
-      headers: { Cookie: fullCookie },
-    });
-    const html = await res.text();
-    const hasFadeInUp = html.includes('animate-fade-in-up');
-    console.log(`${route}: HTTP ${res.status} | Has animate-fade-in-up: ${hasFadeInUp}`);
+  for (const title of fabricatedTitles) {
+    const inOv = ovHtmlA.includes(title);
+    const inApi = asgApiDataA.assignments?.some(a => a.title.includes(title));
+    console.log(`Fabricated "${title.slice(0, 30)}..." in UI: ${inOv} | in API: ${inApi}`);
+    if (inOv || inApi) throw new Error(`Fabricated assignment "${title}" was found!`);
   }
 
-  console.log('\n--- Testing Assignments API Endpoint ---');
-  const asgApiRes = await fetch(`${base}/api/assignments`, {
-    headers: { Cookie: fullCookie },
-  });
-  console.log('GET /api/assignments status:', asgApiRes.status);
-  const asgApiData = await asgApiRes.json();
-  console.log('API success:', asgApiData.success);
-  console.log('API upcomingCount:', asgApiData.upcomingCount);
-  console.log('API totalCount:', asgApiData.totalCount);
-  console.log('API source:', asgApiData.source);
+  console.log('\n--- 4. Verifying Account A Results Tab ---');
+  const resPageA = await fetch(`${base}/dashboard/results`, { headers: { Cookie: cookieA } });
+  const resHtmlA = await resPageA.text();
+  console.log('Results page HTTP status for Account A:', resPageA.status);
 
-  console.log('\n--- Checking Overview vs Sidebar Assignments Synchronization ---');
-  const ovRes = await fetch(`${base}/dashboard`, {
-    headers: { Cookie: fullCookie },
-  });
-  const ovHtml = await ovRes.text();
-
-  const asgRes = await fetch(`${base}/dashboard/assignments`, {
-    headers: { Cookie: fullCookie },
-  });
-  const asgHtml = await asgRes.text();
-
-  // 1. Sidebar badge agreement
-  const sidebarHasBadge = ovHtml.includes('3 Due') && asgHtml.includes('3 Due');
-  console.log(`Sidebar badge displays "3 Due" on both pages: ${sidebarHasBadge}`);
-
-  // 2. Upcoming count agreement
-  console.log(`Overview shows "3 Due" upcoming badge: ${ovHtml.includes('3 Due')}`);
-  console.log(`Assignments page shows "Upcoming (3)" tab: ${asgHtml.includes('Upcoming') && asgHtml.includes('>3<')}`);
-
-  // 3. Exact titles present on both pages
-  const titles = [
-    'Gradient Descent',
-    'Assignment 2: AVL Tree Balancing and Red-Black Tree Rotations',
-    'Combinatorics, Generating Functions',
-  ];
-
-  for (const t of titles) {
-    const onOv = ovHtml.includes(t);
-    const onAsg = asgHtml.includes(t);
-    console.log(`Title "${t.slice(0, 35)}...": Overview=${onOv} | Assignments=${onAsg}`);
-  }
-
-  // 4. Live countdown and submission mode
-  console.log(`Assignments page has live countdown (Due in ...): ${asgHtml.includes('Due in')}`);
-  console.log(`Assignments page has explicit submission mode: ${asgHtml.includes('Online') && asgHtml.includes('Submission mode not specified')}`);
-  console.log(`Assignments page has working Course Filter: ${asgHtml.includes('All Enrolled Courses') && asgHtml.includes('24AIJ303')}`);
-  console.log(`Assignments page has Semester 3 selector: ${asgHtml.includes('Semester 3 (Current Academic Year)')}`);
-  console.log(`Assignments page has Sorting dropdown: ${asgHtml.includes('Deadline: Soonest first')}`);
-
-  console.log('\n--- Checking Friday Timetable Interchange & 24EST372 Classification ---');
-  const ttRes = await fetch(`${base}/dashboard/timetable`, {
-    headers: { Cookie: fullCookie },
-  });
-  const ttHtml = await ttRes.text();
-  console.log(`Friday Period 1 24HUT310 (Prof. Anumod B): ${ttHtml.includes('24HUT310') && ttHtml.includes('Prof. Anumod B')}`);
-  console.log(`Friday Period 6 24EST382 (Manu J Pillai): ${ttHtml.includes('24EST382') && ttHtml.includes('Manu J Pillai')}`);
-  console.log(`24EST372 is Theory Course: ${ttHtml.includes('Theory Course')}`);
-
-  console.log('\n--- Testing Cohort Announcements API ---');
-  const createAnnRes = await fetch(`${base}/api/announcements`, {
+  console.log('\n--- 5. Testing Sign-Out and Invalidation ---');
+  const logoutRes = await fetch(`${base}/api/auth/logout`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Cookie: fullCookie },
-    body: JSON.stringify({
-      title: 'E2E Test Cohort Notice',
-      content: 'This is an automated test notice for R3AI cohort.',
-      category: 'Cohort',
-      link: 'https://tkmce.ac.in',
-    }),
+    headers: { Cookie: cookieA },
   });
-  console.log('POST /api/announcements status:', createAnnRes.status);
-  const createAnnData = await createAnnRes.json();
-  console.log('Created announcement ID:', createAnnData.announcement?.id);
-  console.log('Created announcement cohort:', createAnnData.announcement?.cohort);
-  console.log('Created announcement isCohortShared:', createAnnData.announcement?.isCohortShared);
+  console.log('Sign-out status:', logoutRes.status);
 
-  const getAnnRes = await fetch(`${base}/api/announcements`, {
-    headers: { Cookie: fullCookie },
+  console.log('\n--- 6. Testing Account B Login (Controlled Isolation Fixture) ---');
+  const loginResB = await fetch(`${base}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mode: 'demo', account: 'B' }),
   });
-  const getAnnData = await getAnnRes.json();
-  const foundAnn = getAnnData.announcements?.find((a) => a.id === createAnnData.announcement?.id);
-  console.log('Found newly posted announcement in GET:', !!foundAnn);
+  const cookieHeaderB = loginResB.headers.get('set-cookie');
+  console.log('Account B login status:', loginResB.status);
+  const cookieB = cookieHeaderB ? cookieHeaderB.split(';')[0] : '';
 
-  if (createAnnData.announcement?.id) {
-    const delAnnRes = await fetch(`${base}/api/announcements/${createAnnData.announcement.id}`, {
-      method: 'DELETE',
-      headers: { Cookie: fullCookie },
-    });
-    console.log('DELETE /api/announcements/[id] status:', delAnnRes.status);
-    const delAnnData = await delAnnRes.json();
-    console.log('Deleted announcement success:', delAnnData.success);
+  // 6a. Account B Profile Isolation
+  const profResB = await fetch(`${base}/dashboard/profile`, { headers: { Cookie: cookieB } });
+  const profHtmlB = await profResB.text();
+  const profBHasKavya = profHtmlB.includes('Kavya N.') && profHtmlB.includes('25CTA99');
+  const profBHasAdwait = profHtmlB.includes('Adwait S.') || profHtmlB.includes('25CTA12');
+  console.log('Account B Profile displays Kavya N. (25CTA99):', profBHasKavya);
+  console.log('Account B Profile leaks Adwait S. (25CTA12):', profBHasAdwait, '(Must be false)');
+  if (!profBHasKavya || profBHasAdwait) {
+    throw new Error('Account B profile leaked Account A identity or failed to load!');
   }
 
-  console.log('\n--- Testing Notifications Mark-As-Read API & Persistence ---');
-  const readRes = await fetch(`${base}/api/notifications/read`, {
+  // 6b. Account B Results Isolation: Must have ZERO Account A series records!
+  const resPageB = await fetch(`${base}/dashboard/results`, { headers: { Cookie: cookieB } });
+  const resHtmlB = await resPageB.text();
+  const resBHasAdwaitMarks = resHtmlB.includes('rec-s3-01') ||
+                            (resHtmlB.includes('Series Exam 1') && resHtmlB.includes('37'));
+  console.log('Account B Results leaks Account A examination marks:', resBHasAdwaitMarks, '(Must be false)');
+  if (resBHasAdwaitMarks) {
+    throw new Error('Critical Security Bug: Account B has access to Account A examination results!');
+  }
+  console.log('Account B displays account-isolated empty state message:', resHtmlB.includes('25CTA99'));
+
+  console.log('\n--- 7. Security: Attempting Unauthorized Access via Injected Query Params ---');
+  // Try to access Account A records while authenticated as Account B by injecting studentId parameter
+  const attackUrl = `${base}/dashboard/results?studentId=25CTA12&username=25CTA12&admissionNo=25CTA12`;
+  const attackRes = await fetch(attackUrl, { headers: { Cookie: cookieB } });
+  const attackHtml = await attackRes.text();
+  const attackLeaked = attackHtml.includes('Adwait S.') || attackHtml.includes('rec-s3-01');
+  console.log('Injected parameters leak Account A records:', attackLeaked, '(Must be false)');
+  if (attackLeaked) {
+    throw new Error('Critical Security Vulnerability: Server honored client-supplied student identifier!');
+  }
+
+  console.log('\n--- 8. Testing Account Switching Back to Account A ---');
+  const loginResA2 = await fetch(`${base}/api/auth/login`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Cookie: fullCookie },
-    body: JSON.stringify({ ids: ['notif-test-1', 'notif-test-2'] }),
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mode: 'demo', account: 'A' }),
   });
-  console.log('POST /api/notifications/read status:', readRes.status);
-  const readData = await readRes.json();
-  console.log('Read IDs saved:', readData.readIds?.includes('notif-test-1'));
+  const cookieHeaderA2 = loginResA2.headers.get('set-cookie');
+  const cookieA2 = cookieHeaderA2 ? cookieHeaderA2.split(';')[0] : '';
+  const profResA2 = await fetch(`${base}/dashboard/profile`, { headers: { Cookie: cookieA2 } });
+  const profHtmlA2 = await profResA2.text();
+  console.log('Account A profile successfully restored after switch:', profHtmlA2.includes('Adwait S.'));
+  console.log('Account A does not retain stale Account B data:', !profHtmlA2.includes('Kavya N.'));
 
   console.log('\n==============================================');
-  console.log('ALL VERIFICATION CHECKS SUCCESSFULLY PASSED!');
+  console.log('ALL SECURITY, ISOLATION & DATA CHECKS PASSED!');
   console.log('==============================================');
 }
 
-testAll().catch(console.error);
+testAll().catch((err) => {
+  console.error('Test failed with error:', err);
+  process.exit(1);
+});

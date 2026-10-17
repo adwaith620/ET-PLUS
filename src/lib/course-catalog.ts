@@ -167,8 +167,8 @@ function isLikelyAddressArtifact(value: string | undefined): boolean {
  * Rule: Institutional email is strictly `[admissionNo]@tkmce.ac.in`.
  */
 export function normalizeStudentProfile(rawProfile: Partial<StudentProfile>): StudentProfile {
-  // 1. Admission Number
-  const admissionNo = (rawProfile.admissionNo || '25CTA12').trim();
+  // 1. Admission Number: preserve authenticated student's admission number
+  const admissionNo = (rawProfile.admissionNo || rawProfile.registerNo || '').trim();
 
   // 2. Department: Strip address pollution like 'Cherumkuzhi'
   let department = 'Computer Science (AI)';
@@ -185,35 +185,44 @@ export function normalizeStudentProfile(rawProfile: Partial<StudentProfile>): St
     }
   }
 
-  // 3. Roll number: Verified roll number is B25CTA12
-  let rollNo = 'B25CTA12';
+  // 3. Roll number: Retain student's verified roll number in data model without cross-account contamination
+  let rollNo = '';
   if (rawProfile.rollNo && !isLikelyAddressArtifact(rawProfile.rollNo)) {
-    const trimmed = rawProfile.rollNo.trim();
-    if (trimmed.toUpperCase().startsWith('B25CTA') || trimmed.toUpperCase().startsWith('CTA')) {
-      rollNo = trimmed.toUpperCase();
-    }
+    rollNo = rawProfile.rollNo.trim();
+  } else if (admissionNo) {
+    rollNo = admissionNo.startsWith('B') ? admissionNo : `B${admissionNo}`;
   }
 
   // 4. Semester: Must strictly be 3 (Third Semester)
-  const semester = 3;
+  const semester = rawProfile.semester || 3;
 
   // 5. Batch & Academic Year
-  const batch = '2025–2029';
-  const academicYear = '2025 - 2026';
+  const batch = rawProfile.batch || '2025–2029';
+  const academicYear = rawProfile.academicYear || '2025 - 2026';
 
-  // 6. Institutional Email: Admission number followed by @tkmce.ac.in
+  // 6. Institutional Email: Authenticated admission number followed by @tkmce.ac.in
   const cleanAdmForEmail = admissionNo.replace(/[^a-zA-Z0-9]/g, '');
-  const email = cleanAdmForEmail ? `${cleanAdmForEmail}@tkmce.ac.in` : 'B25CTA12@tkmce.ac.in';
+  const email = cleanAdmForEmail
+    ? `${cleanAdmForEmail}@tkmce.ac.in`
+    : (rawProfile.email || 'student@tkmce.ac.in');
+
+  // 7. Student Name
+  let name = 'Student';
+  if (rawProfile.name && !isLikelyAddressArtifact(rawProfile.name)) {
+    name = rawProfile.name.trim();
+  } else if (admissionNo) {
+    name = admissionNo;
+  }
 
   return {
-    name: rawProfile.name && !isLikelyAddressArtifact(rawProfile.name) ? rawProfile.name : 'Adwait S.',
+    name,
     admissionNo,
-    registerNo: rawProfile.registerNo || 'TKM25CSAI012',
+    registerNo: rawProfile.registerNo || admissionNo || 'TKM25CSAI012',
     rollNo,
     dob: rawProfile.dob || '2005-08-22',
     gender: rawProfile.gender || 'Male',
     department,
-    programme: 'B.Tech in Computer Science and Engineering (Artificial Intelligence)',
+    programme: rawProfile.programme || 'B.Tech in Computer Science and Engineering (Artificial Intelligence)',
     semester,
     batch,
     academicYear,

@@ -60,14 +60,18 @@ export default function LoginPage() {
     }
   };
 
-  const handleDemoSignIn = async () => {
+  const handleDemoSignIn = async (account: 'A' | 'B' = 'A') => {
     setErrorMessage('');
     setLoading(true);
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: 'demo' }),
+        body: JSON.stringify({
+          mode: 'demo',
+          account,
+          username: account === 'B' ? 'student-b' : '25CTA12',
+        }),
       });
       const data = await res.json();
       if (data.success) {
@@ -244,32 +248,48 @@ export default function LoginPage() {
               <div className="p-3.5 rounded-lg bg-[#fdfcfb] dark:bg-[#202227] border border-[#e7e4de] dark:border-[#2a2d35] space-y-1.5 text-xs">
                 <div className="flex items-center gap-2 font-semibold text-[#1c1917] dark:text-[#f3f4f6]">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                  <span>Demo Student Profile</span>
+                  <span>Account A: Primary Student Fixture</span>
                 </div>
                 <p className="text-[#78716c] dark:text-[#9ca3af] leading-relaxed">
-                  Adwait S. • TKM23CS042 • B.Tech Computer Science (S6) • TKM College of Engineering
+                  Adwait S. • B.Tech Computer Science (AI), Semester 3 • TKM College of Engineering
                 </p>
                 <div className="pt-1 flex items-center gap-3 text-[11px] text-[#78716c] dark:text-[#9ca3af]">
-                  <span>Overall: 83.2%</span>
+                  <span>Admission: 25CTA12</span>
                   <span>• Target: 75%</span>
-                  <span>• 7 Courses</span>
+                  <span>• Verified S3 Courses</span>
                 </div>
               </div>
 
               <button
-                onClick={handleDemoSignIn}
+                onClick={() => handleDemoSignIn('A')}
                 disabled={loading}
-                className="w-full py-2.5 px-4 rounded-lg font-medium text-xs bg-[#1c1917] hover:bg-[#292524] text-white dark:bg-[#f3f4f6] dark:hover:bg-white dark:text-[#141518] shadow-xs flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                className="w-full py-2.5 px-4 rounded-lg font-medium text-xs bg-[#1c1917] hover:bg-[#292524] text-white dark:bg-[#f3f4f6] dark:hover:bg-white dark:text-[#141518] shadow-xs flex items-center justify-center gap-2 transition-all disabled:opacity-50 cursor-pointer"
               >
                 {loading ? (
-                  <span>Launching Demo Workspace...</span>
+                  <span>Launching Workspace...</span>
                 ) : (
                   <>
                     <Sparkles className="w-4 h-4" />
-                    <span>Enter Demo Dashboard</span>
+                    <span>Enter as Student Account A</span>
                   </>
                 )}
               </button>
+
+              <div className="pt-2 border-t border-[#e7e4de] dark:border-[#2a2d35]">
+                <div className="flex items-center justify-between text-[11px] text-[#78716c] dark:text-[#9ca3af] mb-2">
+                  <span>Cross-Account Isolation Testing:</span>
+                  <span className="font-mono text-[10px]">Account B (Isolated)</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleDemoSignIn('B')}
+                  disabled={loading}
+                  className="w-full py-2 px-3 rounded-lg text-xs font-semibold bg-[#f4f1eb] hover:bg-[#e7e4de] text-[#1c1917] dark:bg-[#202227] dark:hover:bg-[#282b33] dark:text-[#f3f4f6] border border-[#e7e4de] dark:border-[#2a2d35] flex items-center justify-center gap-2 transition-all disabled:opacity-50 cursor-pointer"
+                >
+                  <User className="w-3.5 h-3.5" />
+                  <span>Sign In as Account B (Kavya N. • 25CTA99)</span>
+                </button>
+              </div>
             </div>
           )}
 

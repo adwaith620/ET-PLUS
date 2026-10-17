@@ -60,7 +60,7 @@ export default async function ProfilePage() {
           <h3 className="text-[11px] font-semibold uppercase tracking-wider text-[#78716c] dark:text-[#9ca3af] mb-3">
             Academic Information
           </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             <div className="p-3.5 rounded-lg bg-[#fdfcfb] dark:bg-[#202227] border border-[#e7e4de] dark:border-[#2a2d35]">
               <span className="text-[11px] font-medium text-[#78716c] dark:text-[#9ca3af] block">University Reg. No</span>
               <span className="text-xs font-semibold text-[#1c1917] dark:text-[#f3f4f6] font-mono mt-0.5 block">
@@ -72,13 +72,6 @@ export default async function ProfilePage() {
               <span className="text-[11px] font-medium text-[#78716c] dark:text-[#9ca3af] block">Admission Number</span>
               <span className="text-xs font-semibold text-[#1c1917] dark:text-[#f3f4f6] font-mono mt-0.5 block">
                 {profile.admissionNo}
-              </span>
-            </div>
-
-            <div className="p-3.5 rounded-lg bg-[#fdfcfb] dark:bg-[#202227] border border-[#e7e4de] dark:border-[#2a2d35]">
-              <span className="text-[11px] font-medium text-[#78716c] dark:text-[#9ca3af] block">Roll Number</span>
-              <span className="text-xs font-semibold text-[#1c1917] dark:text-[#f3f4f6] mt-0.5 block">
-                {profile.rollNo || '–'}
               </span>
             </div>
 
@@ -96,7 +89,7 @@ export default async function ProfilePage() {
               </span>
             </div>
 
-            <div className="p-3.5 rounded-lg bg-[#fdfcfb] dark:bg-[#202227] border border-[#e7e4de] dark:border-[#2a2d35]">
+            <div className="p-3.5 rounded-lg bg-[#fdfcfb] dark:bg-[#202227] border border-[#e7e4de] dark:border-[#2a2d35] sm:col-span-2 lg:col-span-2">
               <span className="text-[11px] font-medium text-[#78716c] dark:text-[#9ca3af] block">Academic Batch</span>
               <span className="text-xs font-semibold text-[#1c1917] dark:text-[#f3f4f6] mt-0.5 block">
                 {profile.batch} ({profile.academicYear})

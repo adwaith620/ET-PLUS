@@ -1,6 +1,6 @@
 import * as cheerio from 'cheerio';
-import { StudentProfile, SubjectAttendanceData, EtlabAssessmentRecord, Assignment } from '@/types';
-import { normalizeStudentProfile, normalizeSubjectAttendance, getCourseFullName } from './course-catalog';
+import type { StudentProfile, SubjectAttendanceData, EtlabAssessmentRecord, Assignment } from '../types/index.ts';
+import { normalizeStudentProfile, normalizeSubjectAttendance, getCourseFullName } from './course-catalog.ts';
 
 const BASE_URL = process.env.ETLAB_BASE_URL || 'https://tkmce.etlab.in';
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';

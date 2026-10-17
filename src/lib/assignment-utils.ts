@@ -1,4 +1,4 @@
-import { Assignment } from '@/types';
+import type { Assignment } from '../types/index.ts';
 
 /**
  * Parses an assignment deadline string into a Date object in IST timezone (+05:30).

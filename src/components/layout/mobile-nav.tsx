@@ -40,10 +40,20 @@ export function MobileNav({
   const handleLogout = async () => {
     try {
       await fetch('/api/auth/logout', { method: 'POST' });
+    } finally {
+      if (typeof window !== 'undefined') {
+        const savedTheme = localStorage.getItem('etlab_theme');
+        sessionStorage.clear();
+        localStorage.removeItem('etlab_target');
+        if (profile?.admissionNo) {
+          localStorage.removeItem(`etlab_target_${profile.admissionNo}`);
+        }
+        if (savedTheme) {
+          localStorage.setItem('etlab_theme', savedTheme);
+        }
+      }
       router.push('/login');
       router.refresh();
-    } catch {
-      router.push('/login');
     }
   };
 

@@ -17,11 +17,15 @@ import {
   X,
   CheckCircle2,
   Award,
+  AlertCircle,
 } from 'lucide-react';
 
 interface ResultsClientProps {
   assessmentRecords?: EtlabAssessmentRecord[];
   results?: SemesterResult[];
+  resultsError?: string;
+  admissionNo?: string;
+  studentName?: string;
   mode?: 'live' | 'demo';
 }
 
@@ -43,6 +47,10 @@ const CATEGORIES: { label: string; icon: React.ComponentType<{ className?: strin
 export function ResultsClient({
   assessmentRecords = [],
   results = [],
+  resultsError,
+  admissionNo,
+  studentName,
+  mode = 'live',
 }: ResultsClientProps) {
   const [selectedSem, setSelectedSem] = useState<SemesterOption>('IIIrd Semester');
   const [selectedCategory, setSelectedCategory] = useState<string>('Sessional Exams');
@@ -88,6 +96,14 @@ export function ResultsClient({
           <ExternalLink className="w-3.5 h-3.5" />
         </a>
       </div>
+
+      {/* Synchronization Error or Status Alert */}
+      {resultsError && (
+        <div className="p-3.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-900 dark:text-amber-300 flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          <span>{resultsError}</span>
+        </div>
+      )}
 
       {/* 2. Centered Semester Selector */}
       <div className="flex justify-center items-center py-1">
@@ -202,7 +218,9 @@ export function ResultsClient({
                     No records found for {selectedCategory} in {selectedSem}.
                   </p>
                   <p className="text-xs text-[#a8a29e] dark:text-[#6b7280]">
-                    Evaluations will appear here once published by the academic department.
+                    {admissionNo
+                      ? `Evaluations are isolated to your authenticated student account (${admissionNo}) and will appear here once published.`
+                      : 'Evaluations will appear here once published by the academic department.'}
                   </p>
                 </td>
               </tr>

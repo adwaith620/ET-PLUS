@@ -1,26 +1,35 @@
 import { NextResponse } from 'next/server';
 import { etlabLogin } from '@/lib/etlab-client';
 import { createSession } from '@/lib/auth';
-import { DEMO_PROFILE } from '@/lib/demo-data';
+import { DEMO_PROFILE, DEMO_PROFILE_B } from '@/lib/demo-data';
+import { clearAssignmentCache } from '@/lib/assignment-service';
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { mode, username, password } = body;
+    const { mode, username, password, account } = body;
 
     if (mode === 'demo') {
+      const isAccountB =
+        account === 'B' ||
+        (username && (username.trim().toLowerCase() === 'student-b' || username.trim().toLowerCase() === 'demo-b' || username.trim() === '25CTA99'));
+      const activeProfile = isAccountB ? DEMO_PROFILE_B : DEMO_PROFILE;
+
+      clearAssignmentCache({ mode: 'demo', username: activeProfile.admissionNo });
+
       await createSession({
         mode: 'demo',
-        username: DEMO_PROFILE.admissionNo,
-        displayName: DEMO_PROFILE.name,
-        profile: DEMO_PROFILE,
+        username: activeProfile.admissionNo,
+        displayName: activeProfile.name,
+        profile: activeProfile,
       });
 
       return NextResponse.json({
         success: true,
         mode: 'demo',
-        profile: DEMO_PROFILE,
-        message: 'Signed in successfully in Demo Mode.',
+        profile: activeProfile,
+        account: isAccountB ? 'B' : 'A',
+        message: `Signed in successfully in Demo Mode as ${activeProfile.name}.`,
       });
     }
 
