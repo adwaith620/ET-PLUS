@@ -2,57 +2,101 @@
 
 @layer base {
   :root {
-    --background: #f8fafc;
-    --foreground: #0f172a;
+    /* Light mode: predominantly white with subtle warm, light-skin-tone neutral palette */
+    --background: #fdfcfb;
+    --foreground: #1c1917;
     --card: #ffffff;
-    --card-foreground: #0f172a;
+    --card-foreground: #1c1917;
+    --card-subtle: #f9f8f5;
+    --card-muted: #f4f1eb;
+    
     --popover: #ffffff;
-    --popover-foreground: #0f172a;
-    --primary: #2563eb;
+    --popover-foreground: #1c1917;
+    
+    --primary: #1c1917;
     --primary-foreground: #ffffff;
-    --secondary: #f1f5f9;
-    --secondary-foreground: #1e293b;
-    --muted: #f1f5f9;
-    --muted-foreground: #64748b;
-    --accent: #f8fafc;
-    --accent-foreground: #0f172a;
-    --destructive: #ef4444;
+    
+    --secondary: #f4f1eb;
+    --secondary-foreground: #292524;
+    
+    --muted: #f4f1eb;
+    --muted-foreground: #78716c;
+    
+    --accent: #f0ece4;
+    --accent-foreground: #1c1917;
+    
+    --destructive: #b91c1c;
     --destructive-foreground: #ffffff;
-    --border: #e2e8f0;
-    --input: #e2e8f0;
-    --ring: #3b82f6;
-    --radius: 0.75rem;
+    
+    --border: #e7e4de;
+    --border-subtle: #efece6;
+    --input: #e7e4de;
+    --ring: #a8a29e;
+    --radius: 0.5rem;
 
-    /* Semantic Attendance Status Colors */
-    --status-safe: #10b981;
-    --status-warning: #f59e0b;
-    --status-critical: #ef4444;
+    /* Semantic Attendance Status Colors - Refined & Accessible */
+    --status-safe: #16a34a;
+    --status-safe-bg: #f3faf4;
+    --status-safe-border: #cdecd3;
+    --status-safe-text: #15803d;
+
+    --status-warning: #d97706;
+    --status-warning-bg: #fef9ed;
+    --status-warning-border: #fde5a5;
+    --status-warning-text: #b45309;
+
+    --status-critical: #dc2626;
+    --status-critical-bg: #fdf2f2;
+    --status-critical-border: #f9c7c7;
+    --status-critical-text: #b91c1c;
   }
 
   .dark {
-    --background: #090d16;
-    --foreground: #f8fafc;
-    --card: #111827;
-    --card-foreground: #f8fafc;
-    --popover: #111827;
-    --popover-foreground: #f8fafc;
-    --primary: #3b82f6;
-    --primary-foreground: #ffffff;
-    --secondary: #1e293b;
-    --secondary-foreground: #f8fafc;
-    --muted: #1e293b;
-    --muted-foreground: #94a3b8;
-    --accent: #1e293b;
-    --accent-foreground: #f8fafc;
+    /* Dark mode: subtle charcoal and greyish-black, not AMOLED black */
+    --background: #141518;
+    --foreground: #f3f4f6;
+    --card: #1b1d22;
+    --card-foreground: #f3f4f6;
+    --card-subtle: #21242a;
+    --card-muted: #272a32;
+    
+    --popover: #1b1d22;
+    --popover-foreground: #f3f4f6;
+    
+    --primary: #f3f4f6;
+    --primary-foreground: #141518;
+    
+    --secondary: #21242a;
+    --secondary-foreground: #e5e7eb;
+    
+    --muted: #21242a;
+    --muted-foreground: #9ca3af;
+    
+    --accent: #272a32;
+    --accent-foreground: #f3f4f6;
+    
     --destructive: #ef4444;
     --destructive-foreground: #ffffff;
-    --border: #1f293d;
-    --input: #1f293d;
-    --ring: #60a5fa;
+    
+    --border: #2a2d35;
+    --border-subtle: #22252c;
+    --input: #2a2d35;
+    --ring: #6b7280;
 
-    --status-safe: #10b981;
-    --status-warning: #f59e0b;
-    --status-critical: #ef4444;
+    --status-safe: #4ade80;
+    --status-safe-bg: #14281c;
+    --status-safe-border: #1e3d29;
+    --status-safe-text: #86efac;
+
+    --status-warning: #fbbf24;
+    --status-warning-bg: #2a2210;
+    --status-warning-border: #423519;
+    --status-warning-text: #fde68a;
+
+    --status-critical: #f87171;
+    --status-critical-bg: #2c1618;
+    --status-critical-border: #441f23;
+    --status-critical-text: #fca5a5;
   }
 }
 
@@ -61,20 +105,95 @@ body {
   color: var(--foreground);
   font-feature-settings: "rlig" 1, "calt" 1;
   min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* Custom scrollbars */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: #d6d3cd;
   border-radius: 9999px;
 }
 .dark ::-webkit-scrollbar-thumb {
-  background: #334155;
+  background: #33363f;
+}
+
+/* Page transitions & gentle viewport animations (150ms-250ms) */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.page-transition,
+main > div {
+  animation: fadeIn 200ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes sectionReveal {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.reveal-in {
+  animation: sectionReveal 220ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Subtle 180-280ms entrance animation for squircle content containers */
+@keyframes fadeInUp {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 240ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-delay-1 {
+  animation-delay: 40ms;
+}
+.animate-delay-2 {
+  animation-delay: 80ms;
+}
+.animate-delay-3 {
+  animation-delay: 120ms;
+}
+.animate-delay-4 {
+  animation-delay: 160ms;
+}
+
+/* Accessibility: strictly respect prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

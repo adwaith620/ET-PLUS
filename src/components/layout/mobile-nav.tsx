@@ -9,13 +9,13 @@ import {
   CalendarDays,
   FileCheck2,
   FolderDown,
-  Award,
+  ClipboardList,
+  GraduationCap,
   BellRing,
   User,
   Settings,
   LogOut,
   X,
-  GraduationCap,
 } from 'lucide-react';
 import { StudentProfile } from '@/types';
 
@@ -24,6 +24,7 @@ interface MobileNavProps {
   onClose: () => void;
   profile?: StudentProfile;
   mode?: 'live' | 'demo';
+  pendingAssignmentsCount?: number;
 }
 
 export function MobileNav({
@@ -31,6 +32,7 @@ export function MobileNav({
   onClose,
   profile,
   mode = 'demo',
+  pendingAssignmentsCount = 0,
 }: MobileNavProps) {
   const pathname = usePathname();
   const router = useRouter();
@@ -49,9 +51,14 @@ export function MobileNav({
     { label: 'Overview', href: '/dashboard', icon: LayoutDashboard },
     { label: 'Attendance', href: '/dashboard/attendance', icon: PieChart },
     { label: 'Timetable', href: '/dashboard/timetable', icon: CalendarDays },
-    { label: 'Assignments', href: '/dashboard/assignments', icon: FileCheck2 },
+    {
+      label: 'Assignments',
+      href: '/dashboard/assignments',
+      icon: FileCheck2,
+      badge: pendingAssignmentsCount > 0 ? `${pendingAssignmentsCount} Due` : undefined,
+    },
     { label: 'Study Materials', href: '/dashboard/materials', icon: FolderDown },
-    { label: 'Marks & Results', href: '/dashboard/results', icon: Award },
+    { label: 'Results', href: '/dashboard/results', icon: ClipboardList },
     { label: 'Announcements', href: '/dashboard/announcements', icon: BellRing },
     { label: 'Profile', href: '/dashboard/profile', icon: User },
     { label: 'Settings', href: '/dashboard/settings', icon: Settings },
@@ -59,8 +66,8 @@ export function MobileNav({
 
   return (
     <>
-      {/* Mobile Bottom Quick-Access Bar (Always visible on mobile) */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 z-30 px-2 flex items-center justify-around">
+      {/* Mobile Bottom Quick-Access Bar */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 h-14 bg-white/95 dark:bg-[#18191d]/95 backdrop-blur-md border-t border-[#e7e4de] dark:border-[#26282f] z-30 px-2 flex items-center justify-around">
         {[
           { label: 'Overview', href: '/dashboard', icon: LayoutDashboard },
           { label: 'Attendance', href: '/dashboard/attendance', icon: PieChart },
@@ -74,13 +81,13 @@ export function MobileNav({
             <Link
               key={item.href}
               href={item.href}
-              className={`flex flex-col items-center justify-center w-14 py-1 rounded-xl transition-all ${
+              className={`flex flex-col items-center justify-center w-14 py-1 rounded transition-colors ${
                 isActive
-                  ? 'text-blue-600 dark:text-blue-400 font-semibold'
-                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                  ? 'text-stone-900 dark:text-white font-semibold'
+                  : 'text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200'
               }`}
             >
-              <Icon className="w-5 h-5" />
+              <Icon className="w-4 h-4" />
               <span className="text-[10px] mt-0.5 tracking-tight">{item.label}</span>
             </Link>
           );
@@ -92,33 +99,33 @@ export function MobileNav({
         <div className="fixed inset-0 z-50 md:hidden flex">
           {/* Backdrop */}
           <div
-            className="fixed inset-0 bg-black/60 backdrop-blur-xs animate-in fade-in"
+            className="fixed inset-0 bg-black/40 backdrop-blur-xs animate-in fade-in"
             onClick={onClose}
           />
 
           {/* Drawer content */}
-          <div className="relative w-72 max-w-[80vw] bg-white dark:bg-slate-900 h-full shadow-2xl flex flex-col z-10 animate-in slide-in-from-left duration-200">
+          <div className="relative w-72 max-w-[80vw] bg-white dark:bg-[#18191d] h-full shadow-xl flex flex-col z-10 animate-in slide-in-from-left duration-150">
             {/* Header */}
-            <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+            <div className="p-4 border-b border-[#e7e4de] dark:border-[#26282f] flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white">
-                  <GraduationCap className="w-5 h-5" />
+                <div className="w-7 h-7 rounded-md bg-[#1c1917] dark:bg-stone-100 text-white dark:text-stone-900 flex items-center justify-center">
+                  <GraduationCap className="w-4 h-4" />
                 </div>
                 <div>
-                  <span className="font-bold text-sm text-slate-900 dark:text-white">ETLAB TKMCE</span>
-                  <p className="text-[10px] text-slate-400 uppercase font-semibold">{mode} Mode</p>
+                  <span className="font-semibold text-xs text-stone-900 dark:text-stone-100">ETLAB TKMCE</span>
+                  <p className="text-[10px] text-stone-400 uppercase font-mono">{mode} Mode</p>
                 </div>
               </div>
               <button
                 onClick={onClose}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                className="p-1 rounded text-stone-400 hover:text-stone-600 dark:hover:text-stone-200"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
 
             {/* Nav list */}
-            <nav className="flex-1 overflow-y-auto p-3 space-y-1">
+            <nav className="flex-1 overflow-y-auto p-2.5 space-y-0.5">
               {navItems.map((item) => {
                 const isActive = pathname === item.href;
                 const Icon = item.icon;
@@ -127,32 +134,39 @@ export function MobileNav({
                     key={item.href}
                     href={item.href}
                     onClick={onClose}
-                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                    className={`flex items-center justify-between px-3 py-2 rounded-md text-xs font-medium transition-colors ${
                       isActive
-                        ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 font-semibold'
-                        : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                        ? 'bg-[#f4f1eb] dark:bg-[#23262c] text-stone-900 dark:text-stone-100 font-semibold'
+                        : 'text-stone-600 dark:text-stone-400 hover:bg-[#faf8f5] dark:hover:bg-[#1e2026]'
                     }`}
                   >
-                    <Icon className="w-4 h-4" />
-                    <span>{item.label}</span>
+                    <div className="flex items-center gap-2.5">
+                      <Icon className="w-4 h-4" />
+                      <span>{item.label}</span>
+                    </div>
+                    {item.badge && (
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-stone-200 dark:bg-stone-800 text-stone-700 dark:text-stone-300">
+                        {item.badge}
+                      </span>
+                    )}
                   </Link>
                 );
               })}
             </nav>
 
             {/* Drawer User Footer */}
-            <div className="p-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-950">
+            <div className="p-3 border-t border-[#e7e4de] dark:border-[#26282f] flex items-center justify-between bg-[#f9f8f5] dark:bg-[#1f2127]">
               <div className="min-w-0 pr-2">
-                <p className="text-xs font-semibold text-slate-900 dark:text-white truncate">
+                <p className="text-xs font-medium text-stone-900 dark:text-stone-100 truncate">
                   {profile?.name || 'Student'}
                 </p>
-                <p className="text-[11px] text-slate-400 truncate">
+                <p className="text-[10px] text-stone-500 dark:text-stone-400 truncate font-mono">
                   {profile?.registerNo || 'TKMCE'}
                 </p>
               </div>
               <button
                 onClick={handleLogout}
-                className="p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
+                className="p-1.5 rounded text-stone-400 hover:text-stone-700 dark:hover:text-stone-200"
                 title="Sign out"
               >
                 <LogOut className="w-4 h-4" />

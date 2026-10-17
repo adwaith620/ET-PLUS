@@ -1,6 +1,7 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { ShieldCheck, AlertTriangle, CheckCircle2 } from 'lucide-react';
 
 interface AttendanceRadialProps {
   percentage: number;
@@ -19,63 +20,74 @@ export function AttendanceRadial({
   safeBunks,
   classesToRecover,
 }: AttendanceRadialProps) {
-  const radius = 70;
+  // Generously sized radial gauge with comfortable text-to-ring gap
+  const radius = 72;
   const circumference = 2 * Math.PI * radius;
-  const strokeDashoffset = circumference - (Math.min(100, Math.max(0, percentage)) / 100) * circumference;
+
+  // Track animated percentage for smooth entrance and transition without resetting to 0
+  const [animatedPercentage, setAnimatedPercentage] = useState<number>(0);
+  const [isReducedMotion, setIsReducedMotion] = useState<boolean>(false);
+  const mountedRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    // Respect prefers-reduced-motion
+    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    if (mediaQuery.matches) {
+      setIsReducedMotion(true);
+      setAnimatedPercentage(percentage);
+      mountedRef.current = true;
+      return;
+    }
+
+    // Smooth entrance animation from 0 to percentage over 500-700ms
+    const frameId = requestAnimationFrame(() => {
+      setAnimatedPercentage(percentage);
+      mountedRef.current = true;
+    });
+
+    return () => cancelAnimationFrame(frameId);
+  }, []);
+
+  // When forecasting or attendance targets update, smoothly transition without resetting to 0
+  useEffect(() => {
+    if (mountedRef.current) {
+      setAnimatedPercentage(percentage);
+    }
+  }, [percentage]);
+
+  const clampedVal = Math.min(100, Math.max(0, animatedPercentage));
+  const strokeDashoffset = circumference - (clampedVal / 100) * circumference;
 
   const isSafe = percentage >= targetPercentage;
   const isWarning = !isSafe && percentage >= targetPercentage - 5;
 
   const strokeColor = isSafe
-    ? '#10b981' // emerald-500
+    ? '#16a34a'
     : isWarning
-    ? '#f59e0b' // amber-500
-    : '#ef4444'; // red-500
+    ? '#d97706'
+    : '#dc2626';
 
   return (
-    <div className="flex flex-col sm:flex-row items-center gap-6 p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
-      {/* SVG Radial Progress Ring */}
-      <div className="relative w-44 h-44 flex items-center justify-center shrink-0">
-        <svg className="w-full h-full transform -rotate-90" viewBox="0 0 160 160">
-          {/* Background circle */}
-          <circle
-            cx="80"
-            cy="80"
-            r={radius}
-            className="stroke-slate-100 dark:stroke-slate-800"
-            strokeWidth="14"
-            fill="transparent"
-          />
-          {/* Target marker ring or indicator */}
-          <circle
-            cx="80"
-            cy="80"
-            r={radius}
-            stroke={strokeColor}
-            strokeWidth="14"
-            strokeDasharray={circumference}
-            strokeDashoffset={strokeDashoffset}
-            strokeLinecap="round"
-            fill="transparent"
-            className="transition-all duration-700 ease-out"
-          />
-        </svg>
-
-        {/* Center label */}
-        <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-          <span className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-            {percentage}%
-          </span>
-          <span className="text-xs font-semibold text-slate-400 mt-0.5">
-            {attended} / {total} hrs
+    <div className="p-6 rounded-xl bg-white dark:bg-[#1b1d22] border border-[#e7e4de] dark:border-[#2a2d35] shadow-xs space-y-6 animate-fade-in-up animate-delay-1">
+      {/* Top Header: Title & Target Pill */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[#e7e4de] dark:border-[#2a2d35]">
+        <div className="flex items-center gap-2">
+          <ShieldCheck className="w-4 h-4 text-stone-600 dark:text-stone-400" />
+          <h3 className="text-sm sm:text-base font-bold text-stone-900 dark:text-stone-100">
+            Attendance Performance Overview
+          </h3>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-stone-500 dark:text-stone-400 font-medium">
+            Active Target: <strong className="text-stone-800 dark:text-stone-200">{targetPercentage}%</strong>
           </span>
           <span
-            className={`mt-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+            className={`px-2.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider border ${
               isSafe
-                ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400'
+                ? 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-[#14281c] dark:text-emerald-400 dark:border-[#1e3d29]'
                 : isWarning
-                ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400'
-                : 'bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-400'
+                ? 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-[#2b2210] dark:text-amber-400 dark:border-[#423519]'
+                : 'bg-red-50 text-red-800 border-red-200 dark:bg-[#2c1618] dark:text-red-400 dark:border-[#441f23]'
             }`}
           >
             {isSafe ? 'Eligible' : isWarning ? 'Warning' : 'Shortage'}
@@ -83,50 +95,103 @@ export function AttendanceRadial({
         </div>
       </div>
 
-      {/* Analytics Breakdown & Guidance */}
-      <div className="flex-1 space-y-3 w-full">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-              Institutional Status
-            </span>
-            <span className="text-xs text-slate-400">• Target: {targetPercentage}%</span>
-          </div>
-          <h3 className="text-lg font-bold text-slate-900 dark:text-white mt-0.5">
-            {isSafe
-              ? `You are safely above your target (${percentage}% vs ${targetPercentage}%)`
-              : `Attendance shortage detected (${percentage}% vs ${targetPercentage}%)`}
-          </h3>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-            {isSafe
-              ? `You have attended ${attended} out of ${total} conducted hours. Based on your ${targetPercentage}% target, you can afford up to ${safeBunks} more consecutive absences across all courses without falling below.`
-              : `You need to attend ${classesToRecover} consecutive class${classesToRecover > 1 ? 'es' : ''} to reach your ${targetPercentage}% goal. Missing any more classes will worsen your shortage.`}
-          </p>
-        </div>
+      {/* Enlarged Centered Circular Gauge */}
+      <div className="flex flex-col items-center justify-center py-2">
+        <div className="relative w-48 h-48 sm:w-56 sm:h-56 flex items-center justify-center shrink-0">
+          <svg className="w-full h-full transform -rotate-90" viewBox="0 0 170 170">
+            {/* Background track */}
+            <circle
+              cx="85"
+              cy="85"
+              r={radius}
+              className="stroke-[#efece6] dark:stroke-[#262831]"
+              strokeWidth="10"
+              fill="transparent"
+            />
+            {/* Progress track */}
+            <circle
+              cx="85"
+              cy="85"
+              r={radius}
+              stroke={strokeColor}
+              strokeWidth="10"
+              strokeDasharray={circumference}
+              strokeDashoffset={strokeDashoffset}
+              strokeLinecap="round"
+              fill="transparent"
+              className={isReducedMotion ? '' : 'transition-[stroke-dashoffset] duration-700 ease-out'}
+            />
+          </svg>
 
-        {/* Metrics Pill Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-1">
-          <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-800">
-            <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 block">Attended</span>
-            <span className="text-base font-bold text-slate-900 dark:text-white">{attended} hrs</span>
-          </div>
-          <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-800">
-            <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 block">Missed</span>
-            <span className="text-base font-bold text-slate-900 dark:text-white">{total - attended} hrs</span>
-          </div>
-          <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-800 col-span-2 sm:col-span-1">
-            <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 block">
-              {isSafe ? 'Safe Absences' : 'Need to Recover'}
+          {/* Centered label with generous spacing from ring */}
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-6 pointer-events-none select-none">
+            <span className="text-3xl sm:text-4xl font-extrabold tracking-tight text-stone-900 dark:text-stone-100">
+              {percentage}%
+            </span>
+            <span className="text-xs text-stone-500 dark:text-stone-400 font-mono mt-1">
+              {attended} / {total} hrs
             </span>
             <span
-              className={`text-base font-bold ${
-                isSafe ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'
+              className={`mt-2 px-2.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider border ${
+                isSafe
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-[#14281c] dark:text-emerald-400 dark:border-[#1e3d29]'
+                  : isWarning
+                  ? 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-[#2b2210] dark:text-amber-400 dark:border-[#423519]'
+                  : 'bg-red-50 text-red-800 border-red-200 dark:bg-[#2c1618] dark:text-red-400 dark:border-[#441f23]'
               }`}
             >
-              {isSafe ? `${safeBunks} classes` : `${classesToRecover} classes`}
+              {isSafe ? 'Eligible' : isWarning ? 'Warning' : 'Shortage'}
             </span>
           </div>
         </div>
+      </div>
+
+      {/* Attended & Conducted Hours Grid Below the Chart */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
+        <div className="p-3.5 rounded-lg bg-[#f9f8f5] dark:bg-[#202227] border border-[#e7e4de] dark:border-[#282b33]">
+          <span className="text-[11px] font-medium text-stone-500 dark:text-stone-400 block">Attended Hours</span>
+          <span className="text-base sm:text-lg font-bold text-stone-900 dark:text-stone-100 mt-0.5 block">{attended} hrs</span>
+        </div>
+        <div className="p-3.5 rounded-lg bg-[#f9f8f5] dark:bg-[#202227] border border-[#e7e4de] dark:border-[#282b33]">
+          <span className="text-[11px] font-medium text-stone-500 dark:text-stone-400 block">Conducted Hours</span>
+          <span className="text-base sm:text-lg font-bold text-stone-900 dark:text-stone-100 mt-0.5 block">{total} hrs</span>
+        </div>
+        <div className="p-3.5 rounded-lg bg-[#f9f8f5] dark:bg-[#202227] border border-[#e7e4de] dark:border-[#282b33]">
+          <span className="text-[11px] font-medium text-stone-500 dark:text-stone-400 block">Missed Hours</span>
+          <span className="text-base sm:text-lg font-bold text-stone-900 dark:text-stone-100 mt-0.5 block">{total - attended} hrs</span>
+        </div>
+        <div className="p-3.5 rounded-lg bg-[#f9f8f5] dark:bg-[#202227] border border-[#e7e4de] dark:border-[#282b33]">
+          <span className="text-[11px] font-medium text-stone-500 dark:text-stone-400 block">Target Threshold</span>
+          <span className="text-base sm:text-lg font-bold text-stone-900 dark:text-stone-100 mt-0.5 block">{targetPercentage}%</span>
+        </div>
+      </div>
+
+      {/* Safe-absence summary beneath those figures */}
+      <div className="p-4 rounded-lg bg-[#f9f8f5] dark:bg-[#202227] border border-[#e7e4de] dark:border-[#282b33]">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {isSafe ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            ) : (
+              <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+            )}
+            <span className="text-xs font-semibold text-stone-900 dark:text-stone-100">
+              {isSafe ? 'Safe Absence Allowance' : 'Consecutive Classes Required to Recover'}
+            </span>
+          </div>
+          <span
+            className={`text-xs font-bold ${
+              isSafe ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-400'
+            }`}
+          >
+            {isSafe ? `${safeBunks} classes` : `${classesToRecover} classes`}
+          </span>
+        </div>
+        <p className="text-xs text-stone-600 dark:text-stone-400 mt-1.5 leading-relaxed">
+          {isSafe
+            ? `You have attended ${attended} out of ${total} conducted hours. Based on your ${targetPercentage}% target, you can safely miss up to ${safeBunks} more classes without falling into shortage.`
+            : `You need to attend the next ${classesToRecover} consecutive class${classesToRecover > 1 ? 'es' : ''} without absence to restore your attendance to the required ${targetPercentage}% institutional threshold.`}
+        </p>
       </div>
     </div>
   );

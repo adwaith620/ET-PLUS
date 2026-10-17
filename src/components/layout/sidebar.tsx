@@ -9,12 +9,12 @@ import {
   CalendarDays,
   FileCheck2,
   FolderDown,
-  Award,
+  ClipboardList,
+  GraduationCap,
   BellRing,
   User,
   Settings,
   LogOut,
-  GraduationCap,
 } from 'lucide-react';
 import { StudentProfile } from '@/types';
 
@@ -23,6 +23,7 @@ interface SidebarProps {
   mode?: 'live' | 'demo';
   overallPercentage?: number;
   hasShortage?: boolean;
+  pendingAssignmentsCount?: number;
 }
 
 export function Sidebar({
@@ -30,6 +31,7 @@ export function Sidebar({
   mode = 'demo',
   overallPercentage = 83.2,
   hasShortage = true,
+  pendingAssignmentsCount = 0,
 }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
@@ -51,52 +53,59 @@ export function Sidebar({
       href: '/dashboard/attendance',
       icon: PieChart,
       badge: hasShortage ? 'Alert' : undefined,
-      badgeColor: 'bg-amber-500 text-white',
+      badgeColor: 'bg-amber-100 dark:bg-[#2b2210] text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-[#423418]',
     },
     { label: 'Timetable', href: '/dashboard/timetable', icon: CalendarDays },
-    { label: 'Assignments', href: '/dashboard/assignments', icon: FileCheck2, badge: '2 Due', badgeColor: 'bg-blue-500 text-white' },
+    {
+      label: 'Assignments',
+      href: '/dashboard/assignments',
+      icon: FileCheck2,
+      badge: pendingAssignmentsCount > 0 ? `${pendingAssignmentsCount} Due` : undefined,
+      badgeColor: 'bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 border border-stone-200 dark:border-stone-700',
+    },
     { label: 'Study Materials', href: '/dashboard/materials', icon: FolderDown },
-    { label: 'Marks & Results', href: '/dashboard/results', icon: Award },
+    { label: 'Results', href: '/dashboard/results', icon: ClipboardList },
     { label: 'Announcements', href: '/dashboard/announcements', icon: BellRing },
     { label: 'Profile', href: '/dashboard/profile', icon: User },
     { label: 'Settings', href: '/dashboard/settings', icon: Settings },
   ];
 
+  const isSafe = overallPercentage >= 75;
+
   return (
-    <aside className="w-64 shrink-0 hidden md:flex flex-col bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 h-screen sticky top-0 select-none">
+    <aside className="w-60 shrink-0 hidden md:flex flex-col bg-white dark:bg-[#18191d] border-r border-[#e7e4de] dark:border-[#26282f] h-screen sticky top-0 select-none">
       {/* Brand Header */}
-      <div className="h-16 px-6 flex items-center justify-between border-b border-slate-200 dark:border-slate-800">
-        <Link href="/dashboard" className="flex items-center gap-2.5 group">
-          <div className="w-9 h-9 rounded-xl bg-blue-600 dark:bg-blue-500 flex items-center justify-center text-white shadow-md shadow-blue-500/20 group-hover:scale-105 transition-transform">
-            <GraduationCap className="w-5 h-5" />
+      <div className="h-14 px-5 flex items-center justify-between border-b border-[#e7e4de] dark:border-[#26282f]">
+        <Link href="/dashboard" className="flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded-md bg-[#1c1917] dark:bg-stone-100 text-white dark:text-stone-900 flex items-center justify-center">
+            <GraduationCap className="w-4 h-4" />
           </div>
-          <div>
-            <div className="flex items-center gap-1.5">
-              <span className="font-bold text-base tracking-tight text-slate-900 dark:text-white">ETLAB</span>
-              <span className="text-xs px-1.5 py-0.5 rounded font-semibold tracking-wide uppercase text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                TKMCE
-              </span>
-            </div>
-            <p className="text-[10px] text-slate-400 font-medium">Academic Portal</p>
+          <div className="flex items-baseline gap-1.5">
+            <span className="font-semibold text-sm tracking-tight text-stone-900 dark:text-stone-100">
+              ETLAB
+            </span>
+            <span className="text-[10px] font-medium text-stone-500 dark:text-stone-400">
+              TKMCE
+            </span>
           </div>
         </Link>
 
-        {/* Live/Demo Mode Indicator Pill */}
+        {/* Mode Indicator Pill */}
         <div
-          className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold tracking-wide uppercase ${
+          className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-medium uppercase tracking-wider ${
             mode === 'live'
-              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
-              : 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20'
+              ? 'bg-emerald-50 dark:bg-[#14281c] text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-[#1e3d29]'
+              : 'bg-stone-100 dark:bg-[#23262c] text-stone-600 dark:text-stone-400 border border-stone-200 dark:border-[#2e3138]'
           }`}
           title={mode === 'live' ? 'Connected to live TKMCE ETLAB' : 'Running in Interactive Demo Mode'}
         >
-          <span className={`w-1.5 h-1.5 rounded-full ${mode === 'live' ? 'bg-emerald-500 animate-pulse' : 'bg-purple-500'}`} />
+          <span className={`w-1.5 h-1.5 rounded-full ${mode === 'live' ? 'bg-emerald-500' : 'bg-stone-400 dark:bg-stone-500'}`} />
           {mode}
         </div>
       </div>
 
       {/* Navigation List */}
-      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+      <nav className="flex-1 px-2.5 py-3 space-y-0.5 overflow-y-auto">
         {navItems.map((item) => {
           const isActive = pathname === item.href;
           const Icon = item.icon;
@@ -105,23 +114,23 @@ export function Sidebar({
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+              className={`flex items-center justify-between px-2.5 py-2 rounded-md text-xs font-medium transition-colors ${
                 isActive
-                  ? 'bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 font-semibold shadow-xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                  ? 'bg-[#f4f1eb] dark:bg-[#23262c] text-stone-900 dark:text-stone-100 font-semibold'
+                  : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-[#faf8f5] dark:hover:bg-[#1e2026]'
               }`}
             >
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2.5 min-w-0">
                 <Icon
-                  className={`w-4 h-4 transition-colors ${
-                    isActive ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500'
+                  className={`w-4 h-4 shrink-0 ${
+                    isActive ? 'text-stone-900 dark:text-stone-100' : 'text-stone-400 dark:text-stone-500'
                   }`}
                 />
-                <span>{item.label}</span>
+                <span className="truncate">{item.label}</span>
               </div>
               {item.badge && (
                 <span
-                  className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${item.badgeColor || 'bg-slate-200 text-slate-700'}`}
+                  className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${item.badgeColor}`}
                 >
                   {item.badge}
                 </span>
@@ -131,48 +140,42 @@ export function Sidebar({
         })}
       </nav>
 
-      {/* Attendance Quick Widget in Sidebar */}
-      <div className="px-4 py-3 mx-3 my-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-800">
+      {/* Attendance Quick Metric in Sidebar */}
+      <div className="px-3 py-2.5 mx-2.5 my-2 rounded-md bg-[#f9f8f5] dark:bg-[#202227] border border-[#e7e4de] dark:border-[#2a2d35]">
         <div className="flex items-center justify-between text-xs mb-1.5">
-          <span className="font-medium text-slate-500 dark:text-slate-400">Overall Attendance</span>
-          <span className="font-bold text-slate-900 dark:text-white">{overallPercentage}%</span>
+          <span className="text-[11px] font-medium text-stone-500 dark:text-stone-400">Attendance</span>
+          <span className="text-xs font-semibold text-stone-900 dark:text-stone-100">{overallPercentage}%</span>
         </div>
-        <div className="w-full bg-slate-200 dark:bg-slate-700 h-2 rounded-full overflow-hidden">
+        <div className="w-full bg-[#e7e4de] dark:bg-[#2b2e37] h-1.5 rounded-full overflow-hidden">
           <div
-            className={`h-full rounded-full transition-all duration-500 ${
-              overallPercentage >= 75 ? 'bg-emerald-500' : 'bg-amber-500'
+            className={`h-full rounded-full transition-all duration-300 ${
+              isSafe ? 'bg-emerald-600 dark:bg-emerald-500' : 'bg-amber-600 dark:bg-amber-500'
             }`}
             style={{ width: `${Math.min(100, overallPercentage)}%` }}
           />
         </div>
-        <div className="flex items-center justify-between mt-2 text-[11px]">
-          <span className="text-slate-400">Target: 75%</span>
-          <span
-            className={`font-semibold ${
-              overallPercentage >= 75
-                ? 'text-emerald-600 dark:text-emerald-400'
-                : 'text-amber-600 dark:text-amber-400'
-            }`}
-          >
-            {overallPercentage >= 75 ? 'On Track' : 'Shortage'}
+        <div className="flex items-center justify-between mt-1.5 text-[10px]">
+          <span className="text-stone-500 dark:text-stone-400">Target 75%</span>
+          <span className={`font-medium ${isSafe ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-400'}`}>
+            {isSafe ? 'Eligible' : 'Shortage'}
           </span>
         </div>
       </div>
 
       {/* User Footer Profile & Sign Out */}
-      <div className="p-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
+      <div className="p-2.5 border-t border-[#e7e4de] dark:border-[#26282f] flex items-center justify-between">
         <Link
           href="/dashboard/profile"
-          className="flex items-center gap-2.5 min-w-0 pr-2 group hover:opacity-80 transition-opacity"
+          className="flex items-center gap-2 min-w-0 pr-1 group hover:opacity-85 transition-opacity"
         >
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 text-white font-bold flex items-center justify-center shrink-0 shadow-sm text-sm">
+          <div className="w-7 h-7 rounded-md bg-stone-800 text-stone-100 dark:bg-stone-700 dark:text-stone-100 text-xs font-medium flex items-center justify-center shrink-0">
             {profile?.name ? profile.name.charAt(0) : 'S'}
           </div>
           <div className="min-w-0">
-            <p className="text-xs font-semibold text-slate-900 dark:text-white truncate">
+            <p className="text-xs font-medium text-stone-900 dark:text-stone-100 truncate">
               {profile?.name || 'Student'}
             </p>
-            <p className="text-[11px] text-slate-400 truncate">
+            <p className="text-[10px] text-stone-500 dark:text-stone-400 truncate font-mono">
               {profile?.registerNo || 'TKMCE'}
             </p>
           </div>
@@ -180,9 +183,9 @@ export function Sidebar({
         <button
           onClick={handleLogout}
           title="Sign out"
-          className="p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+          className="p-1.5 rounded-md text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-[#f4f1eb] dark:hover:bg-[#23262c] transition-colors"
         >
-          <LogOut className="w-4 h-4" />
+          <LogOut className="w-3.5 h-3.5" />
         </button>
       </div>
     </aside>

@@ -13,6 +13,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { DEMO_SUBJECTS, DEMO_ASSIGNMENTS, DEMO_MATERIALS, DEMO_ANNOUNCEMENTS } from '@/lib/demo-data';
+import { getCourseFullName } from '@/lib/course-catalog';
 
 interface SearchResult {
   id: string;
@@ -66,17 +67,18 @@ export function GlobalSearchDialog({
     { title: 'Marks & Results', subtitle: 'SGPA, CGPA, and internal marks', url: '/dashboard/results' },
     { title: 'Announcements', subtitle: 'College, KTU, and department circulars', url: '/dashboard/announcements' },
     { title: 'Student Profile', subtitle: 'Official records and academic details', url: '/dashboard/profile' },
-    { title: 'Settings', subtitle: 'Theme, attendance target, preferences', url: '/dashboard/settings' },
+    { title: 'Settings', subtitle: 'Theme appearance, active session, and preferences', url: '/dashboard/settings' },
   ];
 
   if (q.length > 0) {
     // Subjects
     DEMO_SUBJECTS.forEach((sub) => {
-      if (sub.name.toLowerCase().includes(q) || sub.code.toLowerCase().includes(q) || sub.faculty.toLowerCase().includes(q)) {
+      const fullName = getCourseFullName(sub.code, sub.name);
+      if (fullName.toLowerCase().includes(q) || sub.code.toLowerCase().includes(q) || sub.faculty.toLowerCase().includes(q)) {
         results.push({
           id: `sub-${sub.code}`,
-          title: `${sub.code}: ${sub.name}`,
-          subtitle: `Faculty: ${sub.faculty} • Attendance: ${Math.round((sub.attendedHours / sub.totalHours) * 100)}%`,
+          title: fullName,
+          subtitle: `${sub.code} • Faculty: ${sub.faculty} • Attendance: ${Math.round((sub.attendedHours / sub.totalHours) * 100)}%`,
           category: 'Subject',
           url: '/dashboard/attendance',
         });
@@ -85,11 +87,12 @@ export function GlobalSearchDialog({
 
     // Assignments
     DEMO_ASSIGNMENTS.forEach((asg) => {
-      if (asg.title.toLowerCase().includes(q) || asg.subject.toLowerCase().includes(q) || asg.description.toLowerCase().includes(q)) {
+      const courseName = getCourseFullName(asg.subjectCode, asg.subject);
+      if (asg.title.toLowerCase().includes(q) || courseName.toLowerCase().includes(q) || asg.subjectCode.toLowerCase().includes(q) || asg.description.toLowerCase().includes(q)) {
         results.push({
           id: asg.id,
           title: asg.title,
-          subtitle: `${asg.subjectCode} • Due: ${asg.dueDate} • Status: ${asg.status}`,
+          subtitle: `${courseName} (${asg.subjectCode}) • Due: ${asg.dueDate} • Status: ${asg.status}`,
           category: 'Assignment',
           url: '/dashboard/assignments',
         });
@@ -98,11 +101,12 @@ export function GlobalSearchDialog({
 
     // Materials
     DEMO_MATERIALS.forEach((mat) => {
-      if (mat.title.toLowerCase().includes(q) || mat.subject.toLowerCase().includes(q) || mat.topic?.toLowerCase().includes(q)) {
+      const courseName = getCourseFullName(mat.subjectCode, mat.subject);
+      if (mat.title.toLowerCase().includes(q) || courseName.toLowerCase().includes(q) || mat.subjectCode.toLowerCase().includes(q) || mat.topic?.toLowerCase().includes(q)) {
         results.push({
           id: mat.id,
           title: mat.title,
-          subtitle: `${mat.subjectCode} • ${mat.fileType.toUpperCase()} (${mat.fileSize || ''})`,
+          subtitle: `${courseName} (${mat.subjectCode}) • ${mat.fileType.toUpperCase()} (${mat.fileSize || ''})`,
           category: 'Material',
           url: '/dashboard/materials',
         });
@@ -169,14 +173,14 @@ export function GlobalSearchDialog({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-16 sm:pt-24 px-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="w-full max-w-2xl bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col max-h-[80vh]">
+    <div className="fixed inset-0 z-50 flex items-start justify-center pt-16 sm:pt-24 px-4 bg-black/40 backdrop-blur-xs animate-in fade-in duration-150">
+      <div className="w-full max-w-2xl bg-white dark:bg-[#1b1d22] rounded-xl shadow-lg border border-[#e7e4de] dark:border-[#2a2d35] overflow-hidden flex flex-col max-h-[80vh]">
         {/* Search Input Bar */}
-        <div className="flex items-center px-4 py-3.5 border-b border-slate-200 dark:border-slate-800">
-          <Search className="w-5 h-5 text-slate-400 mr-3 shrink-0" />
+        <div className="flex items-center px-4 py-3 border-b border-[#e7e4de] dark:border-[#2a2d35]">
+          <Search className="w-4 h-4 text-[#78716c] dark:text-[#9ca3af] mr-3 shrink-0" />
           <input
             type="text"
-            className="flex-1 bg-transparent border-0 outline-none text-slate-900 dark:text-slate-100 placeholder:text-slate-400 text-base"
+            className="flex-1 bg-transparent border-0 outline-none text-[#1c1917] dark:text-[#f3f4f6] placeholder:text-[#a8a29e] dark:placeholder:text-[#6b7280] text-sm"
             placeholder="Search subjects, assignments, materials, announcements... (Press Esc to close)"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -185,47 +189,47 @@ export function GlobalSearchDialog({
           {query && (
             <button
               onClick={() => setQuery('')}
-              className="p-1 rounded-md text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 mr-1"
+              className="p-1 rounded-md text-[#78716c] hover:text-[#1c1917] dark:text-[#9ca3af] dark:hover:text-[#f3f4f6] mr-1"
             >
               <X className="w-4 h-4" />
             </button>
           )}
-          <span className="hidden sm:inline-flex items-center text-xs font-medium text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded">
+          <span className="hidden sm:inline-flex items-center text-[10px] font-medium text-[#78716c] dark:text-[#9ca3af] bg-[#f4f1eb] dark:bg-[#202227] border border-[#e7e4de] dark:border-[#2a2d35] px-1.5 py-0.5 rounded">
             ESC
           </span>
         </div>
 
         {/* Results List */}
-        <div className="flex-1 overflow-y-auto p-2 divide-y divide-slate-100 dark:divide-slate-800/60">
+        <div className="flex-1 overflow-y-auto p-2 divide-y divide-[#e7e4de]/60 dark:divide-[#2a2d35]/60">
           {results.length === 0 ? (
-            <div className="py-12 text-center text-slate-500 dark:text-slate-400 text-sm">
-              No results found for &ldquo;<span className="font-semibold text-slate-700 dark:text-slate-200">{query}</span>&rdquo;
+            <div className="py-12 text-center text-[#78716c] dark:text-[#9ca3af] text-xs">
+              No results found for &ldquo;<span className="font-semibold text-[#1c1917] dark:text-[#f3f4f6]">{query}</span>&rdquo;
             </div>
           ) : (
             results.map((item) => (
               <button
                 key={item.id}
                 onClick={() => handleSelect(item.url)}
-                className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-left hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors group"
+                className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-left hover:bg-[#f9f8f5] dark:hover:bg-[#202227] transition-colors group"
               >
                 <div className="flex items-center gap-3 min-w-0 pr-2">
-                  <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0">
+                  <div className="w-7 h-7 rounded-md bg-[#f4f1eb] dark:bg-[#202227] border border-[#e7e4de] dark:border-[#2a2d35] flex items-center justify-center shrink-0 text-[#1c1917] dark:text-[#f3f4f6]">
                     {getCategoryIcon(item.category)}
                   </div>
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400">
+                    <p className="text-xs font-medium text-[#1c1917] dark:text-[#f3f4f6] truncate group-hover:underline">
                       {item.title}
                     </p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                    <p className="text-[11px] text-[#78716c] dark:text-[#9ca3af] truncate">
                       {item.subtitle}
                     </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <span className="text-[10px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                  <span className="text-[10px] uppercase tracking-wider font-medium px-2 py-0.5 rounded bg-[#f4f1eb] dark:bg-[#202227] text-[#78716c] dark:text-[#9ca3af] border border-[#e7e4de] dark:border-[#2a2d35]">
                     {item.category}
                   </span>
-                  <ChevronRight className="w-4 h-4 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <ChevronRight className="w-3.5 h-3.5 text-[#a8a29e] opacity-0 group-hover:opacity-100 transition-opacity" />
                 </div>
               </button>
             ))
@@ -233,7 +237,7 @@ export function GlobalSearchDialog({
         </div>
 
         {/* Footer info */}
-        <div className="px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs text-slate-400">
+        <div className="px-4 py-2 bg-[#fdfcfb] dark:bg-[#181a1f] border-t border-[#e7e4de] dark:border-[#2a2d35] flex items-center justify-between text-[11px] text-[#78716c] dark:text-[#9ca3af]">
           <span>Navigate with mouse or keyboard</span>
           <span>TKMCE ETLAB Search</span>
         </div>

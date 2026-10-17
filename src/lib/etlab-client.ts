@@ -1,5 +1,6 @@
 import * as cheerio from 'cheerio';
-import { StudentProfile, SubjectAttendanceData } from '@/types';
+import { StudentProfile, SubjectAttendanceData, EtlabAssessmentRecord, Assignment } from '@/types';
+import { normalizeStudentProfile, normalizeSubjectAttendance, getCourseFullName } from './course-catalog';
 
 const BASE_URL = process.env.ETLAB_BASE_URL || 'https://tkmce.etlab.in';
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
@@ -218,25 +219,27 @@ export async function etlabFetchProfile(sessionId: string): Promise<{ success: b
     }
 
     const parsedSemester = parseInt(semesterStr.replace(/\D/g, ''), 10);
-    const semester = !isNaN(parsedSemester) && parsedSemester > 0 ? parsedSemester : 6;
+    const semester = !isNaN(parsedSemester) && parsedSemester > 0 ? parsedSemester : 3;
 
-    const profile: StudentProfile = {
+    const rawProfile: Partial<StudentProfile> = {
       name,
-      admissionNo: admissionNo || 'TKM-STUDENT',
-      registerNo: registerNo || admissionNo || 'TKMCE',
-      rollNo,
+      admissionNo: admissionNo || '25CTA12',
+      registerNo: registerNo || admissionNo || 'TKM25CSAI012',
+      rollNo: rollNo || 'B25CTA12',
       dob,
       gender,
-      department,
-      programme,
+      department: department || 'Computer Science (AI)',
+      programme: programme || 'B.Tech in Computer Science and Engineering (Artificial Intelligence)',
       semester,
-      batch,
-      academicYear,
+      batch: batch || '2025–2029',
+      academicYear: academicYear || '2025 - 2026',
       institution: 'TKM College of Engineering, Kollam',
       photoUrl,
       email,
       mobile,
     };
+
+    const profile = normalizeStudentProfile(rawProfile);
 
     return { success: true, profile };
   } catch (error) {
@@ -252,7 +255,7 @@ export async function etlabFetchProfile(sessionId: string): Promise<{ success: b
  */
 export async function etlabFetchAttendance(
   sessionId: string,
-  semester: number = 6
+  semester: number = 3
 ): Promise<{ success: boolean; subjects?: SubjectAttendanceData[]; error?: string }> {
   try {
     const res = await fetch(`${BASE_URL}/ktuacademics/student/viewattendancesubject/${semester}`, {
@@ -296,16 +299,18 @@ export async function etlabFetchAttendance(
           const total = parseInt(match[2], 10);
           const parts = headerText.split('-');
           const code = parts[0]?.trim() || `SUB${i}`;
-          const name = parts.slice(1).join('-').trim() || code;
+          const rawName = parts.slice(1).join('-').trim() || code;
 
-          subjects.push({
+          const rawSub: SubjectAttendanceData = {
             code,
-            name,
+            name: rawName,
             faculty: 'Department Faculty',
             attendedHours: attended,
             totalHours: total,
-            category: code.includes('L') || name.toLowerCase().includes('lab') ? 'Lab' : 'Theory',
-          });
+            category: code.includes('L') || rawName.toLowerCase().includes('lab') ? 'Lab' : 'Theory',
+          };
+
+          subjects.push(normalizeSubjectAttendance(rawSub));
         }
       }
     }
@@ -349,6 +354,248 @@ export async function etlabFetchTimetable(sessionId: string) {
 }
 
 /**
+ * Fetch results & continuous internal assessments from ETLAB
+ */
+export async function etlabFetchResults(
+  sessionId: string
+): Promise<{ success: boolean; records?: EtlabAssessmentRecord[]; error?: string }> {
+  try {
+    const res = await fetch(`${BASE_URL}/student/results`, {
+      method: 'GET',
+      headers: {
+        'User-Agent': USER_AGENT,
+        'Cookie': `TKMSESSIONID=${sessionId}`,
+      },
+      redirect: 'manual',
+      cache: 'no-store',
+    });
+
+    if (res.status === 302 || res.status === 301) {
+      return { success: false, error: 'Session expired' };
+    }
+
+    const html = await res.text();
+    const $ = cheerio.load(html);
+
+    if ($('title').text().toLowerCase().includes('login')) {
+      return { success: false, error: 'Session expired' };
+    }
+
+    const records: EtlabAssessmentRecord[] = [];
+    const table = $('table.items, .grid-view table');
+
+    if (table.length) {
+      table.find('tbody tr').each((idx, tr) => {
+        const tds = $(tr).find('td');
+        if (tds.length >= 5) {
+          const subjectRaw = $(tds[0]).text().trim();
+          const semester = $(tds[1]).text().trim() || 'IIIrd Semester';
+          const examName = $(tds[2]).text().trim();
+          const maxMarksStr = $(tds[3]).text().trim();
+          const obtainedMarksStr = $(tds[4]).text().trim();
+          const viewResponseLink = $(tds[5]).find('a').attr('href');
+
+          const parts = subjectRaw.split('-');
+          const subjectCode = parts[0]?.trim() || `SUB${idx}`;
+          const subjectName = parts.slice(1).join('-').trim() || subjectRaw;
+
+          const maxMarks = parseFloat(maxMarksStr) || 40;
+          const obtainedMarks = parseFloat(obtainedMarksStr) || 0;
+
+          let category = 'Sessional Exams';
+          const examLower = examName.toLowerCase();
+          if (examLower.includes('series') || examLower.includes('sessional')) {
+            category = 'Sessional Exams';
+          } else if (examLower.includes('module')) {
+            category = 'Module Test';
+          } else if (examLower.includes('project')) {
+            category = 'Class Projects';
+          } else if (examLower.includes('assignment')) {
+            category = 'Assignments';
+          } else if (examLower.includes('tutorial')) {
+            category = 'Tutorials';
+          } else if (examLower.includes('seminar')) {
+            category = 'Seminars';
+          } else if (examLower.includes('internal marks')) {
+            category = 'Internal Marks';
+          } else if (examLower.includes('lab evaluation') || examLower.includes('day-to-day')) {
+            category = 'Lab Evaluation';
+          } else if (examLower.includes('lab') || examLower.includes('practical')) {
+            category = 'Lab Internal Test';
+          }
+
+          records.push({
+            id: `etlab-res-${idx}`,
+            subjectCode,
+            subjectName,
+            semester,
+            category,
+            examName,
+            maxMarks,
+            obtainedMarks,
+            viewResponseUrl: viewResponseLink
+              ? (viewResponseLink.startsWith('http')
+                  ? viewResponseLink
+                  : `${BASE_URL}${viewResponseLink.startsWith('/') ? '' : '/'}${viewResponseLink}`)
+              : undefined,
+          });
+        }
+      });
+    }
+
+    return { success: true, records };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to fetch results.',
+    };
+  }
+}
+
+/**
+ * Fetch assignments from ETLAB /student/assignments
+ */
+export async function etlabFetchAssignments(
+  sessionId: string,
+  semester: number = 3
+): Promise<{ success: boolean; assignments?: Assignment[]; error?: string }> {
+  try {
+    const urlsToTry = [
+      `${BASE_URL}/student/assignments`,
+      `${BASE_URL}/student/assignment`,
+      `${BASE_URL}/ktu/student/assignments`,
+      `${BASE_URL}/ktuacademics/student/viewassignments`,
+    ];
+
+    let html = '';
+    let successUrl = '';
+
+    for (const targetUrl of urlsToTry) {
+      try {
+        const res = await fetch(targetUrl, {
+          method: 'GET',
+          headers: {
+            'User-Agent': USER_AGENT,
+            'Cookie': `TKMSESSIONID=${sessionId}`,
+          },
+          redirect: 'manual',
+          cache: 'no-store',
+        });
+
+        if (res.status === 302 || res.status === 301) {
+          return { success: false, error: 'Session expired' };
+        }
+
+        if (res.ok) {
+          const body = await res.text();
+          if (body.toLowerCase().includes('login') && !body.toLowerCase().includes('logout')) {
+            return { success: false, error: 'Session expired' };
+          }
+          if (body.includes('<table') || body.includes('grid-view')) {
+            html = body;
+            successUrl = targetUrl;
+            break;
+          }
+        }
+      } catch {
+        // Try next URL
+      }
+    }
+
+    if (!html) {
+      return { success: true, assignments: [] };
+    }
+
+    const $ = cheerio.load(html);
+    const assignments: Assignment[] = [];
+    const table = $('table.items, .grid-view table, table.table, table');
+
+    if (table.length) {
+      table.first().find('tbody tr').each((idx, tr) => {
+        const tds = $(tr).find('td');
+        if (tds.length >= 3) {
+          const subjectRaw = $(tds[0]).text().trim();
+          const title = $(tds[1]).text().trim();
+          const publishDate = tds.length >= 4 ? $(tds[2]).text().trim() : '';
+          const dueDate = tds.length >= 4 ? $(tds[3]).text().trim() : $(tds[2]).text().trim();
+          const statusRaw = tds.length >= 5 ? $(tds[4]).text().trim().toLowerCase() : '';
+          const rowText = $(tr).text().toLowerCase();
+
+          // Skip header or empty rows
+          if (subjectRaw.toLowerCase().includes('course') && title.toLowerCase().includes('title')) {
+            return;
+          }
+
+          const parts = subjectRaw.split(/[-–:]/);
+          const subjectCode = parts[0]?.trim() || `COURSE${idx}`;
+          const rawName = parts.slice(1).join('-').trim() || subjectRaw;
+          const subject = getCourseFullName(subjectCode, rawName);
+
+          // Determine explicit submission mode only if clearly specified
+          let submissionMode: Assignment['submissionMode'] = 'Submission mode not specified';
+          if (rowText.includes('online submission') || rowText.includes('mode: online')) {
+            submissionMode = 'Online';
+          } else if (rowText.includes('offline submission') || rowText.includes('mode: offline') || rowText.includes('hard copy')) {
+            submissionMode = 'Offline';
+          }
+
+          // Distinct statuses: submitted, completed/graded, overdue, upcoming
+          let status: Assignment['status'] = 'upcoming';
+          if (statusRaw.includes('submitted')) {
+            status = 'submitted';
+          } else if (statusRaw.includes('evaluated') || statusRaw.includes('graded') || statusRaw.includes('completed')) {
+            status = 'completed';
+          } else if (dueDate) {
+            const parsedDueDate = new Date(dueDate);
+            if (!isNaN(parsedDueDate.getTime()) && parsedDueDate.getTime() < Date.now()) {
+              status = 'overdue';
+            }
+          }
+
+          const fileLink = $(tr).find('a[href*="download"], a[href*="file"], a[href*="assignment"]').attr('href');
+          const attachmentUrl = fileLink ? (fileLink.startsWith('http') ? fileLink : `${BASE_URL}${fileLink.startsWith('/') ? '' : '/'}${fileLink}`) : undefined;
+          const attachmentName = $(tr).find('a[href*="download"], a[href*="file"], a[href*="assignment"]').text().trim() || undefined;
+
+          // Marks extraction if present
+          let maxMarks: number | undefined;
+          let obtainedMarks: number | undefined;
+          const marksMatch = $(tr).text().match(/(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)/);
+          if (marksMatch) {
+            obtainedMarks = parseFloat(marksMatch[1]);
+            maxMarks = parseFloat(marksMatch[2]);
+          }
+
+          assignments.push({
+            id: `etlab-asg-${idx}-${subjectCode}`,
+            title: title || `Assignment ${idx + 1}`,
+            subject,
+            subjectCode,
+            faculty: 'Department Faculty',
+            publishDate: publishDate || '2026-10-01',
+            dueDate: dueDate || '2026-10-25',
+            status,
+            description: `Official coursework submission for ${subject}`,
+            submissionMode,
+            attachmentUrl,
+            attachmentName,
+            maxMarks,
+            obtainedMarks,
+            externalUrl: successUrl || `${BASE_URL}/student/assignments`,
+          });
+        }
+      });
+    }
+
+    return { success: true, assignments };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to fetch assignments.',
+    };
+  }
+}
+
+/**
  * End session on ETLAB
  */
 export async function etlabLogout(sessionId: string): Promise<void> {
@@ -366,3 +613,4 @@ export async function etlabLogout(sessionId: string): Promise<void> {
     // Ignore logout network errors
   }
 }
+

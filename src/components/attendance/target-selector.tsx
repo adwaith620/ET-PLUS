@@ -15,30 +15,35 @@ export function TargetSelector({
   const presetTargets = [75, 80, 85, 90];
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs">
+    <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 sm:p-4 rounded-lg bg-white dark:bg-[#1b1d22] border border-[#e7e4de] dark:border-[#2a2d35] animate-fade-in-up">
       <div className="flex items-center gap-2.5">
-        <div className="p-2 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400">
-          <Target className="w-5 h-5" />
+        <div className="p-1.5 rounded-md bg-[#f4f1eb] dark:bg-[#22252c] text-stone-700 dark:text-stone-300">
+          <Target className="w-4 h-4" />
         </div>
         <div>
-          <h4 className="text-sm font-bold text-slate-900 dark:text-white">
-            Attendance Target
-          </h4>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            Set your personal analytical threshold (Institutional KTU minimum is 75%)
+          <div className="flex items-center gap-2">
+            <h4 className="text-xs font-semibold text-stone-900 dark:text-stone-100">
+              Attendance Target
+            </h4>
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-800/50 font-medium">
+              Auto-saved
+            </span>
+          </div>
+          <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5">
+            Active application-wide target • KTU mandatory minimum requirement is 75%
           </p>
         </div>
       </div>
 
-      <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+      <div className="flex items-center gap-1 bg-[#f7f6f3] dark:bg-[#202227] p-1 rounded-md border border-[#e7e4de] dark:border-[#2a2d35]">
         {presetTargets.map((target) => (
           <button
             key={target}
             onClick={() => onTargetChange(target)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
               currentTarget === target
-                ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                ? 'bg-white dark:bg-[#18191d] text-stone-900 dark:text-white font-semibold shadow-xs border border-[#e7e4de] dark:border-[#2f323c]'
+                : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-white'
             }`}
           >
             {target}%
@@ -46,7 +51,7 @@ export function TargetSelector({
         ))}
 
         {/* Custom target input */}
-        <div className="flex items-center pl-1 border-l border-slate-200 dark:border-slate-700">
+        <div className="flex items-center pl-1 border-l border-[#e7e4de] dark:border-[#2f323c]">
           <input
             type="number"
             min="50"
@@ -58,10 +63,10 @@ export function TargetSelector({
                 onTargetChange(val);
               }
             }}
-            className="w-14 px-2 py-1 text-xs text-center font-bold bg-white dark:bg-slate-900 rounded-md border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-blue-500"
+            className="w-12 px-1.5 py-0.5 text-xs text-center font-semibold bg-white dark:bg-[#18191d] rounded border border-[#e7e4de] dark:border-[#2f323c] text-stone-900 dark:text-white outline-none focus:ring-1 focus:ring-stone-400"
             title="Custom target percentage"
           />
-          <span className="text-xs font-bold text-slate-400 ml-1 pr-1">%</span>
+          <span className="text-xs font-semibold text-stone-400 ml-1 pr-1">%</span>
         </div>
       </div>
     </div>

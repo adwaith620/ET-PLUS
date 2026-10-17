@@ -68,7 +68,19 @@ export interface TimetableSlot {
   subjectName: string;
   faculty: string;
   room?: string;
-  type?: 'Theory' | 'Lab' | 'Tutorial';
+  type?: 'Theory' | 'Lab' | 'Tutorial' | 'Elective' | 'Free';
+}
+
+export interface EtlabAssessmentRecord {
+  id: string;
+  subjectCode: string;
+  subjectName: string;
+  semester: string; // 'IIIrd Semester' | 'IInd Semester' | 'Ist Semester'
+  category: string; // 'Sessional Exams' | 'Module Test' | 'Class Projects' | 'Assignments' | 'Tutorials' | 'Seminars' | 'Internal Marks' | 'Lab Evaluation' | 'Lab Internal Test'
+  examName: string; // e.g. 'Series Exam 1', 'Series Exam 2'
+  maxMarks: number;
+  obtainedMarks: number;
+  viewResponseUrl?: string;
 }
 
 export interface Assignment {
@@ -79,8 +91,9 @@ export interface Assignment {
   faculty: string;
   publishDate: string;
   dueDate: string;
-  status: 'pending' | 'submitted' | 'graded' | 'overdue';
+  status: 'upcoming' | 'pending' | 'submitted' | 'completed' | 'graded' | 'overdue';
   description: string;
+  submissionMode?: 'Online' | 'Offline' | 'Submission mode not specified';
   maxMarks?: number;
   obtainedMarks?: number;
   attachmentName?: string;
@@ -95,23 +108,33 @@ export interface StudyMaterial {
   subjectCode: string;
   faculty: string;
   uploadedDate: string;
-  fileType: 'pdf' | 'ppt' | 'doc' | 'zip' | 'link';
+  fileType: 'pdf' | 'ppt' | 'pptx' | 'doc' | 'docx' | 'zip' | 'link' | string;
   fileSize?: string;
   downloadUrl: string;
   topic?: string;
+  category?: 'courseware' | 'pyq' | 'notes';
+  description?: string;
+  uploadedBy?: string;
+  uploaderUsername?: string;
+  isShared?: boolean;
 }
 
 export interface AssessmentMarkItem {
   code: string;
   name: string;
   credits: number;
-  internalTest1?: number; // out of 50
-  internalTest2?: number; // out of 50
+  series1?: number; // Series Test 1 out of 50
+  series2?: number; // Series Test 2 out of 50
+  internalTest1?: number; // alias for series1
+  internalTest2?: number; // alias for series2
   assignmentMarks?: number; // out of 15
   attendanceMarks?: number; // out of 10
-  totalInternal?: number; // out of 50
-  grade?: string;
-  gradePoints?: number;
+  ciaMarks?: number; // Continuous Internal Assessment (out of 50)
+  totalInternal?: number; // alias for ciaMarks
+  endSemMarks?: number; // End-Semester Exam mark out of 100
+  grade?: string; // O, A+, A, B+, B, C, P, F
+  gradePoints?: number; // 10.0, 9.0, 8.5, etc.
+  resultStatus?: string; // 'Passed' | 'Failed' | 'In Progress' | 'Awaited'
 }
 
 export interface SemesterResult {
@@ -121,7 +144,7 @@ export interface SemesterResult {
   cgpa: number;
   creditsEarned: number;
   totalCredits: number;
-  status: 'Passed' | 'Result Published' | 'In Progress';
+  status: 'Passed' | 'Result Published' | 'In Progress' | 'Awaited';
   subjects: AssessmentMarkItem[];
 }
 
@@ -130,10 +153,13 @@ export interface Announcement {
   title: string;
   date: string;
   author: string;
-  category: 'Academic' | 'Exam' | 'Hostel' | 'Placement' | 'General';
+  authorUsername?: string;
+  category: 'Academic' | 'Exam' | 'Hostel' | 'Placement' | 'General' | 'Cohort' | 'Project';
   content: string;
   pinned?: boolean;
   link?: string;
+  isCohortShared?: boolean;
+  cohort?: string;
 }
 
 export interface NotificationItem {
