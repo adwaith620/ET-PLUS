@@ -1,9 +1,9 @@
 import React from 'react';
-import { getDashboardData } from '@/lib/data-service';
+import { getResultsPageData } from '@/lib/data-service';
 import { ResultsClient } from './results-client';
 
 export default async function ResultsPage() {
-  const data = await getDashboardData();
+  const data = await getResultsPageData();
   if (!data) return null;
 
   return (

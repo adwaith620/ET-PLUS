@@ -124,6 +124,7 @@ export function Sidebar({
             <Link
               key={item.href}
               href={item.href}
+              prefetch={item.href !== '/dashboard/results'}
               className={`flex items-center justify-between px-2.5 py-2 rounded-md text-xs font-medium transition-colors ${
                 isActive
                   ? 'bg-[#f4f1eb] dark:bg-[#23262c] text-stone-900 dark:text-stone-100 font-semibold'

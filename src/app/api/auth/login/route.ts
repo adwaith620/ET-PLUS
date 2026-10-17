@@ -3,6 +3,7 @@ import { etlabLogin } from '@/lib/etlab-client';
 import { createSession } from '@/lib/auth';
 import { DEMO_PROFILE, DEMO_PROFILE_B } from '@/lib/demo-data';
 import { clearAssignmentCache } from '@/lib/assignment-service';
+import { invalidateStudentCache } from '@/lib/data-service';
 import { verifySameOrigin, checkRateLimit, PRIVATE_CACHE_HEADERS } from '@/lib/security';
 
 export async function POST(request: Request) {
@@ -30,6 +31,7 @@ export async function POST(request: Request) {
       const activeProfile = isAccountB ? DEMO_PROFILE_B : DEMO_PROFILE;
 
       clearAssignmentCache({ mode: 'demo', username: activeProfile.admissionNo });
+      invalidateStudentCache(activeProfile.admissionNo);
 
       await createSession({
         mode: 'demo',
@@ -66,6 +68,8 @@ export async function POST(request: Request) {
         { status: 401 }
       );
     }
+
+    invalidateStudentCache(username.trim());
 
     // Store secure HttpOnly session with retrieved profile
     await createSession({

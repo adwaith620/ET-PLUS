@@ -1,7 +1,5 @@
 import React from 'react';
-import { getDashboardData } from '@/lib/data-service';
-import { getCombinedAnnouncements } from '@/lib/announcements-service';
-import { getSession } from '@/lib/auth';
+import { getAnnouncementsPageData } from '@/lib/data-service';
 import { AnnouncementsClient } from './announcements-client';
 
 export const metadata = {
@@ -10,19 +8,14 @@ export const metadata = {
 };
 
 export default async function AnnouncementsPage() {
-  const session = await getSession();
-  const data = await getDashboardData();
+  const data = await getAnnouncementsPageData();
   if (!data) return null;
-
-  const combinedAnnouncements = await getCombinedAnnouncements(data.announcements);
-  const currentUsername = session?.username || 'demo';
-  const currentUserName = session?.displayName || session?.username || 'Student';
 
   return (
     <AnnouncementsClient
-      announcements={combinedAnnouncements}
-      currentUsername={currentUsername}
-      currentUserName={currentUserName}
+      announcements={data.announcements}
+      currentUsername={data.currentUsername}
+      currentUserName={data.currentUserName}
     />
   );
 }

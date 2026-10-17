@@ -23,8 +23,11 @@ export function AttendanceClient({
   const { target, setTarget } = useAttendanceTarget();
   const [activeTab, setActiveTab] = useState<'analytics' | 'whatif'>('analytics');
 
-  // Recalculate summary whenever user changes target
-  const summary = calculateAttendanceSummary(initialSubjects, target);
+  // Recalculate summary whenever user changes target or subjects change
+  const summary = React.useMemo(
+    () => calculateAttendanceSummary(initialSubjects, target),
+    [initialSubjects, target]
+  );
 
   return (
     <div className="space-y-6">

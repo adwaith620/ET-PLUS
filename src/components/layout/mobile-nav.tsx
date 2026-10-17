@@ -170,6 +170,7 @@ export function MobileNav({
                   <Link
                     key={item.href}
                     href={item.href}
+                    prefetch={item.href !== '/dashboard/results'}
                     onClick={onClose}
                     className={`flex items-center justify-between px-3 py-2.5 min-h-[44px] rounded-md text-xs font-medium transition-colors ${
                       isActive

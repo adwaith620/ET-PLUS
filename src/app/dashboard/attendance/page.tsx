@@ -1,9 +1,9 @@
 import React from 'react';
-import { getDashboardData } from '@/lib/data-service';
+import { getAttendancePageData } from '@/lib/data-service';
 import { AttendanceClient } from './attendance-client';
 
 export default async function AttendancePage() {
-  const data = await getDashboardData();
+  const data = await getAttendancePageData();
   if (!data) return null;
 
   return (

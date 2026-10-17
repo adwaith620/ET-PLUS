@@ -1,12 +1,12 @@
 import React from 'react';
-import { getDashboardData } from '@/lib/data-service';
+import { getProfilePageData } from '@/lib/data-service';
 import {
   ShieldCheck,
   ExternalLink,
 } from 'lucide-react';
 
 export default async function ProfilePage() {
-  const data = await getDashboardData();
+  const data = await getProfilePageData();
   if (!data) return null;
 
   const { profile, mode } = data;

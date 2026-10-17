@@ -69,7 +69,8 @@ export function WhatIfSimulator({
     let projCond = totalConducted;
     let modCount = 0;
 
-    const calculations = subjects.map((sub) => {
+    const calculations = [];
+    for (const sub of subjects) {
       const adj = adjustments[sub.code] || { attend: 0, miss: 0 };
       if (adj.attend > 0 || adj.miss > 0) {
         modCount += 1;
@@ -87,7 +88,7 @@ export function WhatIfSimulator({
       const subProjRecover = calculateClassesToRecover(subProjAtt, subProjTotal, targetPercentage);
       const subProjStatus = getAttendanceStatus(subProjPct, targetPercentage);
 
-      return {
+      calculations.push({
         subject: sub,
         adj,
         subProjAtt,
@@ -98,8 +99,8 @@ export function WhatIfSimulator({
         subProjRecover,
         subProjStatus,
         isModified: adj.attend > 0 || adj.miss > 0,
-      };
-    });
+      });
+    }
 
     const projPct = calculatePercentage(projAtt, projCond);
     const delta = Number((projPct - baselineOverallPercentage).toFixed(2));

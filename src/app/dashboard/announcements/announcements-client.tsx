@@ -48,17 +48,21 @@ export function AnnouncementsClient({
   const [isDeleting, setIsDeleting] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
 
-  const filtered = announcements.filter((ann) => {
-    const matchesSearch =
-      ann.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ann.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ann.author.toLowerCase().includes(searchQuery.toLowerCase());
+  const filtered = React.useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+    return announcements.filter((ann) => {
+      const matchesSearch =
+        !q ||
+        ann.title.toLowerCase().includes(q) ||
+        ann.content.toLowerCase().includes(q) ||
+        ann.author.toLowerCase().includes(q);
 
-    if (!matchesSearch) return false;
-    if (filter === 'all') return true;
-    if (filter === 'Cohort') return Boolean(ann.isCohortShared || ann.category === 'Cohort');
-    return ann.category === filter;
-  });
+      if (!matchesSearch) return false;
+      if (filter === 'all') return true;
+      if (filter === 'Cohort') return Boolean(ann.isCohortShared || ann.category === 'Cohort');
+      return ann.category === filter;
+    });
+  }, [announcements, searchQuery, filter]);
 
   const handleCreateAnnouncement = async (e: React.FormEvent) => {
     e.preventDefault();

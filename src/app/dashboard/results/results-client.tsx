@@ -53,8 +53,11 @@ export function ResultsClient({
   const [selectedRecord, setSelectedRecord] = useState<EtlabAssessmentRecord | null>(null);
 
   // Filter records by selected semester and category
-  const filteredRecords = assessmentRecords.filter(
-    (rec) => rec.semester === selectedSem && rec.category === selectedCategory
+  const filteredRecords = React.useMemo(
+    () => assessmentRecords.filter(
+      (rec) => rec.semester === selectedSem && rec.category === selectedCategory
+    ),
+    [assessmentRecords, selectedSem, selectedCategory]
   );
 
   return (

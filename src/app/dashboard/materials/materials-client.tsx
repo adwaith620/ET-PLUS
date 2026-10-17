@@ -82,29 +82,48 @@ export function MaterialsClient({
     }
   };
 
-  const subjects = Array.from(new Set(materials.map((m) => m.subjectCode)));
+  const subjects = React.useMemo(
+    () => Array.from(new Set(materials.map((m) => m.subjectCode))),
+    [materials]
+  );
 
-  const filtered = materials.filter((mat) => {
-    const matchesSearch =
-      mat.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      mat.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      mat.faculty.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (mat.topic && mat.topic.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (mat.uploadedBy && mat.uploadedBy.toLowerCase().includes(searchQuery.toLowerCase()));
-
-    if (!matchesSearch) return false;
-
-    if (selectedSubject !== 'ALL' && mat.subjectCode !== selectedSubject) {
-      return false;
+  const { coursewareCount, pyqCount, notesCount } = React.useMemo(() => {
+    let courseware = 0;
+    let pyq = 0;
+    let notes = 0;
+    for (const m of materials) {
+      if (!m.category || m.category === 'courseware') courseware++;
+      else if (m.category === 'pyq') pyq++;
+      else if (m.category === 'notes') notes++;
     }
+    return { coursewareCount: courseware, pyqCount: pyq, notesCount: notes };
+  }, [materials]);
 
-    if (categoryFilter !== 'ALL') {
-      const matCat = mat.category || 'courseware';
-      if (matCat !== categoryFilter) return false;
-    }
+  const filtered = React.useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+    return materials.filter((mat) => {
+      const matchesSearch =
+        !q ||
+        mat.title.toLowerCase().includes(q) ||
+        mat.subject.toLowerCase().includes(q) ||
+        mat.faculty.toLowerCase().includes(q) ||
+        (mat.topic && mat.topic.toLowerCase().includes(q)) ||
+        (mat.uploadedBy && mat.uploadedBy.toLowerCase().includes(q));
 
-    return true;
-  });
+      if (!matchesSearch) return false;
+
+      if (selectedSubject !== 'ALL' && mat.subjectCode !== selectedSubject) {
+        return false;
+      }
+
+      if (categoryFilter !== 'ALL') {
+        const matCat = mat.category || 'courseware';
+        if (matCat !== categoryFilter) return false;
+      }
+
+      return true;
+    });
+  }, [materials, searchQuery, selectedSubject, categoryFilter]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -219,7 +238,7 @@ export function MaterialsClient({
               : 'text-[#78716c] dark:text-[#9ca3af] hover:bg-[#f4f1eb] dark:hover:bg-[#202227]'
           }`}
         >
-          Official Faculty Courseware ({materials.filter((m) => !m.category || m.category === 'courseware').length})
+          Official Faculty Courseware ({coursewareCount})
         </button>
         <button
           onClick={() => setCategoryFilter('pyq')}
@@ -229,7 +248,7 @@ export function MaterialsClient({
               : 'text-[#78716c] dark:text-[#9ca3af] hover:bg-[#f4f1eb] dark:hover:bg-[#202227]'
           }`}
         >
-          PYQs (Previous Year Questions) ({materials.filter((m) => m.category === 'pyq').length})
+          PYQs (Previous Year Questions) ({pyqCount})
         </button>
         <button
           onClick={() => setCategoryFilter('notes')}
@@ -239,7 +258,7 @@ export function MaterialsClient({
               : 'text-[#78716c] dark:text-[#9ca3af] hover:bg-[#f4f1eb] dark:hover:bg-[#202227]'
           }`}
         >
-          Student Study Notes ({materials.filter((m) => m.category === 'notes').length})
+          Student Study Notes ({notesCount})
         </button>
       </div>
 

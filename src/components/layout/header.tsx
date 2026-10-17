@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -33,12 +33,14 @@ export function Header({
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [notifs, setNotifs] = useState<NotificationItem[]>(notifications);
+  const [markedReadIds, setMarkedReadIds] = useState<Set<string>>(new Set());
   const router = useRouter();
 
-  useEffect(() => {
-    setNotifs(notifications);
-  }, [notifications]);
+  const notifs = React.useMemo(() => {
+    return notifications.map((n) =>
+      markedReadIds.has(n.id) ? { ...n, read: true } : n
+    );
+  }, [notifications, markedReadIds]);
 
   const unreadCount = notifs.filter((n) => !n.read).length;
 
@@ -49,7 +51,11 @@ export function Header({
     // If opening or if there are unread notifications, mark them as read immediately and persist
     if (nextOpen && unreadCount > 0) {
       const allIds = notifs.map((n) => n.id);
-      setNotifs((prev) => prev.map((n) => ({ ...n, read: true })));
+      setMarkedReadIds((prev) => {
+        const next = new Set(prev);
+        allIds.forEach((id) => next.add(id));
+        return next;
+      });
       fetch('/api/notifications/read', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -61,7 +67,11 @@ export function Header({
   const handleMarkAllRead = async (e: React.MouseEvent) => {
     e.stopPropagation();
     const allIds = notifs.map((n) => n.id);
-    setNotifs((prev) => prev.map((n) => ({ ...n, read: true })));
+    setMarkedReadIds((prev) => {
+      const next = new Set(prev);
+      allIds.forEach((id) => next.add(id));
+      return next;
+    });
     try {
       await fetch('/api/notifications/read', {
         method: 'POST',

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 
 interface OverviewRadialGaugeProps {
   percentage: number;
@@ -18,31 +18,19 @@ export function OverviewRadialGauge({
   const radius = 70;
   const circumference = 2 * Math.PI * radius;
 
-  const [animatedPercentage, setAnimatedPercentage] = useState<number>(0);
-  const [isReducedMotion, setIsReducedMotion] = useState<boolean>(false);
-  const mountedRef = useRef<boolean>(false);
+  const [animatedPercentage, setAnimatedPercentage] = useState<number>(() => {
+    if (typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      return percentage;
+    }
+    return 0;
+  });
 
   useEffect(() => {
-    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
-    if (mediaQuery.matches) {
-      setIsReducedMotion(true);
-      setAnimatedPercentage(percentage);
-      mountedRef.current = true;
-      return;
-    }
-
     const frameId = requestAnimationFrame(() => {
       setAnimatedPercentage(percentage);
-      mountedRef.current = true;
     });
 
     return () => cancelAnimationFrame(frameId);
-  }, []);
-
-  useEffect(() => {
-    if (mountedRef.current) {
-      setAnimatedPercentage(percentage);
-    }
   }, [percentage]);
 
   const clampedVal = Math.min(100, Math.max(0, animatedPercentage));
@@ -73,7 +61,7 @@ export function OverviewRadialGauge({
           strokeDashoffset={strokeDashoffset}
           strokeLinecap="round"
           fill="transparent"
-          className={isReducedMotion ? '' : 'transition-[stroke-dashoffset] duration-700 ease-out'}
+          className="motion-reduce:transition-none transition-[stroke-dashoffset] duration-700 ease-out"
         />
       </svg>
 

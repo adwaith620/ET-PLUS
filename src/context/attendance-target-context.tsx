@@ -67,7 +67,9 @@ export function AttendanceTargetProvider({
       if (saved) {
         const parsed = parseFloat(saved);
         if (!isNaN(parsed) && parsed >= 50 && parsed <= 100 && parsed !== target) {
-          setTargetState(parsed);
+          queueMicrotask(() => {
+            setTargetState(parsed);
+          });
           // Sync cookie as well
           fetch('/api/user/target', {
             method: 'POST',
@@ -77,7 +79,7 @@ export function AttendanceTargetProvider({
         }
       }
     }
-  }, [username]);
+  }, [username, target]);
 
   return (
     <AttendanceTargetContext.Provider value={{ target, setTarget }}>

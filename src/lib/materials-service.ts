@@ -19,10 +19,24 @@ export function ensureDirectories() {
   }
 }
 
+let cachedMaterials: StudyMaterial[] | null = null;
+let lastMaterialsReadTime = 0;
+const MATERIALS_CACHE_TTL = 30000;
+
+export function invalidateSharedMaterialsCache(): void {
+  cachedMaterials = null;
+  lastMaterialsReadTime = 0;
+}
+
 /**
  * Retrieves all student-shared study materials, deduplicating identical uploads.
  */
 export async function getSharedMaterials(): Promise<StudyMaterial[]> {
+  const now = Date.now();
+  if (cachedMaterials && now - lastMaterialsReadTime < MATERIALS_CACHE_TTL) {
+    return cachedMaterials;
+  }
+
   try {
     ensureDirectories();
     const data = await fs.readFile(METADATA_FILE, 'utf-8');
@@ -43,6 +57,8 @@ export async function getSharedMaterials(): Promise<StudyMaterial[]> {
       deduplicated.push(item);
     }
 
+    cachedMaterials = deduplicated;
+    lastMaterialsReadTime = now;
     return deduplicated;
   } catch {
     return [];
@@ -61,6 +77,7 @@ export async function saveSharedMaterial(material: StudyMaterial): Promise<void>
   );
   const updated = [material, ...filtered];
   await fs.writeFile(METADATA_FILE, JSON.stringify(updated, null, 2), 'utf-8');
+  invalidateSharedMaterialsCache();
 }
 
 /**
@@ -109,6 +126,7 @@ export async function deleteSharedMaterial(
     // Update metadata file
     const updated = existing.filter((m) => m.id !== id);
     await fs.writeFile(METADATA_FILE, JSON.stringify(updated, null, 2), 'utf-8');
+    invalidateSharedMaterialsCache();
 
     return { success: true };
   } catch (err: unknown) {

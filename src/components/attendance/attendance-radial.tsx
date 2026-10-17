@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ShieldCheck, AlertTriangle, CheckCircle2 } from 'lucide-react';
 
 interface AttendanceRadialProps {
@@ -25,34 +25,19 @@ export function AttendanceRadial({
   const circumference = 2 * Math.PI * radius;
 
   // Track animated percentage for smooth entrance and transition without resetting to 0
-  const [animatedPercentage, setAnimatedPercentage] = useState<number>(0);
-  const [isReducedMotion, setIsReducedMotion] = useState<boolean>(false);
-  const mountedRef = useRef<boolean>(false);
+  const [animatedPercentage, setAnimatedPercentage] = useState<number>(() => {
+    if (typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      return percentage;
+    }
+    return 0;
+  });
 
   useEffect(() => {
-    // Respect prefers-reduced-motion
-    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
-    if (mediaQuery.matches) {
-      setIsReducedMotion(true);
-      setAnimatedPercentage(percentage);
-      mountedRef.current = true;
-      return;
-    }
-
-    // Smooth entrance animation from 0 to percentage over 500-700ms
     const frameId = requestAnimationFrame(() => {
       setAnimatedPercentage(percentage);
-      mountedRef.current = true;
     });
 
     return () => cancelAnimationFrame(frameId);
-  }, []);
-
-  // When forecasting or attendance targets update, smoothly transition without resetting to 0
-  useEffect(() => {
-    if (mountedRef.current) {
-      setAnimatedPercentage(percentage);
-    }
   }, [percentage]);
 
   const clampedVal = Math.min(100, Math.max(0, animatedPercentage));
@@ -124,7 +109,7 @@ export function AttendanceRadial({
               strokeDashoffset={strokeDashoffset}
               strokeLinecap="round"
               fill="transparent"
-              className={isReducedMotion ? '' : 'transition-[stroke-dashoffset] duration-700 ease-out'}
+              className="motion-reduce:transition-none transition-[stroke-dashoffset] duration-700 ease-out"
             />
           </svg>
 

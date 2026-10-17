@@ -4,6 +4,9 @@ import { normalizeStudentProfile, normalizeSubjectAttendance, getCourseFullName 
 
 const BASE_URL = process.env.ETLAB_BASE_URL || 'https://tkmce.etlab.in';
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
+const UPSTREAM_TIMEOUT_MS = 8000;
+
+let cachedWorkingAssignmentsUrl = '';
 
 interface LoginResult {
   success: boolean;
@@ -30,6 +33,7 @@ export async function etlabLogin(username: string, password: string): Promise<Lo
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
       },
       cache: 'no-store',
+      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
     });
 
     const loginPageHtml = await loginPageRes.text();
@@ -76,6 +80,7 @@ export async function etlabLogin(username: string, password: string): Promise<Lo
       body: formData.toString(),
       redirect: 'manual',
       cache: 'no-store',
+      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
     });
 
     // Capture updated session cookies from POST response
@@ -159,6 +164,7 @@ export async function etlabFetchProfile(sessionId: string): Promise<{ success: b
       },
       redirect: 'manual',
       cache: 'no-store',
+      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
     });
 
     if (res.status === 302 || res.status === 301) {
@@ -266,6 +272,7 @@ export async function etlabFetchAttendance(
       },
       redirect: 'manual',
       cache: 'no-store',
+      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
     });
 
     if (res.status === 302 || res.status === 301) {
@@ -337,6 +344,7 @@ export async function etlabFetchTimetable(sessionId: string) {
       },
       redirect: 'manual',
       cache: 'no-store',
+      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
     });
 
     if (res.status === 200) {
@@ -368,6 +376,7 @@ export async function etlabFetchResults(
       },
       redirect: 'manual',
       cache: 'no-store',
+      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
     });
 
     let redirectCount = 0;
@@ -399,6 +408,7 @@ export async function etlabFetchResults(
         },
         redirect: 'manual',
         cache: 'no-store',
+        signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
       });
     }
 
@@ -492,12 +502,16 @@ export async function etlabFetchAssignments(
   semester: number = 3
 ): Promise<{ success: boolean; assignments?: Assignment[]; error?: string }> {
   try {
-    const urlsToTry = [
+    const candidateUrls = [
       `${BASE_URL}/student/assignments`,
       `${BASE_URL}/student/assignment`,
       `${BASE_URL}/ktu/student/assignments`,
       `${BASE_URL}/ktuacademics/student/viewassignments`,
     ];
+
+    const urlsToTry = cachedWorkingAssignmentsUrl
+      ? [cachedWorkingAssignmentsUrl, ...candidateUrls.filter((u) => u !== cachedWorkingAssignmentsUrl)]
+      : candidateUrls;
 
     let html = '';
     let successUrl = '';
@@ -512,6 +526,7 @@ export async function etlabFetchAssignments(
           },
           redirect: 'manual',
           cache: 'no-store',
+          signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
         });
 
         if (res.status === 302 || res.status === 301) {
@@ -526,6 +541,7 @@ export async function etlabFetchAssignments(
           if (body.includes('<table') || body.includes('grid-view')) {
             html = body;
             successUrl = targetUrl;
+            cachedWorkingAssignmentsUrl = targetUrl;
             break;
           }
         }
@@ -640,6 +656,7 @@ export async function etlabLogout(sessionId: string): Promise<void> {
       },
       redirect: 'manual',
       cache: 'no-store',
+      signal: AbortSignal.timeout(3000),
     });
   } catch {
     // Ignore logout network errors

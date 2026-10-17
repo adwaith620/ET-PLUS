@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSession, destroySession } from '@/lib/auth';
 import { etlabLogout } from '@/lib/etlab-client';
 import { clearAssignmentCache } from '@/lib/assignment-service';
+import { invalidateStudentCache } from '@/lib/data-service';
 
 import { verifySameOrigin, PRIVATE_CACHE_HEADERS } from '@/lib/security';
 
@@ -14,6 +15,9 @@ export async function POST(request: Request) {
     const session = await getSession();
     if (session) {
       clearAssignmentCache(session);
+      if (session.username) {
+        invalidateStudentCache(session.username);
+      }
       if (session.sessionId) {
         await etlabLogout(session.sessionId);
       }

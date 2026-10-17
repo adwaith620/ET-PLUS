@@ -1,5 +1,5 @@
 import React from 'react';
-import { getDashboardData } from '@/lib/data-service';
+import { getAssignmentsPageData } from '@/lib/data-service';
 import { AssignmentsClient } from './assignments-client';
 
 export const metadata = {
@@ -8,16 +8,16 @@ export const metadata = {
 };
 
 export default async function AssignmentsPage() {
-  const data = await getDashboardData();
+  const data = await getAssignmentsPageData();
   if (!data) return null;
 
   return (
     <AssignmentsClient
       assignments={data.assignments}
       mode={data.mode}
-      syncError={data.assignmentError}
+      syncError={data.syncError}
       lastSynced={data.lastSynced}
-      upcomingCount={data.upcomingAssignmentsCount}
+      upcomingCount={data.upcomingCount}
     />
   );
 }

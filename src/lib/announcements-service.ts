@@ -15,20 +15,37 @@ export function ensureAnnouncementsDirectory() {
   }
 }
 
+let cachedAnnouncements: Announcement[] | null = null;
+let lastAnnouncementsReadTime = 0;
+const ANNOUNCEMENTS_CACHE_TTL = 30000;
+
+export function invalidateCohortAnnouncementsCache(): void {
+  cachedAnnouncements = null;
+  lastAnnouncementsReadTime = 0;
+}
+
 /**
  * Retrieves all cohort-wide announcements.
  */
 export async function getCohortAnnouncements(): Promise<Announcement[]> {
+  const now = Date.now();
+  if (cachedAnnouncements && now - lastAnnouncementsReadTime < ANNOUNCEMENTS_CACHE_TTL) {
+    return cachedAnnouncements;
+  }
+
   try {
     ensureAnnouncementsDirectory();
     const data = await fs.readFile(ANNOUNCEMENTS_FILE, 'utf-8');
     const parsed = JSON.parse(data);
     if (!Array.isArray(parsed)) return [];
-    return parsed.map((item) => ({
+    const formatted = parsed.map((item) => ({
       ...item,
       isCohortShared: true,
       cohort: item.cohort || 'R3AI',
     }));
+    cachedAnnouncements = formatted;
+    lastAnnouncementsReadTime = now;
+    return formatted;
   } catch {
     return [];
   }
@@ -43,6 +60,7 @@ export async function saveCohortAnnouncement(announcement: Announcement): Promis
   const filtered = existing.filter((a) => a.id !== announcement.id);
   const updated = [announcement, ...filtered];
   await fs.writeFile(ANNOUNCEMENTS_FILE, JSON.stringify(updated, null, 2), 'utf-8');
+  invalidateCohortAnnouncementsCache();
 }
 
 /**
@@ -76,6 +94,7 @@ export async function deleteCohortAnnouncement(
 
     const updated = existing.filter((a) => a.id !== id);
     await fs.writeFile(ANNOUNCEMENTS_FILE, JSON.stringify(updated, null, 2), 'utf-8');
+    invalidateCohortAnnouncementsCache();
     return { success: true };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Failed to delete announcement.';

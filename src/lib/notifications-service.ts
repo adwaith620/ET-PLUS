@@ -16,14 +16,30 @@ export function ensureNotificationsDirectory() {
   }
 }
 
+let cachedReadNotifs: Record<string, string[]> | null = null;
+let lastReadNotifsReadTime = 0;
+const READ_NOTIFS_CACHE_TTL = 30000;
+
+export function invalidateReadNotificationsCache(): void {
+  cachedReadNotifs = null;
+  lastReadNotifsReadTime = 0;
+}
+
 /**
  * Returns read notification IDs for a specific user.
  */
 export async function getReadNotificationIds(username: string): Promise<string[]> {
+  const now = Date.now();
+  if (cachedReadNotifs && now - lastReadNotifsReadTime < READ_NOTIFS_CACHE_TTL) {
+    return cachedReadNotifs[username] || [];
+  }
+
   try {
     ensureNotificationsDirectory();
     const data = await fs.readFile(READ_NOTIFS_FILE, 'utf-8');
     const parsed = JSON.parse(data);
+    cachedReadNotifs = parsed && typeof parsed === 'object' ? parsed : {};
+    lastReadNotifsReadTime = now;
     if (parsed && Array.isArray(parsed[username])) {
       return parsed[username];
     }
@@ -54,6 +70,8 @@ export async function markNotificationsAsRead(username: string, ids: string[]): 
     currentMap[username] = Array.from(userReads);
 
     await fs.writeFile(READ_NOTIFS_FILE, JSON.stringify(currentMap, null, 2), 'utf-8');
+    cachedReadNotifs = currentMap;
+    lastReadNotifsReadTime = Date.now();
   } catch (err) {
     console.error('Failed to save read notifications state:', err);
   }
