@@ -24,8 +24,6 @@ interface ResultsClientProps {
   assessmentRecords?: EtlabAssessmentRecord[];
   results?: SemesterResult[];
   resultsError?: string;
-  admissionNo?: string;
-  studentName?: string;
   mode?: 'live' | 'demo';
 }
 
@@ -48,8 +46,6 @@ export function ResultsClient({
   assessmentRecords = [],
   results = [],
   resultsError,
-  admissionNo,
-  studentName,
   mode = 'live',
 }: ResultsClientProps) {
   const [selectedSem, setSelectedSem] = useState<SemesterOption>('IIIrd Semester');
@@ -99,9 +95,28 @@ export function ResultsClient({
 
       {/* Synchronization Error or Status Alert */}
       {resultsError && (
-        <div className="p-3.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-900 dark:text-amber-300 flex items-center gap-2">
-          <AlertCircle className="w-4 h-4 shrink-0" />
-          <span>{resultsError}</span>
+        <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-900 dark:text-amber-300 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-start sm:items-center gap-2.5">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 sm:mt-0 text-amber-600 dark:text-amber-400" />
+            <div>
+              <p className="font-semibold text-amber-950 dark:text-amber-200">
+                {resultsError.toLowerCase().includes('expired') ? 'ETLAB Session Timed Out' : 'Synchronization Notice'}
+              </p>
+              <p className="text-[11px] text-amber-800 dark:text-amber-300/90 mt-0.5 leading-relaxed">
+                {resultsError.toLowerCase().includes('expired')
+                  ? 'Your upstream ETLAB portal session has timed out. Please sign in again with your credentials to refresh your official examination records.'
+                  : resultsError}
+              </p>
+            </div>
+          </div>
+          {resultsError.toLowerCase().includes('expired') && (
+            <Link
+              href="/login"
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white dark:bg-amber-500 dark:hover:bg-amber-400 dark:text-black transition-colors shrink-0 self-end sm:self-auto"
+            >
+              Sign In Again
+            </Link>
+          )}
         </div>
       )}
 
@@ -147,9 +162,16 @@ export function ResultsClient({
       </div>
 
       {/* 4. Total count indicator: "Total X results." */}
+      {/* 4. Total count indicator */}
       <div className="flex items-center justify-between">
         <p className="text-xs font-medium text-[#78716c] dark:text-[#9ca3af]">
-          Total <strong className="text-[#1c1917] dark:text-[#f3f4f6]">{filteredRecords.length}</strong> results.
+          {resultsError ? (
+            <span>Synchronization paused.</span>
+          ) : (
+            <>
+              Total <strong className="text-[#1c1917] dark:text-[#f3f4f6]">{filteredRecords.length}</strong> results.
+            </>
+          )}
         </p>
       </div>
 
@@ -211,6 +233,34 @@ export function ResultsClient({
                   </td>
                 </tr>
               ))
+            ) : resultsError ? (
+              <tr>
+                <td colSpan={6} className="p-10 text-center text-[#78716c] dark:text-[#9ca3af] space-y-3">
+                  <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 mx-auto">
+                    <AlertCircle className="w-5 h-5" />
+                  </div>
+                  <p className="font-semibold text-[#1c1917] dark:text-[#f3f4f6]">
+                    {resultsError.toLowerCase().includes('expired')
+                      ? 'Results Unavailable — Session Timed Out'
+                      : 'Results Unavailable'}
+                  </p>
+                  <p className="text-xs text-[#a8a29e] dark:text-[#6b7280] max-w-md mx-auto leading-relaxed">
+                    {resultsError.toLowerCase().includes('expired')
+                      ? 'Your institutional session has timed out. Please sign in again to re-sync your latest evaluation records.'
+                      : resultsError}
+                  </p>
+                  {resultsError.toLowerCase().includes('expired') && (
+                    <div className="pt-1">
+                      <Link
+                        href="/login"
+                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-[#1c1917] hover:bg-[#292524] text-white dark:bg-[#f3f4f6] dark:hover:bg-white dark:text-[#141518] transition-colors"
+                      >
+                        <span>Sign In with ETLAB</span>
+                      </Link>
+                    </div>
+                  )}
+                </td>
+              </tr>
             ) : (
               <tr>
                 <td colSpan={6} className="p-10 text-center text-[#78716c] dark:text-[#9ca3af] space-y-2">
@@ -218,9 +268,7 @@ export function ResultsClient({
                     No records found for {selectedCategory} in {selectedSem}.
                   </p>
                   <p className="text-xs text-[#a8a29e] dark:text-[#6b7280]">
-                    {admissionNo
-                      ? `Evaluations are isolated to your authenticated student account (${admissionNo}) and will appear here once published.`
-                      : 'Evaluations will appear here once published by the academic department.'}
+                    Evaluations will appear here once published by the academic department.
                   </p>
                 </td>
               </tr>

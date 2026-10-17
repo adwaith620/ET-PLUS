@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { Sidebar } from '@/components/layout/sidebar';
 import { Header } from '@/components/layout/header';
 import { MobileNav } from '@/components/layout/mobile-nav';
@@ -33,6 +34,7 @@ export function DashboardShell({
   pendingAssignmentsCount = 0,
 }: DashboardShellProps) {
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+  const pathname = usePathname();
 
   return (
     <AttendanceTargetProvider initialTarget={initialTarget} username={username}>
@@ -56,7 +58,9 @@ export function DashboardShell({
         />
 
         <main className="flex-1 p-4 sm:p-6 lg:p-7 max-w-6xl w-full mx-auto">
-          {children}
+          <div key={pathname} className="tab-page-transition w-full">
+            {children}
+          </div>
         </main>
       </div>
 

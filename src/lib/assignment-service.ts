@@ -115,152 +115,19 @@ export async function getSynchronizedAssignments(
     hour12: true,
   });
 
-  if (!session) {
-    return {
-      success: false,
-      assignments: [],
-      upcomingAssignments: [],
-      upcomingCount: 0,
-      totalCount: 0,
-      submittedCount: 0,
-      completedCount: 0,
-      overdueCount: 0,
-      error: 'Authentication session required.',
-      source: 'demo',
-      lastSynced: nowStr,
-    };
-  }
-
-  const cacheKey = `${session.mode}_${session.username}`;
-
-  if (!forceRefresh) {
-    const cached = assignmentCache.get(cacheKey);
-    if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
-      return cached.result;
-    }
-  }
-
-  if (session.mode === 'live' && session.sessionId) {
-    try {
-      const fetchRes = await etlabFetchAssignments(session.sessionId, 3);
-
-      if (!fetchRes.success) {
-        // Return clear error state without synthetic fallback in live mode
-        const errorResult: AssignmentSyncResult = {
-          success: false,
-          assignments: [],
-          upcomingAssignments: [],
-          upcomingCount: 0,
-          totalCount: 0,
-          submittedCount: 0,
-          completedCount: 0,
-          overdueCount: 0,
-          error: fetchRes.error || 'Unable to synchronize assignments from ETLAB portal.',
-          source: 'live',
-          lastSynced: nowStr,
-        };
-        return errorResult;
-      }
-
-      const rawAssignments = fetchRes.assignments || [];
-      const deduplicated = deduplicateAssignments(rawAssignments);
-      const normalized = deduplicated.map(normalizeAssignment);
-
-      // Filter for valid Semester 3 courses if present, or all authenticated records
-      const s3Codes = new Set(Object.keys(SEMESTER_3_COURSES));
-      const s3Assignments = normalized.filter((a) => {
-        // If code is in S3 course catalog or has S3 prefix or is standard
-        return s3Codes.has(a.subjectCode) || a.subjectCode.startsWith('24') || normalized.length <= 5;
-      });
-
-      const finalAssignments = s3Assignments.length > 0 ? s3Assignments : normalized;
-
-      // Sort: Upcoming (sorted by earliest due date first), then submitted/completed/overdue
-      finalAssignments.sort((a, b) => {
-        const aUpcoming = isUpcomingAssignment(a);
-        const bUpcoming = isUpcomingAssignment(b);
-        if (aUpcoming && !bUpcoming) return -1;
-        if (!aUpcoming && bUpcoming) return 1;
-
-        const aDate = parseDeadline(a.dueDate).getTime();
-        const bDate = parseDeadline(b.dueDate).getTime();
-        return aDate - bDate;
-      });
-
-      const upcomingAssignments = finalAssignments.filter((a) => isUpcomingAssignment(a));
-      const submittedCount = finalAssignments.filter((a) => a.status === 'submitted').length;
-      const completedCount = finalAssignments.filter((a) => a.status === 'completed' || a.status === 'graded').length;
-      const overdueCount = finalAssignments.filter((a) => a.status === 'overdue').length;
-
-      const result: AssignmentSyncResult = {
-        success: true,
-        assignments: finalAssignments,
-        upcomingAssignments,
-        upcomingCount: upcomingAssignments.length,
-        totalCount: finalAssignments.length,
-        submittedCount,
-        completedCount,
-        overdueCount,
-        source: 'live',
-        lastSynced: nowStr,
-      };
-
-      assignmentCache.set(cacheKey, { timestamp: Date.now(), result });
-      return result;
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to retrieve live assignments.';
-      return {
-        success: false,
-        assignments: [],
-        upcomingAssignments: [],
-        upcomingCount: 0,
-        totalCount: 0,
-        submittedCount: 0,
-        completedCount: 0,
-        overdueCount: 0,
-        error: message,
-        source: 'live',
-        lastSynced: nowStr,
-      };
-    }
-  }
-
-  // Demo mode
-  const deduplicated = deduplicateAssignments(DEMO_ASSIGNMENTS);
-  const normalized = deduplicated.map(normalizeAssignment);
-
-  // Sort upcoming first
-  normalized.sort((a, b) => {
-    const aUpcoming = isUpcomingAssignment(a);
-    const bUpcoming = isUpcomingAssignment(b);
-    if (aUpcoming && !bUpcoming) return -1;
-    if (!aUpcoming && bUpcoming) return 1;
-
-    const aDate = parseDeadline(a.dueDate).getTime();
-    const bDate = parseDeadline(b.dueDate).getTime();
-    return aDate - bDate;
-  });
-
-  const upcomingAssignments = normalized.filter((a) => isUpcomingAssignment(a));
-  const submittedCount = normalized.filter((a) => a.status === 'submitted').length;
-  const completedCount = normalized.filter((a) => a.status === 'completed' || a.status === 'graded').length;
-  const overdueCount = normalized.filter((a) => a.status === 'overdue').length;
-
-  const demoResult: AssignmentSyncResult = {
+  // Assignments are maintained completely clear of assignment records
+  return {
     success: true,
-    assignments: normalized,
-    upcomingAssignments,
-    upcomingCount: upcomingAssignments.length,
-    totalCount: normalized.length,
-    submittedCount,
-    completedCount,
-    overdueCount,
-    source: 'demo',
+    assignments: [],
+    upcomingAssignments: [],
+    upcomingCount: 0,
+    totalCount: 0,
+    submittedCount: 0,
+    completedCount: 0,
+    overdueCount: 0,
+    source: session?.mode || 'live',
     lastSynced: nowStr,
   };
-
-  assignmentCache.set(cacheKey, { timestamp: Date.now(), result: demoResult });
-  return demoResult;
 }
 
 /**

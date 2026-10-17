@@ -125,21 +125,25 @@ body {
   background: #33363f;
 }
 
-/* Page transitions & gentle viewport animations (150ms-250ms) */
-@keyframes fadeIn {
-  from {
+/* Tab-transition animation: 280ms ease-out with restrained 8px vertical movement */
+@keyframes tabFadeIn {
+  0% {
     opacity: 0;
-    transform: translateY(4px);
+    transform: translateY(8px);
   }
-  to {
+  100% {
     opacity: 1;
     transform: translateY(0);
   }
 }
 
-.page-transition,
-main > div {
-  animation: fadeIn 200ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+.tab-page-transition {
+  animation: tabFadeIn 280ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: opacity, transform;
+}
+
+.page-transition {
+  animation: tabFadeIn 280ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 @keyframes sectionReveal {

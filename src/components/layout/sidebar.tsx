@@ -92,7 +92,7 @@ export function Sidebar({
           </div>
           <div className="flex items-baseline gap-1.5">
             <span className="font-semibold text-sm tracking-tight text-stone-900 dark:text-stone-100">
-              ETLAB
+              ETPlus
             </span>
             <span className="text-[10px] font-medium text-stone-500 dark:text-stone-400">
               TKMCE

@@ -192,7 +192,7 @@ export default async function DashboardOverviewPage() {
           </div>
 
           <div className="mt-4 pt-3 border-t border-[#e7e4de] dark:border-[#2a2d35] flex items-center justify-between text-xs text-stone-500 dark:text-stone-400">
-            <span>{upcomingAssignments.length} upcoming submission{upcomingAssignments.length === 1 ? '' : 's'}</span>
+            <span>{upcomingAssignments.length > 0 ? `${upcomingAssignments.length} upcoming submission${upcomingAssignments.length === 1 ? '' : 's'}` : 'No pending submissions'}</span>
             <Link href="/dashboard/assignments" className="font-semibold text-stone-800 dark:text-stone-200 hover:underline">
               Open assignments inbox →
             </Link>

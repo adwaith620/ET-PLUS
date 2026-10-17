@@ -11,8 +11,6 @@ export default async function ResultsPage() {
       results={data.results}
       assessmentRecords={data.assessmentRecords || []}
       resultsError={data.resultsError}
-      admissionNo={data.profile.admissionNo}
-      studentName={data.profile.name}
       mode={data.mode}
     />
   );

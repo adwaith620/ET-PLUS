@@ -94,7 +94,13 @@ async function testAll() {
   if (resBHasAdwaitMarks) {
     throw new Error('Critical Security Bug: Account B has access to Account A examination results!');
   }
-  console.log('Account B displays account-isolated empty state message:', resHtmlB.includes('25CTA99'));
+  const resBHasEmptyMsg = resHtmlB.includes('Evaluations will appear here once published');
+  const resBLeaksAccountA = resHtmlB.includes('25CTA12') || resHtmlB.includes('Adwait S.');
+  console.log('Account B displays clean empty state message:', resBHasEmptyMsg);
+  console.log('Account B Results contains zero Account A leakage:', !resBLeaksAccountA);
+  if (!resBHasEmptyMsg || resBLeaksAccountA) {
+    throw new Error('Account B Results failed empty state verification or leaked Account A data!');
+  }
 
   console.log('\n--- 7. Security: Attempting Unauthorized Access via Injected Query Params ---');
   // Try to access Account A records while authenticated as Account B by injecting studentId parameter

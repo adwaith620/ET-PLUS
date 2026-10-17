@@ -122,8 +122,8 @@ export function MobileNav({
                   <GraduationCap className="w-4 h-4" />
                 </div>
                 <div>
-                  <span className="font-semibold text-xs text-stone-900 dark:text-stone-100">ETLAB TKMCE</span>
-                  <p className="text-[10px] text-stone-400 uppercase font-mono">{mode} Mode</p>
+                  <span className="font-semibold text-xs text-stone-900 dark:text-stone-100">ETPlus</span>
+                  <p className="text-[10px] text-stone-400 font-mono">TKMCE • {mode} Mode</p>
                 </div>
               </div>
               <button

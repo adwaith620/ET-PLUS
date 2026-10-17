@@ -360,7 +360,7 @@ export async function etlabFetchResults(
   sessionId: string
 ): Promise<{ success: boolean; records?: EtlabAssessmentRecord[]; error?: string }> {
   try {
-    const res = await fetch(`${BASE_URL}/student/results`, {
+    let currentRes = await fetch(`${BASE_URL}/student/results`, {
       method: 'GET',
       headers: {
         'User-Agent': USER_AGENT,
@@ -370,11 +370,32 @@ export async function etlabFetchResults(
       cache: 'no-store',
     });
 
-    if (res.status === 302 || res.status === 301) {
+    let redirectCount = 0;
+    while ((currentRes.status === 301 || currentRes.status === 302) && redirectCount < 2) {
+      redirectCount++;
+      const location = currentRes.headers.get('location') || '';
+      if (!location || location.toLowerCase().includes('login') || location.toLowerCase().includes('/user/')) {
+        return { success: false, error: 'Session expired' };
+      }
+      const targetUrl = location.startsWith('http')
+        ? location
+        : `${BASE_URL}${location.startsWith('/') ? '' : '/'}${location}`;
+      currentRes = await fetch(targetUrl, {
+        method: 'GET',
+        headers: {
+          'User-Agent': USER_AGENT,
+          'Cookie': `TKMSESSIONID=${sessionId}`,
+        },
+        redirect: 'manual',
+        cache: 'no-store',
+      });
+    }
+
+    if (currentRes.status === 301 || currentRes.status === 302) {
       return { success: false, error: 'Session expired' };
     }
 
-    const html = await res.text();
+    const html = await currentRes.text();
     const $ = cheerio.load(html);
 
     if ($('title').text().toLowerCase().includes('login')) {
