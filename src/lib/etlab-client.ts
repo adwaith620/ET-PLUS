@@ -5,6 +5,7 @@ import { normalizeStudentProfile, normalizeSubjectAttendance, getCourseFullName 
 const BASE_URL = process.env.ETLAB_BASE_URL || 'https://tkmce.etlab.in';
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
 const UPSTREAM_TIMEOUT_MS = 8000;
+const RESULTS_TIMEOUT_MS = 25000;
 
 let cachedWorkingAssignmentsUrl = '';
 
@@ -376,7 +377,7 @@ export async function etlabFetchResults(
       },
       redirect: 'manual',
       cache: 'no-store',
-      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+      signal: AbortSignal.timeout(RESULTS_TIMEOUT_MS),
     });
 
     let redirectCount = 0;
@@ -408,7 +409,7 @@ export async function etlabFetchResults(
         },
         redirect: 'manual',
         cache: 'no-store',
-        signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+        signal: AbortSignal.timeout(RESULTS_TIMEOUT_MS),
       });
     }
 
@@ -424,14 +425,34 @@ export async function etlabFetchResults(
     }
 
     const records: EtlabAssessmentRecord[] = [];
-    const table = $('table.items, .grid-view table');
+    const table = $('table.items, .grid-view table, table.table');
 
     if (table.length) {
-      table.find('tbody tr').each((idx, tr) => {
+      table.find('tr').each((idx, tr) => {
+        if ($(tr).find('th').length > 0) return; // Skip table header rows
         const tds = $(tr).find('td');
         if (tds.length >= 5) {
           const subjectRaw = $(tds[0]).text().trim();
-          const semester = $(tds[1]).text().trim() || 'IIIrd Semester';
+          let semester = $(tds[1]).text().trim() || 'IIIrd Semester';
+          // Normalize common semester formats so filter matches
+          if (/\b(?:iii|3|s3|semester\s*3)\b/i.test(semester) || /iiird/i.test(semester)) {
+            semester = 'IIIrd Semester';
+          } else if (/\b(?:ii|2|s2|semester\s*2)\b/i.test(semester) || /iind/i.test(semester)) {
+            semester = 'IInd Semester';
+          } else if (/\b(?:i|1|s1|semester\s*1)\b/i.test(semester) || /ist/i.test(semester)) {
+            semester = 'Ist Semester';
+          } else if (/\b(?:iv|4|s4|semester\s*4)\b/i.test(semester) || /ivth/i.test(semester)) {
+            semester = 'IVth Semester';
+          } else if (/\b(?:v|5|s5|semester\s*5)\b/i.test(semester) || /vth/i.test(semester)) {
+            semester = 'Vth Semester';
+          } else if (/\b(?:vi|6|s6|semester\s*6)\b/i.test(semester) || /vith/i.test(semester)) {
+            semester = 'VIth Semester';
+          } else if (/\b(?:vii|7|s7|semester\s*7)\b/i.test(semester) || /viith/i.test(semester)) {
+            semester = 'VIIth Semester';
+          } else if (/\b(?:viii|8|s8|semester\s*8)\b/i.test(semester) || /viiith/i.test(semester)) {
+            semester = 'VIIIth Semester';
+          }
+
           const examName = $(tds[2]).text().trim();
           const maxMarksStr = $(tds[3]).text().trim();
           const obtainedMarksStr = $(tds[4]).text().trim();
@@ -487,9 +508,17 @@ export async function etlabFetchResults(
 
     return { success: true, records };
   } catch (error) {
+    const isTimeout =
+      error instanceof Error &&
+      (error.name === 'TimeoutError' ||
+        error.message.toLowerCase().includes('timeout') ||
+        error.message.toLowerCase().includes('aborted'));
+
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to fetch results.',
+      error: isTimeout
+        ? 'ETLAB took too long to respond. The college server may be experiencing high load; please try again shortly.'
+        : (error instanceof Error ? error.message : 'Failed to fetch results.'),
     };
   }
 }

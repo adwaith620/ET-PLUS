@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import {
   GraduationCap,
   Lock,
@@ -15,17 +14,24 @@ import {
 } from 'lucide-react';
 
 export default function LoginPage() {
-  const router = useRouter();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
-  // Prefetch dashboard shell and assets while the user is entering credentials
+  // If user is already authenticated, redirect directly to dashboard
   React.useEffect(() => {
-    router.prefetch('/dashboard');
-  }, [router]);
+    fetch('/api/auth/session')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.authenticated) {
+          // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+          window.location.replace('/dashboard');
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,8 +58,10 @@ export default function LoginPage() {
         return;
       }
 
-      // Successful login: Navigate immediately to dashboard without redundant refresh
-      router.push('/dashboard');
+      // Successful login: Direct browser navigation guarantees the session cookie
+      // is dispatched with the document request, completely avoiding client router redirect caching.
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+      window.location.href = '/dashboard';
     } catch (err) {
       setErrorMessage(
         err instanceof Error ? err.message : 'Unable to connect to authentication server.'

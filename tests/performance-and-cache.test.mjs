@@ -157,3 +157,29 @@ test('Animation Suite - Verify Elimination of Artificial Route Transition Keyfra
   // Must still have prefers-reduced-motion media query
   assert.ok(css.includes('prefers-reduced-motion'), 'prefers-reduced-motion media query must be preserved');
 });
+
+test('Login Redirection - Verify No Router Cache Poisoning Prefetch', async () => {
+  const fs = await import('node:fs/promises');
+  const path = await import('node:path');
+  const loginPagePath = path.resolve('src/app/login/page.tsx');
+  const loginSrc = await fs.readFile(loginPagePath, 'utf-8');
+
+  // Must not prefetch protected /dashboard route when unauthenticated
+  assert.ok(!loginSrc.includes("router.prefetch('/dashboard')"), 'Unauthenticated router.prefetch must be removed to avoid redirect caching');
+  // Must use direct window navigation on login
+  assert.ok(loginSrc.includes("window.location.href = '/dashboard'"), 'Successful login must use window.location.href');
+});
+
+test('Results Configuration - Verify Extended Serverless Execution and Timeout', async () => {
+  const fs = await import('node:fs/promises');
+  const path = await import('node:path');
+  const resultsPagePath = path.resolve('src/app/dashboard/results/page.tsx');
+  const resultsPageSrc = await fs.readFile(resultsPagePath, 'utf-8');
+
+  // Must export maxDuration = 30 for Vercel
+  assert.ok(resultsPageSrc.includes('maxDuration = 30'), 'Results page must export maxDuration = 30');
+
+  const clientPath = path.resolve('src/lib/etlab-client.ts');
+  const clientSrc = await fs.readFile(clientPath, 'utf-8');
+  assert.ok(clientSrc.includes('RESULTS_TIMEOUT_MS = 25000'), 'ETLAB client must have RESULTS_TIMEOUT_MS set to 25s');
+});
