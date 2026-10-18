@@ -151,7 +151,7 @@ export function Header({
                   className="fixed inset-0 z-40"
                   onClick={() => setIsNotifOpen(false)}
                 />
-                <div className="absolute right-0 mt-2 w-[calc(100vw-2rem)] max-w-sm sm:w-96 bg-white dark:bg-[#1b1d22] rounded-lg shadow-lg border border-[#e7e4de] dark:border-[#2a2d35] z-50 overflow-hidden animate-fade-in-up">
+                <div className="absolute right-0 mt-2 w-[calc(100vw-2rem)] max-w-sm sm:w-96 bg-white dark:bg-[#1b1d22] rounded-lg shadow-lg border border-[#e7e4de] dark:border-[#2a2d35] z-50 overflow-hidden">
                   <div className="px-3.5 py-2.5 border-b border-[#e7e4de] dark:border-[#2a2d35] flex items-center justify-between bg-[#f9f8f5] dark:bg-[#202227]">
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-xs text-stone-900 dark:text-stone-100">

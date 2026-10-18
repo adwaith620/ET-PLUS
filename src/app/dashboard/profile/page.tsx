@@ -12,7 +12,7 @@ export default async function ProfilePage() {
   const { profile, mode } = data;
 
   return (
-    <div className="space-y-6 max-w-4xl animate-fade-in-up">
+    <div className="space-y-6 max-w-4xl">
       {/* Header */}
       <div>
         <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#1c1917] dark:text-[#f3f4f6]">

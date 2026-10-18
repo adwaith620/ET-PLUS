@@ -120,3 +120,40 @@ test('Performance Suite - Instant Timetable Data Provider', () => {
   assert.ok(timetableData.timetable.length > 0);
   assert.ok(duration < 5, `Timetable data provider must resolve in < 5ms (actual: ${duration.toFixed(2)}ms)`);
 });
+
+test('Performance Suite - Instant Dashboard Shell Data Resolution', () => {
+  clearAllStudentCache();
+
+  // Seed sample cached profile
+  setCachedStudentData('25CTA12', 'profile', {
+    name: 'Adwaith Krishna M H',
+    admissionNo: '25CTA12',
+    registerNo: 'TKM25CSAI012',
+    department: 'Computer Science (AI)',
+    semester: 3,
+    batch: '2023-2027',
+  });
+
+  const t0 = performance.now();
+  const cachedProfile = getCachedStudentData('25CTA12', 'profile');
+  const duration = performance.now() - t0;
+
+  assert.ok(cachedProfile);
+  assert.equal(cachedProfile.admissionNo, '25CTA12');
+  assert.ok(duration < 5, `Profile retrieval must take < 5ms (actual: ${duration.toFixed(2)}ms)`);
+});
+
+test('Animation Suite - Verify Elimination of Artificial Route Transition Keyframes', async () => {
+  const fs = await import('node:fs/promises');
+  const path = await import('node:path');
+  const globalsCssPath = path.resolve('src/app/globals.css');
+  const css = await fs.readFile(globalsCssPath, 'utf-8');
+
+  // Must not have tabFadeIn or fadeInUp keyframes
+  assert.ok(!css.includes('@keyframes tabFadeIn'), 'tabFadeIn keyframe must be removed from globals.css');
+  assert.ok(!css.includes('@keyframes fadeInUp'), 'fadeInUp keyframe must be removed from globals.css');
+  assert.ok(!css.includes('.tab-page-transition'), '.tab-page-transition class must be removed from globals.css');
+
+  // Must still have prefers-reduced-motion media query
+  assert.ok(css.includes('prefers-reduced-motion'), 'prefers-reduced-motion media query must be preserved');
+});

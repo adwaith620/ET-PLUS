@@ -61,7 +61,7 @@ export function ResultsClient({
   );
 
   return (
-    <div className="space-y-6 animate-fade-in-up">
+    <div className="space-y-6">
       {/* 1. Breadcrumb navigation: Home > Results */}
       <nav className="flex items-center gap-2 text-xs text-[#78716c] dark:text-[#9ca3af]">
         <Link
@@ -179,7 +179,7 @@ export function ResultsClient({
 
       {/* 5. Main Results Table */}
       <div
-        className="overflow-x-auto rounded-xl border border-[#e7e4de] dark:border-[#2a2d35] bg-white dark:bg-[#1b1d22] shadow-xs animate-fade-in-up animate-delay-1 focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:outline-hidden"
+        className="overflow-x-auto rounded-xl border border-[#e7e4de] dark:border-[#2a2d35] bg-white dark:bg-[#1b1d22] shadow-xs focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:outline-hidden"
         tabIndex={0}
         role="region"
         aria-label="Student examination evaluation records"

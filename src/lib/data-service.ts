@@ -39,7 +39,7 @@ import type {
   NotificationItem,
 } from '../types/index.ts';
 
-export { invalidateStudentCache };
+export { invalidateStudentCache, setCachedStudentData, getCachedStudentData };
 
 export interface DashboardData {
   mode: 'live' | 'demo';
@@ -143,11 +143,11 @@ export const getDashboardData = cache(async function getDashboardData(
           registerNo: session.username,
         });
 
-        // Parallelize independent ETLAB and filesystem requests
-        const [attResult, asgSync, resResult, cohortAnnouncements, sharedMaterials] = await Promise.all([
+        // Parallelize independent ETLAB attendance and assignment synchronization
+        // (Examination results are loaded on-demand by /dashboard/results)
+        const [attResult, asgSync, cohortAnnouncements, sharedMaterials] = await Promise.all([
           etlabFetchAttendance(session.sessionId, profile.semester || 3),
           getSynchronizedAssignments(session, forceRefresh),
-          etlabFetchResults(session.sessionId),
           getCohortAnnouncements(),
           getSharedMaterials(),
         ]);
@@ -166,16 +166,8 @@ export const getDashboardData = cache(async function getDashboardData(
         const assignmentError = asgSync.error;
         const upcomingAssignmentsCount = asgSync.upcomingCount;
 
-        let assessmentRecords: EtlabAssessmentRecord[] = [];
-        let resultsError: string | undefined;
-
-        if (resResult.success && resResult.records) {
-          assessmentRecords = resResult.records;
-        } else if (!resResult.success) {
-          resultsError = resResult.error || 'Unable to retrieve examination results from ETLAB.';
-        }
-
         const results: SemesterResult[] = [];
+        const assessmentRecords: EtlabAssessmentRecord[] = [];
         const announcements = await getCombinedAnnouncements(DEMO_ANNOUNCEMENTS);
         const notifications = await generateDynamicNotifications({
           username: session.username,
@@ -197,10 +189,10 @@ export const getDashboardData = cache(async function getDashboardData(
           assignmentSyncResult: asgSync,
           assignmentError,
           upcomingAssignmentsCount,
-          materials: [],
+          materials: sharedMaterials,
           results,
           assessmentRecords,
-          resultsError,
+          resultsError: undefined,
           announcements,
           notifications,
           lastSynced: now,
@@ -211,8 +203,6 @@ export const getDashboardData = cache(async function getDashboardData(
         setCachedStudentData(session.username, `dashboardData_${effectiveTarget}`, dashboardResult);
         setCachedStudentData(session.username, `attendance_${effectiveTarget}`, attendance);
         setCachedStudentData(session.username, 'assignments', assignments);
-        setCachedStudentData(session.username, 'results', results);
-        setCachedStudentData(session.username, 'assessmentRecords', assessmentRecords);
 
         return dashboardResult;
       } catch {
@@ -345,19 +335,51 @@ export const getDashboardShellData = cache(async function getDashboardShellData(
     };
   }
 
-  // Otherwise, run getDashboardData (which deduplicates and caches)
-  const data = await getDashboardData(effectiveTarget);
-  if (!data) return null;
+  // Fast resolution for shell without blocking layout on child page data
+  const isStudentB =
+    session.username === '25CTA99' ||
+    session.username === 'demo-b' ||
+    session.username === 'student-b' ||
+    session.displayName?.toLowerCase().includes('kavya');
+
+  const defaultProfile = isStudentB ? DEMO_PROFILE_B : DEMO_PROFILE;
+  const profile = normalizeStudentProfile(session.profile || defaultProfile);
+
+  const cachedAttendance = getCachedStudentData<AttendanceSummary>(session.username, `attendance_${effectiveTarget}`);
+  const cachedAssignments = getCachedStudentData<Assignment[]>(session.username, 'assignments');
+
+  const overallPercentage = cachedAttendance
+    ? cachedAttendance.overallPercentage
+    : (isStudentB ? 0 : 83.2);
+
+  const hasShortage = cachedAttendance
+    ? (cachedAttendance.subjects || []).some((s) => s.percentage < effectiveTarget)
+    : (!isStudentB && 83.2 < effectiveTarget);
+
+  const pendingAssignmentsCount = cachedAssignments
+    ? cachedAssignments.filter((a) => {
+        if (!a.dueDate) return false;
+        const d = new Date(a.dueDate);
+        return !isNaN(d.getTime()) && d.getTime() > Date.now() && a.status !== 'submitted' && a.status !== 'completed';
+      }).length
+    : (isStudentB ? 0 : 2);
+
+  const now = new Date().toLocaleTimeString('en-IN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+  });
 
   return {
-    profile: data.profile,
-    mode: data.mode,
-    overallPercentage: data.attendance.overallPercentage,
-    hasShortage: (data.attendance.subjects || []).some((s) => s.percentage < effectiveTarget),
-    lastSynced: data.lastSynced,
-    notifications: data.notifications || [],
+    profile,
+    mode: session.mode,
+    overallPercentage,
+    hasShortage,
+    lastSynced: now,
+    notifications: [],
     targetPercentage: effectiveTarget,
-    pendingAssignmentsCount: data.upcomingAssignmentsCount,
+    pendingAssignmentsCount,
   };
 });
 

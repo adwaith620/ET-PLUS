@@ -45,7 +45,7 @@ export default async function DashboardOverviewPage() {
   return (
     <div className="space-y-6">
       {/* Editorial Student Welcome Banner */}
-      <div className="p-5 sm:p-6 rounded-xl bg-white dark:bg-[#1b1d22] border border-[#e7e4de] dark:border-[#2a2d35] shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-fade-in-up">
+      <div className="p-5 sm:p-6 rounded-xl bg-white dark:bg-[#1b1d22] border border-[#e7e4de] dark:border-[#2a2d35] shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <div className="flex flex-wrap items-center gap-2 mb-1.5">
             <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-[#f4f1eb] dark:bg-[#23262c] text-stone-800 dark:text-stone-200 border border-[#e7e4de] dark:border-[#2f323c]">
@@ -75,7 +75,7 @@ export default async function DashboardOverviewPage() {
 
       {/* Attendance Shortage Alert */}
       {shortageCourses.length > 0 && (
-        <div className="p-3.5 rounded-lg bg-[#fef9ed] dark:bg-[#251e12] border border-[#fde5a5] dark:border-[#423519] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-stone-900 dark:text-stone-100 animate-fade-in-up">
+        <div className="p-3.5 rounded-lg bg-[#fef9ed] dark:bg-[#251e12] border border-[#fde5a5] dark:border-[#423519] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-stone-900 dark:text-stone-100">
           <div className="flex items-start gap-2.5">
             <AlertTriangle className="w-4 h-4 text-amber-700 dark:text-amber-400 shrink-0 mt-0.5" />
             <div>
@@ -99,7 +99,7 @@ export default async function DashboardOverviewPage() {
       {/* Hero 2-Column Section: Left = Assignments | Right = Attendance Radial */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Left Column: Assignments */}
-        <div className="p-5 sm:p-6 rounded-xl bg-white dark:bg-[#1b1d22] border border-[#e7e4de] dark:border-[#2a2d35] shadow-xs flex flex-col justify-between animate-fade-in-up animate-delay-1">
+        <div className="p-5 sm:p-6 rounded-xl bg-white dark:bg-[#1b1d22] border border-[#e7e4de] dark:border-[#2a2d35] shadow-xs flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between pb-3 border-b border-[#e7e4de] dark:border-[#2a2d35]">
               <div className="flex items-center gap-2">
@@ -200,7 +200,7 @@ export default async function DashboardOverviewPage() {
         </div>
 
         {/* Right Column: Attendance Overview with Enlarged Radial Gauge */}
-        <div className="p-5 sm:p-6 rounded-xl bg-white dark:bg-[#1b1d22] border border-[#e7e4de] dark:border-[#2a2d35] shadow-xs flex flex-col justify-between animate-fade-in-up animate-delay-1">
+        <div className="p-5 sm:p-6 rounded-xl bg-white dark:bg-[#1b1d22] border border-[#e7e4de] dark:border-[#2a2d35] shadow-xs flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between pb-3 border-b border-[#e7e4de] dark:border-[#2a2d35]">
               <div className="flex items-center gap-2">
@@ -287,7 +287,7 @@ export default async function DashboardOverviewPage() {
       </div>
 
       {/* Timetable Table Section */}
-      <div className="p-5 sm:p-6 rounded-xl bg-white dark:bg-[#1b1d22] border border-[#e7e4de] dark:border-[#2a2d35] shadow-xs space-y-4 animate-fade-in-up animate-delay-2">
+      <div className="p-5 sm:p-6 rounded-xl bg-white dark:bg-[#1b1d22] border border-[#e7e4de] dark:border-[#2a2d35] shadow-xs space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[#e7e4de] dark:border-[#2a2d35]">
           <div className="flex items-center gap-2">
             <Calendar className="w-4 h-4 text-stone-600 dark:text-stone-400" />
@@ -365,7 +365,7 @@ export default async function DashboardOverviewPage() {
       </div>
 
       {/* Recent Study Materials Preview */}
-      <div className="p-5 sm:p-6 rounded-xl bg-white dark:bg-[#1b1d22] border border-[#e7e4de] dark:border-[#2a2d35] shadow-xs space-y-4 animate-fade-in-up animate-delay-3">
+      <div className="p-5 sm:p-6 rounded-xl bg-white dark:bg-[#1b1d22] border border-[#e7e4de] dark:border-[#2a2d35] shadow-xs space-y-4">
         <div className="flex items-center justify-between pb-3 border-b border-[#e7e4de] dark:border-[#2a2d35]">
           <div className="flex items-center gap-2">
             <FolderDown className="w-4 h-4 text-stone-600 dark:text-stone-400" />

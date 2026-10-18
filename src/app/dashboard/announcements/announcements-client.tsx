@@ -145,7 +145,7 @@ export function AnnouncementsClient({
   };
 
   return (
-    <div className="space-y-6 animate-fade-in-up">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -320,7 +320,7 @@ export function AnnouncementsClient({
           aria-modal="true"
           aria-labelledby="modal-announcement-title"
         >
-          <div className="w-full max-w-lg max-h-[90vh] flex flex-col rounded-2xl bg-white dark:bg-[#1b1d22] border border-[#e7e4de] dark:border-[#2a2d35] shadow-xl overflow-hidden animate-fade-in-up">
+          <div className="w-full max-w-lg max-h-[90vh] flex flex-col rounded-2xl bg-white dark:bg-[#1b1d22] border border-[#e7e4de] dark:border-[#2a2d35] shadow-xl overflow-hidden">
             <div className="flex items-center justify-between px-5 py-4 border-b border-[#e7e4de] dark:border-[#2a2d35] shrink-0">
               <div className="flex items-center gap-2">
                 <Users className="w-4 h-4 text-indigo-500" />
@@ -443,7 +443,7 @@ export function AnnouncementsClient({
       {/* Delete Confirmation Modal */}
       {itemToDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
-          <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-[#1b1d22] border border-[#e7e4de] dark:border-[#2a2d35] shadow-xl p-5 animate-fade-in-up">
+          <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-[#1b1d22] border border-[#e7e4de] dark:border-[#2a2d35] shadow-xl p-5">
             <h3 className="text-sm font-semibold text-[#1c1917] dark:text-[#f3f4f6]">
               Delete Cohort Announcement?
             </h3>

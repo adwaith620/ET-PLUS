@@ -22,8 +22,14 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
+  // Prefetch dashboard shell and assets while the user is entering credentials
+  React.useEffect(() => {
+    router.prefetch('/dashboard');
+  }, [router]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
     setErrorMessage('');
     setLoading(true);
 
@@ -42,17 +48,16 @@ export default function LoginPage() {
 
       if (!res.ok || !data.success) {
         setErrorMessage(data.error || 'Authentication failed. Please verify credentials.');
+        setLoading(false);
         return;
       }
 
-      // Successful login
+      // Successful login: Navigate immediately to dashboard without redundant refresh
       router.push('/dashboard');
-      router.refresh();
     } catch (err) {
       setErrorMessage(
-        err instanceof Error ? err.message : 'Unable to connect to local authentication server.'
+        err instanceof Error ? err.message : 'Unable to connect to authentication server.'
       );
-    } finally {
       setLoading(false);
     }
   };
@@ -116,10 +121,11 @@ export default function LoginPage() {
                   id="login-username"
                   type="text"
                   required
+                  disabled={loading}
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder="e.g. 23CS1042 or admission no."
-                  className="w-full pl-9 pr-3 py-2.5 min-h-[44px] text-xs font-medium rounded-lg bg-[#fdfcfb] dark:bg-[#202227] border border-[#e7e4de] dark:border-[#2a2d35] text-[#1c1917] dark:text-[#f3f4f6] placeholder:text-[#a8a29e] dark:placeholder:text-[#6b7280] outline-none focus:border-[#1c1917] dark:focus:border-[#f3f4f6]"
+                  className="w-full pl-9 pr-3 py-2.5 min-h-[44px] text-xs font-medium rounded-lg bg-[#fdfcfb] dark:bg-[#202227] border border-[#e7e4de] dark:border-[#2a2d35] text-[#1c1917] dark:text-[#f3f4f6] placeholder:text-[#a8a29e] dark:placeholder:text-[#6b7280] outline-none focus:border-[#1c1917] dark:focus:border-[#f3f4f6] disabled:opacity-60"
                 />
               </div>
             </div>
@@ -144,10 +150,11 @@ export default function LoginPage() {
                   id="login-password"
                   type={showPassword ? 'text' : 'password'}
                   required
+                  disabled={loading}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter your ETLAB password"
-                  className="w-full pl-9 pr-12 py-2.5 min-h-[44px] text-xs font-medium rounded-lg bg-[#fdfcfb] dark:bg-[#202227] border border-[#e7e4de] dark:border-[#2a2d35] text-[#1c1917] dark:text-[#f3f4f6] placeholder:text-[#a8a29e] dark:placeholder:text-[#6b7280] outline-none focus:border-[#1c1917] dark:focus:border-[#f3f4f6]"
+                  className="w-full pl-9 pr-12 py-2.5 min-h-[44px] text-xs font-medium rounded-lg bg-[#fdfcfb] dark:bg-[#202227] border border-[#e7e4de] dark:border-[#2a2d35] text-[#1c1917] dark:text-[#f3f4f6] placeholder:text-[#a8a29e] dark:placeholder:text-[#6b7280] outline-none focus:border-[#1c1917] dark:focus:border-[#f3f4f6] disabled:opacity-60"
                 />
                 <button
                   type="button"

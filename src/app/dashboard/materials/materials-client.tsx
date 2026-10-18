@@ -192,7 +192,7 @@ export function MaterialsClient({
   };
 
   return (
-    <div className="space-y-6 animate-fade-in-up">
+    <div className="space-y-6">
       {/* Header with Title and Upload Button */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>

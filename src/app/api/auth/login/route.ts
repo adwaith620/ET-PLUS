@@ -3,7 +3,7 @@ import { etlabLogin } from '@/lib/etlab-client';
 import { createSession } from '@/lib/auth';
 import { DEMO_PROFILE, DEMO_PROFILE_B } from '@/lib/demo-data';
 import { clearAssignmentCache } from '@/lib/assignment-service';
-import { invalidateStudentCache } from '@/lib/data-service';
+import { invalidateStudentCache, setCachedStudentData } from '@/lib/data-service';
 import { verifySameOrigin, checkRateLimit, PRIVATE_CACHE_HEADERS } from '@/lib/security';
 
 export async function POST(request: Request) {
@@ -70,6 +70,10 @@ export async function POST(request: Request) {
     }
 
     invalidateStudentCache(username.trim());
+
+    if (result.profile) {
+      setCachedStudentData(username.trim(), 'profile', result.profile);
+    }
 
     // Store secure HttpOnly session with retrieved profile
     await createSession({

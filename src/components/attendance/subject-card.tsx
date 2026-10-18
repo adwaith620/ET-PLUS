@@ -96,7 +96,7 @@ export function SubjectList({ subjects, targetPercentage }: SubjectListProps) {
           return (
             <div
               key={subject.code}
-              className="p-4 sm:p-5 rounded-lg bg-white dark:bg-[#1b1d22] border border-[#e7e4de] dark:border-[#2a2d35] flex flex-col justify-between animate-fade-in-up"
+              className="p-4 sm:p-5 rounded-lg bg-white dark:bg-[#1b1d22] border border-[#e7e4de] dark:border-[#2a2d35] flex flex-col justify-between"
             >
               <div>
                 <div className="flex items-start justify-between gap-3">

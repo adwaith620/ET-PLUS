@@ -15,7 +15,7 @@ export function TargetSelector({
   const presetTargets = [75, 80, 85, 90];
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 sm:p-4 rounded-lg bg-white dark:bg-[#1b1d22] border border-[#e7e4de] dark:border-[#2a2d35] animate-fade-in-up">
+    <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 sm:p-4 rounded-lg bg-white dark:bg-[#1b1d22] border border-[#e7e4de] dark:border-[#2a2d35]">
       <div className="flex items-center gap-2.5">
         <div className="p-1.5 rounded-md bg-[#f4f1eb] dark:bg-[#22252c] text-stone-700 dark:text-stone-300">
           <Target className="w-4 h-4" />

@@ -53,7 +53,7 @@ export function AttendanceRadial({
     : '#dc2626';
 
   return (
-    <div className="p-6 rounded-xl bg-white dark:bg-[#1b1d22] border border-[#e7e4de] dark:border-[#2a2d35] shadow-xs space-y-6 animate-fade-in-up animate-delay-1">
+    <div className="p-6 rounded-xl bg-white dark:bg-[#1b1d22] border border-[#e7e4de] dark:border-[#2a2d35] shadow-xs space-y-6">
       {/* Top Header: Title & Target Pill */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[#e7e4de] dark:border-[#2a2d35]">
         <div className="flex items-center gap-2">

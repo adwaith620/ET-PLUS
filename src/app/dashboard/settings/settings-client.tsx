@@ -23,7 +23,7 @@ export function SettingsClient({ mode, username }: SettingsClientProps) {
   };
 
   return (
-    <div className="space-y-6 max-w-3xl animate-fade-in-up">
+    <div className="space-y-6 max-w-3xl">
       {/* Header */}
       <div>
         <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#1c1917] dark:text-[#f3f4f6]">
