@@ -48,11 +48,16 @@ test('normalizeStudentProfile - corrects identity to Semester 3 Computer Science
 
   assert.equal(normalized.department, 'Computer Science (AI)');
   assert.equal(normalized.rollNo, 'B25CTA12');
-  assert.equal(normalized.batch, '2025–2029');
+  assert.equal(normalized.batch, '2025-29');
   assert.equal(normalized.semester, 3);
   assert.equal(normalized.institution, 'TKM College of Engineering, Kollam');
   assert.equal(normalized.email, '25CTA12@tkmce.ac.in');
   assert.ok(!normalized.department.includes('Cherumkuzhi'));
+
+  // Test that upstream location artifacts like 'kudumpanthira junction' are normalized to Computer Science (AI)
+  const junctionProfile = normalizeStudentProfile({ department: 'kudumpanthira junction', batch: '2023 - 2027' });
+  assert.equal(junctionProfile.department, 'Computer Science (AI)');
+  assert.equal(junctionProfile.batch, '2025-29');
 });
 
 test('normalizeSubjectAttendance - canonicalizes subject title while preserving hours', () => {

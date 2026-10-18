@@ -6,6 +6,13 @@ import { DashboardShell } from './dashboard-shell';
 
 export const dynamic = 'force-dynamic';
 
+export const metadata = {
+  title: {
+    default: 'Dashboard | ETPlus',
+    template: '%s | ETPlus',
+  },
+};
+
 export default async function DashboardLayout({
   children,
 }: {
@@ -23,8 +30,8 @@ export default async function DashboardLayout({
     <DashboardShell
       profile={shellData?.profile}
       mode={shellData?.mode || 'demo'}
-      overallPercentage={shellData?.overallPercentage || 83.2}
-      hasShortage={shellData?.hasShortage ?? true}
+      overallPercentage={shellData?.overallPercentage}
+      hasShortage={shellData?.hasShortage ?? false}
       lastSynced={shellData?.lastSynced || 'Just now'}
       notifications={shellData?.notifications || []}
       initialTarget={shellData?.targetPercentage || 75}

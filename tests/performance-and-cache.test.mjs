@@ -170,16 +170,67 @@ test('Login Redirection - Verify No Router Cache Poisoning Prefetch', async () =
   assert.ok(loginSrc.includes("window.location.href = '/dashboard'"), 'Successful login must use window.location.href');
 });
 
-test('Results Configuration - Verify Extended Serverless Execution and Timeout', async () => {
+test('Results Page - Coming Soon Message & Zero Unnecessary Requests', async () => {
   const fs = await import('node:fs/promises');
   const path = await import('node:path');
   const resultsPagePath = path.resolve('src/app/dashboard/results/page.tsx');
   const resultsPageSrc = await fs.readFile(resultsPagePath, 'utf-8');
 
-  // Must export maxDuration = 30 for Vercel
-  assert.ok(resultsPageSrc.includes('maxDuration = 30'), 'Results page must export maxDuration = 30');
+  // Must contain the exact text required
+  assert.ok(
+    resultsPageSrc.includes('results updates coming soon in later updates'),
+    'Results page must display exact text: results updates coming soon in later updates'
+  );
 
-  const clientPath = path.resolve('src/lib/etlab-client.ts');
-  const clientSrc = await fs.readFile(clientPath, 'utf-8');
-  assert.ok(clientSrc.includes('RESULTS_TIMEOUT_MS = 25000'), 'ETLAB client must have RESULTS_TIMEOUT_MS set to 25s');
+  // Must not trigger results data fetching
+  assert.ok(
+    !resultsPageSrc.includes('getResultsPageData'),
+    'Results page must not call getResultsPageData when opening'
+  );
+});
+
+test('Attendance Alert Badge & Target Logic', () => {
+  function computeAlert(overallPercentage, target) {
+    const isAttendanceAvailable = typeof overallPercentage === 'number' && !isNaN(overallPercentage);
+    return isAttendanceAvailable && overallPercentage < target;
+  }
+
+  // 96.59% with target 90% -> No Alert
+  assert.equal(computeAlert(96.59, 90), false);
+  // 90% with target 90% -> No Alert
+  assert.equal(computeAlert(90, 90), false);
+  // 89.99% with target 90% -> Alert
+  assert.equal(computeAlert(89.99, 90), true);
+  // 83.7% with target 75% -> No Alert
+  assert.equal(computeAlert(83.7, 75), false);
+  // 74.99% with target 75% -> Alert
+  assert.equal(computeAlert(74.99, 75), true);
+  // Unavailable (undefined) -> No Alert
+  assert.equal(computeAlert(undefined, 75), false);
+});
+
+test('Metadata Suite - Browser Tab Title Uses ETPlus Brand', async () => {
+  const fs = await import('node:fs/promises');
+  const path = await import('node:path');
+  const rootLayoutPath = path.resolve('src/app/layout.tsx');
+  const rootLayoutSrc = await fs.readFile(rootLayoutPath, 'utf-8');
+
+  assert.ok(rootLayoutSrc.includes("default: 'ETPlus'"), 'Root metadata default title must be ETPlus');
+  assert.ok(rootLayoutSrc.includes("template: '%s | ETPlus'"), 'Root metadata title template must be %s | ETPlus');
+  assert.ok(!rootLayoutSrc.includes("title: 'ETLAB"), 'Old ETLAB title must be eliminated from root layout');
+});
+
+test('Student Metadata Defaults - Department and Batch', async () => {
+  const { DEFAULT_DEPARTMENT, DEFAULT_BATCH, normalizeStudentProfile } = await import('../src/lib/course-catalog.ts');
+
+  assert.equal(DEFAULT_DEPARTMENT, 'Computer Science (AI)');
+  assert.equal(DEFAULT_BATCH, '2025-29');
+
+  const p1 = normalizeStudentProfile({ name: 'Adwaith', admissionNo: '25CTA12', department: 'kudumpanthira junction', batch: '2023 - 2027' });
+  assert.equal(p1.department, 'Computer Science (AI)');
+  assert.equal(p1.batch, '2025-29');
+
+  const p2 = normalizeStudentProfile({ name: 'Kavya', admissionNo: '25CTA99', department: 'Mechanical', batch: '2024-2028' });
+  assert.equal(p2.department, 'Computer Science (AI)');
+  assert.equal(p2.batch, '2025-29');
 });

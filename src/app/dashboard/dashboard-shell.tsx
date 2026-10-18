@@ -11,7 +11,7 @@ interface DashboardShellProps {
   children: React.ReactNode;
   profile?: StudentProfile;
   mode: 'live' | 'demo';
-  overallPercentage: number;
+  overallPercentage?: number;
   hasShortage: boolean;
   lastSynced: string;
   notifications: NotificationItem[];

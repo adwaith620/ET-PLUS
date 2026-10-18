@@ -3,7 +3,7 @@ import { getMaterialsPageData } from '@/lib/data-service';
 import { MaterialsClient } from './materials-client';
 
 export const metadata = {
-  title: 'Study Materials | ETLAB TKMCE',
+  title: 'Study Materials',
   description: 'Course study notes, syllabus references, and shared cohort resources for Computer Science (AI)',
 };
 

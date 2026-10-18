@@ -22,11 +22,11 @@ export default function LoginPage() {
 
   // If user is already authenticated, redirect directly to dashboard
   React.useEffect(() => {
+    document.title = 'Login | ETPlus';
     fetch('/api/auth/session')
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data?.authenticated) {
-          // eslint-disable-next-line @next/next/no-location-assign-relative-destination
           window.location.replace('/dashboard');
         }
       })

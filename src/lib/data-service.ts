@@ -65,7 +65,7 @@ export interface DashboardData {
 export interface DashboardShellData {
   profile: StudentProfile;
   mode: 'live' | 'demo';
-  overallPercentage: number;
+  overallPercentage?: number;
   hasShortage: boolean;
   lastSynced: string;
   notifications: NotificationItem[];
@@ -323,11 +323,15 @@ export const getDashboardShellData = cache(async function getDashboardShellData(
   // If full dashboardData is already in cache, reuse it directly
   const cachedFull = getCachedStudentData<DashboardData>(session.username, `dashboardData_${effectiveTarget}`);
   if (cachedFull) {
+    const hasAttendance = cachedFull.attendance && cachedFull.attendance.totalConducted > 0;
+    const overallPercentage = hasAttendance ? cachedFull.attendance.overallPercentage : undefined;
+    const hasShortage = typeof overallPercentage === 'number' ? overallPercentage < effectiveTarget : false;
+
     return {
       profile: cachedFull.profile,
       mode: cachedFull.mode,
-      overallPercentage: cachedFull.attendance.overallPercentage,
-      hasShortage: (cachedFull.attendance.subjects || []).some((s) => s.percentage < effectiveTarget),
+      overallPercentage,
+      hasShortage,
       lastSynced: cachedFull.lastSynced,
       notifications: cachedFull.notifications || [],
       targetPercentage: effectiveTarget,
@@ -335,51 +339,23 @@ export const getDashboardShellData = cache(async function getDashboardShellData(
     };
   }
 
-  // Fast resolution for shell without blocking layout on child page data
-  const isStudentB =
-    session.username === '25CTA99' ||
-    session.username === 'demo-b' ||
-    session.username === 'student-b' ||
-    session.displayName?.toLowerCase().includes('kavya');
+  // Obtain authoritative dashboard data directly (memoized per-request by React cache)
+  const dashboardData = await getDashboardData(effectiveTarget);
+  if (!dashboardData) return null;
 
-  const defaultProfile = isStudentB ? DEMO_PROFILE_B : DEMO_PROFILE;
-  const profile = normalizeStudentProfile(session.profile || defaultProfile);
-
-  const cachedAttendance = getCachedStudentData<AttendanceSummary>(session.username, `attendance_${effectiveTarget}`);
-  const cachedAssignments = getCachedStudentData<Assignment[]>(session.username, 'assignments');
-
-  const overallPercentage = cachedAttendance
-    ? cachedAttendance.overallPercentage
-    : (isStudentB ? 0 : 83.2);
-
-  const hasShortage = cachedAttendance
-    ? (cachedAttendance.subjects || []).some((s) => s.percentage < effectiveTarget)
-    : (!isStudentB && 83.2 < effectiveTarget);
-
-  const pendingAssignmentsCount = cachedAssignments
-    ? cachedAssignments.filter((a) => {
-        if (!a.dueDate) return false;
-        const d = new Date(a.dueDate);
-        return !isNaN(d.getTime()) && d.getTime() > Date.now() && a.status !== 'submitted' && a.status !== 'completed';
-      }).length
-    : (isStudentB ? 0 : 2);
-
-  const now = new Date().toLocaleTimeString('en-IN', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: true,
-  });
+  const hasAttendance = dashboardData.attendance && dashboardData.attendance.totalConducted > 0;
+  const overallPercentage = hasAttendance ? dashboardData.attendance.overallPercentage : undefined;
+  const hasShortage = typeof overallPercentage === 'number' ? overallPercentage < effectiveTarget : false;
 
   return {
-    profile,
-    mode: session.mode,
+    profile: dashboardData.profile,
+    mode: dashboardData.mode,
     overallPercentage,
     hasShortage,
-    lastSynced: now,
-    notifications: [],
+    lastSynced: dashboardData.lastSynced,
+    notifications: dashboardData.notifications || [],
     targetPercentage: effectiveTarget,
-    pendingAssignmentsCount,
+    pendingAssignmentsCount: dashboardData.upcomingAssignmentsCount,
   };
 });
 

@@ -162,6 +162,9 @@ function isLikelyAddressArtifact(value: string | undefined): boolean {
   return ADDRESS_KEYWORDS.some((kw) => lower.includes(kw));
 }
 
+export const DEFAULT_DEPARTMENT = 'Computer Science (AI)';
+export const DEFAULT_BATCH = '2025-29';
+
 /**
  * Normalizes an authenticated or retrieved student profile according to verified Semester 3 identity.
  * Rule: Institutional email is strictly `[admissionNo]@tkmce.ac.in`.
@@ -170,20 +173,8 @@ export function normalizeStudentProfile(rawProfile: Partial<StudentProfile>): St
   // 1. Admission Number: preserve authenticated student's admission number
   const admissionNo = (rawProfile.admissionNo || rawProfile.registerNo || '').trim();
 
-  // 2. Department: Strip address pollution like 'Cherumkuzhi'
-  let department = 'Computer Science (AI)';
-  if (rawProfile.department && !isLikelyAddressArtifact(rawProfile.department)) {
-    const rawDeptLower = rawProfile.department.toLowerCase();
-    if (
-      rawDeptLower.includes('ai') ||
-      rawDeptLower.includes('artificial intelligence') ||
-      rawDeptLower.includes('computer')
-    ) {
-      department = 'Computer Science (AI)';
-    } else {
-      department = rawProfile.department;
-    }
-  }
+  // 2. Department: Centralized default for all students across Overview and Profile
+  const department = DEFAULT_DEPARTMENT;
 
   // 3. Roll number: Retain student's verified roll number in data model without cross-account contamination
   let rollNo = '';
@@ -196,8 +187,8 @@ export function normalizeStudentProfile(rawProfile: Partial<StudentProfile>): St
   // 4. Semester: Must strictly be 3 (Third Semester)
   const semester = rawProfile.semester || 3;
 
-  // 5. Batch & Academic Year
-  const batch = rawProfile.batch || '2025–2029';
+  // 5. Batch & Academic Year: Centralized default 2025-29 across Overview and Profile
+  const batch = DEFAULT_BATCH;
   const academicYear = rawProfile.academicYear || '2025 - 2026';
 
   // 6. Institutional Email: Authenticated admission number followed by @tkmce.ac.in

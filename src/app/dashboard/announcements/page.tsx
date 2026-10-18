@@ -3,7 +3,7 @@ import { getAnnouncementsPageData } from '@/lib/data-service';
 import { AnnouncementsClient } from './announcements-client';
 
 export const metadata = {
-  title: 'Announcements | ETLAB TKMCE',
+  title: 'Announcements',
   description: 'Official college notices, exam cell circulars, and cohort announcements for R3AI',
 };
 

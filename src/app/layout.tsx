@@ -14,8 +14,11 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'ETLAB • TKM College of Engineering Student Portal',
-  description: 'Modern academic analytics, attendance forecasting, timetable and student portal for TKMCE ETLAB',
+  title: {
+    default: 'ETPlus',
+    template: '%s | ETPlus',
+  },
+  description: 'Academic intelligence, attendance analytics, timetable and student dashboard for TKMCE',
 };
 
 export default function RootLayout({

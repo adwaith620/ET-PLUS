@@ -3,7 +3,7 @@ import { getAssignmentsPageData } from '@/lib/data-service';
 import { AssignmentsClient } from './assignments-client';
 
 export const metadata = {
-  title: 'Assignments & Coursework | ETLAB TKMCE',
+  title: 'Assignments',
   description: 'Verified coursework assignments, upcoming submission deadlines, and evaluation marks for Semester 3',
 };
 

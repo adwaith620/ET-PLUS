@@ -18,6 +18,10 @@ import {
 import { OverviewRadialGauge } from '@/components/dashboard/overview-radial-gauge';
 import { isUpcomingAssignment, getDeadlineCountdown } from '@/lib/assignment-utils';
 
+export const metadata = {
+  title: 'Overview',
+};
+
 export default async function DashboardOverviewPage() {
   const data = await getDashboardData();
   if (!data) return null;
@@ -107,9 +111,11 @@ export default async function DashboardOverviewPage() {
                 <h3 className="text-sm sm:text-base font-bold text-stone-900 dark:text-stone-100">
                   Upcoming Assignments
                 </h3>
-                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 dark:bg-[#2b2210] text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-[#423519]">
-                  {upcomingAssignments.length} Due
-                </span>
+                {upcomingAssignments.length > 0 && (
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 dark:bg-[#2b2210] text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-[#423519]">
+                    {upcomingAssignments.length} Due
+                  </span>
+                )}
               </div>
               <Link
                 href="/dashboard/assignments"

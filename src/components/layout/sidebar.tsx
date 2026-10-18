@@ -17,6 +17,7 @@ import {
   LogOut,
 } from 'lucide-react';
 import { StudentProfile } from '@/types';
+import { useAttendanceTarget } from '@/context/attendance-target-context';
 
 interface SidebarProps {
   profile?: StudentProfile;
@@ -29,8 +30,7 @@ interface SidebarProps {
 export function Sidebar({
   profile,
   mode = 'demo',
-  overallPercentage = 83.2,
-  hasShortage = true,
+  overallPercentage,
   pendingAssignmentsCount = 0,
 }: SidebarProps) {
   const pathname = usePathname();
@@ -56,13 +56,19 @@ export function Sidebar({
     }
   };
 
+  const { target } = useAttendanceTarget();
+
+  const isAttendanceAvailable = typeof overallPercentage === 'number' && !isNaN(overallPercentage);
+  const isSafe = isAttendanceAvailable && overallPercentage >= target;
+  const showAlert = isAttendanceAvailable && overallPercentage < target;
+
   const navItems = [
     { label: 'Overview', href: '/dashboard', icon: LayoutDashboard },
     {
       label: 'Attendance',
       href: '/dashboard/attendance',
       icon: PieChart,
-      badge: hasShortage ? 'Alert' : undefined,
+      badge: showAlert ? 'Alert' : undefined,
       badgeColor: 'bg-amber-100 dark:bg-[#2b2210] text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-[#423418]',
     },
     { label: 'Timetable', href: '/dashboard/timetable', icon: CalendarDays },
@@ -79,8 +85,6 @@ export function Sidebar({
     { label: 'Profile', href: '/dashboard/profile', icon: User },
     { label: 'Settings', href: '/dashboard/settings', icon: Settings },
   ];
-
-  const isSafe = overallPercentage >= 75;
 
   return (
     <aside className="w-60 shrink-0 hidden md:flex flex-col bg-white dark:bg-[#18191d] border-r border-[#e7e4de] dark:border-[#26282f] h-screen sticky top-0 select-none">
@@ -155,20 +159,32 @@ export function Sidebar({
       <div className="px-3 py-2.5 mx-2.5 my-2 rounded-md bg-[#f9f8f5] dark:bg-[#202227] border border-[#e7e4de] dark:border-[#2a2d35]">
         <div className="flex items-center justify-between text-xs mb-1.5">
           <span className="text-[11px] font-medium text-stone-500 dark:text-stone-400">Attendance</span>
-          <span className="text-xs font-semibold text-stone-900 dark:text-stone-100">{overallPercentage}%</span>
+          <span className="text-xs font-semibold text-stone-900 dark:text-stone-100">
+            {isAttendanceAvailable ? `${overallPercentage}%` : 'Unavailable'}
+          </span>
         </div>
         <div className="w-full bg-[#e7e4de] dark:bg-[#2b2e37] h-1.5 rounded-full overflow-hidden">
           <div
             className={`h-full rounded-full transition-all duration-300 ${
-              isSafe ? 'bg-emerald-600 dark:bg-emerald-500' : 'bg-amber-600 dark:bg-amber-500'
+              !isAttendanceAvailable
+                ? 'bg-stone-300 dark:bg-stone-700'
+                : isSafe
+                ? 'bg-emerald-600 dark:bg-emerald-500'
+                : 'bg-amber-600 dark:bg-amber-500'
             }`}
-            style={{ width: `${Math.min(100, overallPercentage)}%` }}
+            style={{ width: `${isAttendanceAvailable ? Math.min(100, Math.max(0, overallPercentage)) : 0}%` }}
           />
         </div>
         <div className="flex items-center justify-between mt-1.5 text-[10px]">
-          <span className="text-stone-500 dark:text-stone-400">Target 75%</span>
-          <span className={`font-medium ${isSafe ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-400'}`}>
-            {isSafe ? 'Eligible' : 'Shortage'}
+          <span className="text-stone-500 dark:text-stone-400">Target {target}%</span>
+          <span className={`font-medium ${
+            !isAttendanceAvailable
+              ? 'text-stone-400 dark:text-stone-500'
+              : isSafe
+              ? 'text-emerald-700 dark:text-emerald-400'
+              : 'text-amber-700 dark:text-amber-400'
+          }`}>
+            {!isAttendanceAvailable ? 'No Data' : isSafe ? 'Eligible' : 'Shortage'}
           </span>
         </div>
       </div>
