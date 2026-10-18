@@ -170,23 +170,17 @@ test('Login Redirection - Verify No Router Cache Poisoning Prefetch', async () =
   assert.ok(loginSrc.includes("window.location.href = '/dashboard'"), 'Successful login must use window.location.href');
 });
 
-test('Results Page - Coming Soon Message & Zero Unnecessary Requests', async () => {
+test('Results Page - Restored Functional Interface & Data Fetcher', async () => {
   const fs = await import('node:fs/promises');
   const path = await import('node:path');
   const resultsPagePath = path.resolve('src/app/dashboard/results/page.tsx');
   const resultsPageSrc = await fs.readFile(resultsPagePath, 'utf-8');
 
-  // Must contain the exact text required
-  assert.ok(
-    resultsPageSrc.includes('results updates coming soon in later updates'),
-    'Results page must display exact text: results updates coming soon in later updates'
-  );
-
-  // Must not trigger results data fetching
-  assert.ok(
-    !resultsPageSrc.includes('getResultsPageData'),
-    'Results page must not call getResultsPageData when opening'
-  );
+  // Must call getResultsPageData and render ResultsClient
+  assert.ok(resultsPageSrc.includes('getResultsPageData'), 'Results page must integrate with getResultsPageData');
+  assert.ok(resultsPageSrc.includes('<ResultsClient'), 'Results page must render ResultsClient');
+  assert.ok(resultsPageSrc.includes('maxDuration = 30'), 'Results page must have maxDuration = 30');
+  assert.ok(resultsPageSrc.includes("title: 'Results'"), 'Results page must have metadata title Results');
 });
 
 test('Attendance Alert Badge & Target Logic', () => {
