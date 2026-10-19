@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/etplus-banner.jpg" alt="ETPlus — Your Academic Dashboard Simplified" width="100%" />
+</p>
+
 # 🎓 ETPlus
 
 **A cleaner, student-friendly interface for ETLAB.**
