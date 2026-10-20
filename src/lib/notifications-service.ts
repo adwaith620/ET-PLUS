@@ -3,16 +3,24 @@ import fsSync from 'fs';
 import path from 'path';
 import { NotificationItem, SubjectAttendance, Assignment, Announcement, StudyMaterial } from '@/types';
 import { isUpcomingAssignment, getDeadlineCountdown } from './assignment-utils';
+import { isFilesystemStorageAvailable } from './supabase-client';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 const READ_NOTIFS_FILE = path.join(DATA_DIR, 'read-notifications.json');
 
-export function ensureNotificationsDirectory() {
-  if (!fsSync.existsSync(DATA_DIR)) {
-    fsSync.mkdirSync(DATA_DIR, { recursive: true });
+export function ensureNotificationsDirectory(): void {
+  if (!isFilesystemStorageAvailable()) {
+    return;
   }
-  if (!fsSync.existsSync(READ_NOTIFS_FILE)) {
-    fsSync.writeFileSync(READ_NOTIFS_FILE, JSON.stringify({}, null, 2), 'utf-8');
+  try {
+    if (!fsSync.existsSync(DATA_DIR)) {
+      fsSync.mkdirSync(DATA_DIR, { recursive: true });
+    }
+    if (!fsSync.existsSync(READ_NOTIFS_FILE)) {
+      fsSync.writeFileSync(READ_NOTIFS_FILE, JSON.stringify({}, null, 2), 'utf-8');
+    }
+  } catch {
+    // Ignore filesystem restrictions
   }
 }
 
@@ -32,6 +40,10 @@ export async function getReadNotificationIds(username: string): Promise<string[]
   const now = Date.now();
   if (cachedReadNotifs && now - lastReadNotifsReadTime < READ_NOTIFS_CACHE_TTL) {
     return cachedReadNotifs[username] || [];
+  }
+
+  if (!isFilesystemStorageAvailable()) {
+    return (cachedReadNotifs && cachedReadNotifs[username]) || [];
   }
 
   try {
@@ -54,13 +66,16 @@ export async function getReadNotificationIds(username: string): Promise<string[]
  */
 export async function markNotificationsAsRead(username: string, ids: string[]): Promise<void> {
   try {
-    ensureNotificationsDirectory();
-    let currentMap: Record<string, string[]> = {};
-    try {
-      const data = await fs.readFile(READ_NOTIFS_FILE, 'utf-8');
-      currentMap = JSON.parse(data) || {};
-    } catch {
-      currentMap = {};
+    let currentMap: Record<string, string[]> = cachedReadNotifs || {};
+
+    if (isFilesystemStorageAvailable()) {
+      ensureNotificationsDirectory();
+      try {
+        const data = await fs.readFile(READ_NOTIFS_FILE, 'utf-8');
+        currentMap = JSON.parse(data) || {};
+      } catch {
+        currentMap = cachedReadNotifs || {};
+      }
     }
 
     const userReads = new Set<string>(currentMap[username] || []);
@@ -68,10 +83,12 @@ export async function markNotificationsAsRead(username: string, ids: string[]): 
       if (id) userReads.add(id);
     }
     currentMap[username] = Array.from(userReads);
-
-    await fs.writeFile(READ_NOTIFS_FILE, JSON.stringify(currentMap, null, 2), 'utf-8');
     cachedReadNotifs = currentMap;
     lastReadNotifsReadTime = Date.now();
+
+    if (isFilesystemStorageAvailable()) {
+      await fs.writeFile(READ_NOTIFS_FILE, JSON.stringify(currentMap, null, 2), 'utf-8');
+    }
   } catch (err) {
     console.error('Failed to save read notifications state:', err);
   }

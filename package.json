@@ -10,6 +10,7 @@
     "test": "node --experimental-strip-types --test tests/*.test.mjs"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.118.0",
     "cheerio": "^1.2.0",
     "clsx": "^2.1.1",
     "lucide-react": "^1.58.0",

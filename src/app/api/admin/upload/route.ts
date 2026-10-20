@@ -4,6 +4,11 @@ import fs from 'fs/promises';
 import { verifyAdminRequest } from '@/lib/admin-auth';
 import { ensureDirectories } from '@/lib/materials-service';
 import { sanitizeFilename, validateFileBuffer } from '@/lib/security';
+import {
+  isSupabaseConfigured,
+  getSupabaseClient,
+  isFilesystemStorageAvailable,
+} from '@/lib/supabase-client';
 
 export const runtime = 'nodejs';
 
@@ -55,30 +60,72 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: contentValidation.error || 'Invalid file content.' }, { status: 400 });
     }
 
-    ensureDirectories();
-
     const id = `mat-file-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
     const sanitizedOriginalName = sanitizeFilename(file.name);
     const storedFileName = `${id}-${sanitizedOriginalName}`;
-    const uploadsDir = path.resolve(process.cwd(), 'data', 'uploads');
-    const destinationPath = path.resolve(uploadsDir, storedFileName);
 
-    if (!destinationPath.startsWith(uploadsDir + path.sep)) {
-      return NextResponse.json({ error: 'Invalid file destination path.' }, { status: 400 });
+    // 1. Supabase Storage (Persistent)
+    if (isSupabaseConfigured()) {
+      const supabase = getSupabaseClient();
+      if (supabase) {
+        const { error: uploadError } = await supabase.storage
+          .from('materials')
+          .upload(storedFileName, buffer, {
+            contentType: file.type || 'application/octet-stream',
+            upsert: true,
+          });
+
+        if (uploadError) {
+          return NextResponse.json(
+            { error: `Storage upload failed: ${uploadError.message}` },
+            { status: 500 }
+          );
+        }
+
+        const { data: urlData } = supabase.storage
+          .from('materials')
+          .getPublicUrl(storedFileName);
+
+        return NextResponse.json({
+          success: true,
+          fileId: id,
+          fileName: sanitizedOriginalName,
+          fileSize: formatFileSize(file.size),
+          fileType: ext.replace('.', ''),
+          downloadUrl: urlData.publicUrl,
+        });
+      }
     }
 
-    await fs.writeFile(destinationPath, buffer);
+    // 2. Local filesystem storage (local dev / testing only)
+    if (isFilesystemStorageAvailable()) {
+      ensureDirectories();
+      const uploadsDir = path.resolve(process.cwd(), 'data', 'uploads');
+      const destinationPath = path.resolve(uploadsDir, storedFileName);
 
-    const downloadUrl = `/api/materials/download/${id}`;
+      if (!destinationPath.startsWith(uploadsDir + path.sep)) {
+        return NextResponse.json({ error: 'Invalid file destination path.' }, { status: 400 });
+      }
 
-    return NextResponse.json({
-      success: true,
-      fileId: id,
-      fileName: sanitizedOriginalName,
-      fileSize: formatFileSize(file.size),
-      fileType: ext.replace('.', ''),
-      downloadUrl,
-    });
+      await fs.writeFile(destinationPath, buffer);
+
+      return NextResponse.json({
+        success: true,
+        fileId: id,
+        fileName: sanitizedOriginalName,
+        fileSize: formatFileSize(file.size),
+        fileType: ext.replace('.', ''),
+        downloadUrl: `/api/materials/download/${id}`,
+      });
+    }
+
+    return NextResponse.json(
+      {
+        error:
+          'Persistent file storage is not configured. Please configure Supabase storage in project settings.',
+      },
+      { status: 503 }
+    );
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Internal Server Error';
     return NextResponse.json({ error: message }, { status: 500 });

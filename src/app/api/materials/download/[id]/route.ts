@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs/promises';
 import path from 'path';
 import { getSession } from '@/lib/auth';
-import { getSharedMaterialFile } from '@/lib/materials-service';
+import { getSharedMaterials, getSharedMaterialFile } from '@/lib/materials-service';
 
 export const runtime = 'nodejs';
 
@@ -22,7 +22,10 @@ export async function GET(
   try {
     const session = await getSession();
     if (!session) {
-      return NextResponse.json({ error: 'Unauthorized: Session authentication required to download cohort resources.' }, { status: 401 });
+      return NextResponse.json(
+        { error: 'Unauthorized: Session authentication required to download cohort resources.' },
+        { status: 401 }
+      );
     }
 
     const { id } = await params;
@@ -30,6 +33,16 @@ export async function GET(
       return NextResponse.json({ error: 'Invalid resource identifier.' }, { status: 400 });
     }
 
+    // 1. Check if resource download URL is already a public URL (e.g. Supabase Storage)
+    const materials = await getSharedMaterials();
+    const found = materials.find((m) => m.id === id);
+    if (found && found.downloadUrl) {
+      if (found.downloadUrl.startsWith('http://') || found.downloadUrl.startsWith('https://')) {
+        return NextResponse.redirect(found.downloadUrl);
+      }
+    }
+
+    // 2. Otherwise serve local filesystem file if available
     const fileResult = await getSharedMaterialFile(id);
 
     if (!fileResult) {

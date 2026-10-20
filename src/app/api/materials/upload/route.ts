@@ -2,9 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import path from 'path';
 import fs from 'fs/promises';
 import { getSession } from '@/lib/auth';
-import { getCourseFullName, SEMESTER_3_COURSES } from '@/lib/course-catalog';
+import { getCourseFullName } from '@/lib/course-catalog';
 import { saveSharedMaterial, ensureDirectories } from '@/lib/materials-service';
 import { StudyMaterial } from '@/types';
+import {
+  isSupabaseConfigured,
+  getSupabaseClient,
+  isFilesystemStorageAvailable,
+} from '@/lib/supabase-client';
 
 import {
   verifySameOrigin,
@@ -106,23 +111,58 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    ensureDirectories();
-
     const id = `mat-shared-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
     const sanitizedOriginalName = sanitizeFilename(file.name);
     const storedFileName = `${id}-${sanitizedOriginalName}`;
-    const uploadsDir = path.resolve(process.cwd(), 'data', 'uploads');
-    const destinationPath = path.resolve(uploadsDir, storedFileName);
-
-    if (!destinationPath.startsWith(uploadsDir + path.sep)) {
-      return NextResponse.json({ error: 'Invalid file destination path.' }, { status: 400 });
-    }
-
-    await fs.writeFile(destinationPath, buffer);
-
     const subjectName = getCourseFullName(subjectCode, subjectCode);
     const uploaderName = session.displayName || session.username || 'Adwaith Krishna M H';
     const cleanExt = ext.replace('.', '');
+
+    let downloadUrl = `/api/materials/download/${id}`;
+
+    // 5. Save file: Supabase Storage or Local Filesystem
+    if (isSupabaseConfigured()) {
+      const supabase = getSupabaseClient();
+      if (supabase) {
+        const { error: uploadError } = await supabase.storage
+          .from('materials')
+          .upload(storedFileName, buffer, {
+            contentType: file.type || 'application/octet-stream',
+            upsert: true,
+          });
+
+        if (uploadError) {
+          return NextResponse.json(
+            { error: `Storage upload failed: ${uploadError.message}` },
+            { status: 500 }
+          );
+        }
+
+        const { data: urlData } = supabase.storage
+          .from('materials')
+          .getPublicUrl(storedFileName);
+
+        downloadUrl = urlData.publicUrl;
+      }
+    } else if (isFilesystemStorageAvailable()) {
+      ensureDirectories();
+      const uploadsDir = path.resolve(process.cwd(), 'data', 'uploads');
+      const destinationPath = path.resolve(uploadsDir, storedFileName);
+
+      if (!destinationPath.startsWith(uploadsDir + path.sep)) {
+        return NextResponse.json({ error: 'Invalid file destination path.' }, { status: 400 });
+      }
+
+      await fs.writeFile(destinationPath, buffer);
+    } else {
+      return NextResponse.json(
+        {
+          error:
+            'Persistent file storage is not configured. Please configure Supabase storage in project settings.',
+        },
+        { status: 503 }
+      );
+    }
 
     const newMaterial: StudyMaterial = {
       id,
@@ -133,7 +173,7 @@ export async function POST(req: NextRequest) {
       uploadedDate: new Date().toISOString().split('T')[0],
       fileType: cleanExt as 'pdf' | 'ppt' | 'doc',
       fileSize: formatFileSize(file.size),
-      downloadUrl: `/api/materials/download/${id}`,
+      downloadUrl,
       topic: description || (category === 'pyq' ? 'Previous Year Questions' : 'Student Study Notes'),
       category,
       description,
