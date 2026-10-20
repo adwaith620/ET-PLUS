@@ -321,6 +321,11 @@ export function MaterialsClient({
                             Official Faculty Courseware
                           </span>
                         )}
+                        {!isPyq && !isNotes && !isCourseware && mat.category && (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300 border border-blue-200 dark:border-blue-900/50 capitalize">
+                            {mat.category.replace('_', ' ')}
+                          </span>
+                        )}
 
                         <span className="text-[11px] font-mono font-medium text-[#1c1917] dark:text-[#f3f4f6] bg-[#f4f1eb] dark:bg-[#202227] px-2 py-0.5 rounded border border-[#e7e4de] dark:border-[#2a2d35]">
                           {mat.subjectCode}

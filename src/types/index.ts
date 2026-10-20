@@ -99,6 +99,9 @@ export interface Assignment {
   attachmentName?: string;
   attachmentUrl?: string;
   externalUrl?: string;
+  announcementId?: string;
+  deadlineDate?: string;
+  deadlineTime?: string;
 }
 
 export interface StudyMaterial {
@@ -112,11 +115,14 @@ export interface StudyMaterial {
   fileSize?: string;
   downloadUrl: string;
   topic?: string;
-  category?: 'courseware' | 'pyq' | 'notes';
+  category?: 'courseware' | 'pyq' | 'notes' | 'cheatsheet' | 'slides' | 'lab' | 'assignment' | 'question_bank' | 'other' | string;
   description?: string;
   uploadedBy?: string;
   uploaderUsername?: string;
   isShared?: boolean;
+  semester?: number | string;
+  unit?: string;
+  tags?: string[];
 }
 
 export interface AssessmentMarkItem {
@@ -154,12 +160,18 @@ export interface Announcement {
   date: string;
   author: string;
   authorUsername?: string;
-  category: 'Academic' | 'Exam' | 'Hostel' | 'Placement' | 'General' | 'Cohort' | 'Project';
+  category: 'Academic' | 'Exam' | 'Hostel' | 'Placement' | 'General' | 'Cohort' | 'Project' | 'Assignment' | string;
   content: string;
   pinned?: boolean;
   link?: string;
   isCohortShared?: boolean;
   cohort?: string;
+  isAssignment?: boolean;
+  deadlineDate?: string;
+  deadlineTime?: string;
+  subjectCode?: string;
+  subject?: string;
+  status?: 'published' | 'draft';
 }
 
 export interface NotificationItem {

@@ -52,7 +52,7 @@ export async function getCohortAnnouncements(): Promise<Announcement[]> {
 }
 
 /**
- * Saves a new cohort announcement.
+ * Saves or updates a cohort announcement.
  */
 export async function saveCohortAnnouncement(announcement: Announcement): Promise<void> {
   ensureAnnouncementsDirectory();
@@ -64,11 +64,41 @@ export async function saveCohortAnnouncement(announcement: Announcement): Promis
 }
 
 /**
+ * Updates an existing announcement metadata.
+ */
+export async function updateCohortAnnouncement(
+  id: string,
+  updates: Partial<Announcement>
+): Promise<{ success: boolean; announcement?: Announcement; error?: string }> {
+  try {
+    ensureAnnouncementsDirectory();
+    const existing = await getCohortAnnouncements();
+    const index = existing.findIndex((a) => a.id === id);
+    if (index === -1) {
+      return { success: false, error: 'Announcement not found.' };
+    }
+    const updatedAnnouncement: Announcement = {
+      ...existing[index],
+      ...updates,
+      id, // Preserve ID
+    };
+    existing[index] = updatedAnnouncement;
+    await fs.writeFile(ANNOUNCEMENTS_FILE, JSON.stringify(existing, null, 2), 'utf-8');
+    invalidateCohortAnnouncementsCache();
+    return { success: true, announcement: updatedAnnouncement };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to update announcement.';
+    return { success: false, error: message };
+  }
+}
+
+/**
  * Deletes a cohort announcement with server-side authorization check.
  */
 export async function deleteCohortAnnouncement(
   id: string,
-  requesterUsername: string
+  requesterUsername?: string,
+  isAdmin: boolean = false
 ): Promise<{ success: boolean; error?: string }> {
   try {
     if (!id || !/^[a-zA-Z0-9_-]+$/.test(id)) {
@@ -83,13 +113,15 @@ export async function deleteCohortAnnouncement(
       return { success: false, error: 'Announcement not found.' };
     }
 
-    // Verify authorization: strictly check that authenticated username matches author
-    const isOwner = Boolean(
-      announcement.authorUsername && announcement.authorUsername === requesterUsername
-    );
+    if (!isAdmin) {
+      // Verify authorization: strictly check that authenticated username matches author
+      const isOwner = Boolean(
+        announcement.authorUsername && announcement.authorUsername === requesterUsername
+      );
 
-    if (!isOwner) {
-      return { success: false, error: 'Unauthorized: You can only delete announcements created by you.' };
+      if (!isOwner) {
+        return { success: false, error: 'Unauthorized: You can only delete announcements created by you.' };
+      }
     }
 
     const updated = existing.filter((a) => a.id !== id);

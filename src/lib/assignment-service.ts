@@ -1,8 +1,118 @@
+import fs from 'fs/promises';
+import fsSync from 'fs';
+import path from 'path';
 import type { Assignment, AuthSession } from '../types/index.ts';
 import { etlabFetchAssignments } from './etlab-client.ts';
 import { getCourseFullName, SEMESTER_3_COURSES } from './course-catalog.ts';
 import { getAssignmentEffectiveStatus, isUpcomingAssignment, parseDeadline } from './assignment-utils.ts';
 import { DEMO_ASSIGNMENTS } from './demo-data.ts';
+import { getCohortAnnouncements } from './announcements-service.ts';
+
+const DATA_DIR = path.join(process.cwd(), 'data');
+const ASSIGNMENTS_FILE = path.join(DATA_DIR, 'assignments.json');
+
+export function ensureAssignmentsDirectory() {
+  if (!fsSync.existsSync(DATA_DIR)) {
+    fsSync.mkdirSync(DATA_DIR, { recursive: true });
+  }
+  if (!fsSync.existsSync(ASSIGNMENTS_FILE)) {
+    fsSync.writeFileSync(ASSIGNMENTS_FILE, JSON.stringify([], null, 2), 'utf-8');
+  }
+}
+
+let cachedAssignmentsList: Assignment[] | null = null;
+let lastAssignmentsReadTime = 0;
+const ASSIGNMENTS_FILE_CACHE_TTL = 15000;
+
+export function invalidateAssignmentsFileCache(): void {
+  cachedAssignmentsList = null;
+  lastAssignmentsReadTime = 0;
+  clearAllAssignmentCaches();
+}
+
+/**
+ * Retrieves all saved assignments from data/assignments.json.
+ */
+export async function getSavedAssignments(): Promise<Assignment[]> {
+  const now = Date.now();
+  if (cachedAssignmentsList && now - lastAssignmentsReadTime < ASSIGNMENTS_FILE_CACHE_TTL) {
+    return cachedAssignmentsList;
+  }
+
+  try {
+    ensureAssignmentsDirectory();
+    const data = await fs.readFile(ASSIGNMENTS_FILE, 'utf-8');
+    const parsed = JSON.parse(data);
+    if (!Array.isArray(parsed)) return [];
+    cachedAssignmentsList = parsed;
+    lastAssignmentsReadTime = now;
+    return parsed;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Saves a new or updated assignment to data/assignments.json.
+ */
+export async function saveAssignment(asg: Assignment): Promise<void> {
+  ensureAssignmentsDirectory();
+  const existing = await getSavedAssignments();
+  const filtered = existing.filter((a) => a.id !== asg.id);
+  const updated = [asg, ...filtered];
+  await fs.writeFile(ASSIGNMENTS_FILE, JSON.stringify(updated, null, 2), 'utf-8');
+  invalidateAssignmentsFileCache();
+}
+
+/**
+ * Updates an existing assignment in data/assignments.json.
+ */
+export async function updateAssignment(
+  id: string,
+  updates: Partial<Assignment>
+): Promise<{ success: boolean; assignment?: Assignment; error?: string }> {
+  try {
+    ensureAssignmentsDirectory();
+    const existing = await getSavedAssignments();
+    const index = existing.findIndex((a) => a.id === id);
+    if (index === -1) {
+      return { success: false, error: 'Assignment not found.' };
+    }
+    const current = existing[index];
+    const updatedAsg: Assignment = {
+      ...current,
+      ...updates,
+      id, // Preserve ID
+    };
+    existing[index] = updatedAsg;
+    await fs.writeFile(ASSIGNMENTS_FILE, JSON.stringify(existing, null, 2), 'utf-8');
+    invalidateAssignmentsFileCache();
+    return { success: true, assignment: updatedAsg };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to update assignment.';
+    return { success: false, error: message };
+  }
+}
+
+/**
+ * Deletes an assignment by ID.
+ */
+export async function deleteAssignment(id: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    if (!id || !/^[a-zA-Z0-9_-]+$/.test(id)) {
+      return { success: false, error: 'Invalid assignment identifier.' };
+    }
+    ensureAssignmentsDirectory();
+    const existing = await getSavedAssignments();
+    const updated = existing.filter((a) => a.id !== id);
+    await fs.writeFile(ASSIGNMENTS_FILE, JSON.stringify(updated, null, 2), 'utf-8');
+    invalidateAssignmentsFileCache();
+    return { success: true };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to delete assignment.';
+    return { success: false, error: message };
+  }
+}
 
 export interface AssignmentSyncResult {
   success: boolean;
@@ -115,19 +225,73 @@ export async function getSynchronizedAssignments(
     hour12: true,
   });
 
-  // Assignments are maintained completely clear of assignment records
-  return {
+  const cacheKey = `${session?.mode || 'live'}_${session?.username || 'anonymous'}`;
+  if (!forceRefresh) {
+    const cached = assignmentCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+      return cached.result;
+    }
+  }
+
+  // 1. Load saved assignments from data/assignments.json
+  const saved = await getSavedAssignments();
+
+  // 2. Load cohort announcements and check for any marked as assignment
+  const cohortAnnouncements = await getCohortAnnouncements();
+  const announcementAssignments: Assignment[] = [];
+  for (const ann of cohortAnnouncements) {
+    if (ann.isAssignment || ann.category === 'Assignment') {
+      const existingInSaved = saved.some(
+        (s) => s.announcementId === ann.id || s.id === `asg-${ann.id}`
+      );
+      if (!existingInSaved) {
+        const dueDate = ann.deadlineDate
+          ? (ann.deadlineTime ? `${ann.deadlineDate}T${ann.deadlineTime}` : ann.deadlineDate)
+          : (ann.date || 'Not specified');
+        announcementAssignments.push({
+          id: `asg-${ann.id}`,
+          title: ann.title,
+          subject: ann.subject || getCourseFullName(ann.subjectCode || '', 'General Coursework'),
+          subjectCode: ann.subjectCode || '24CSP304',
+          faculty: ann.author || 'Admin / Faculty',
+          publishDate: ann.date,
+          dueDate,
+          deadlineDate: ann.deadlineDate,
+          deadlineTime: ann.deadlineTime,
+          status: 'upcoming',
+          description: ann.content,
+          externalUrl: ann.link || 'https://tkmce.etlab.in/student/assignments',
+          announcementId: ann.id,
+        });
+      }
+    }
+  }
+
+  // Combine and deduplicate
+  const rawList = [...saved, ...announcementAssignments, ...DEMO_ASSIGNMENTS];
+  const normalized = rawList.map(normalizeAssignment);
+  const deduplicated = deduplicateAssignments(normalized);
+
+  const upcomingList = deduplicated.filter((a) => isUpcomingAssignment(a));
+  const submittedCount = deduplicated.filter((a) => a.status === 'submitted').length;
+  const completedCount = deduplicated.filter((a) => a.status === 'completed').length;
+  const overdueCount = deduplicated.filter((a) => a.status === 'overdue').length;
+
+  const result: AssignmentSyncResult = {
     success: true,
-    assignments: [],
-    upcomingAssignments: [],
-    upcomingCount: 0,
-    totalCount: 0,
-    submittedCount: 0,
-    completedCount: 0,
-    overdueCount: 0,
+    assignments: deduplicated,
+    upcomingAssignments: upcomingList,
+    upcomingCount: upcomingList.length,
+    totalCount: deduplicated.length,
+    submittedCount,
+    completedCount,
+    overdueCount,
     source: session?.mode || 'live',
     lastSynced: nowStr,
   };
+
+  assignmentCache.set(cacheKey, { timestamp: Date.now(), result });
+  return result;
 }
 
 /**

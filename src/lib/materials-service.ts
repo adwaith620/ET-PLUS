@@ -81,11 +81,44 @@ export async function saveSharedMaterial(material: StudyMaterial): Promise<void>
 }
 
 /**
+ * Updates an existing shared material's metadata while preserving original uploader attribution.
+ */
+export async function updateSharedMaterial(
+  id: string,
+  updates: Partial<StudyMaterial>
+): Promise<{ success: boolean; material?: StudyMaterial; error?: string }> {
+  try {
+    ensureDirectories();
+    const existing = await getSharedMaterials();
+    const index = existing.findIndex((m) => m.id === id);
+    if (index === -1) {
+      return { success: false, error: 'Resource not found.' };
+    }
+    const current = existing[index];
+    const updatedMaterial: StudyMaterial = {
+      ...current,
+      ...updates,
+      id, // Preserve ID
+      uploadedBy: current.uploadedBy, // Preserve original uploader attribution
+      uploaderUsername: current.uploaderUsername,
+    };
+    existing[index] = updatedMaterial;
+    await fs.writeFile(METADATA_FILE, JSON.stringify(existing, null, 2), 'utf-8');
+    invalidateSharedMaterialsCache();
+    return { success: true, material: updatedMaterial };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to update resource.';
+    return { success: false, error: message };
+  }
+}
+
+/**
  * Authorizes and deletes a student-shared resource, removing both the file and metadata.
  */
 export async function deleteSharedMaterial(
   id: string,
-  requesterUsername: string
+  requesterUsername?: string,
+  isAdmin: boolean = false
 ): Promise<{ success: boolean; error?: string }> {
   try {
     if (!id || !/^[a-zA-Z0-9_-]+$/.test(id)) {
@@ -100,13 +133,15 @@ export async function deleteSharedMaterial(
       return { success: false, error: 'Resource not found.' };
     }
 
-    // Verify ownership: strictly check that authenticated username matches uploader
-    const isOwner = Boolean(
-      material.uploaderUsername && material.uploaderUsername === requesterUsername
-    );
+    if (!isAdmin) {
+      // Verify ownership: strictly check that authenticated username matches uploader
+      const isOwner = Boolean(
+        material.uploaderUsername && material.uploaderUsername === requesterUsername
+      );
 
-    if (!isOwner) {
-      return { success: false, error: 'Unauthorized: You can only delete resources you uploaded.' };
+      if (!isOwner) {
+        return { success: false, error: 'Unauthorized: You can only delete resources you uploaded.' };
+      }
     }
 
     // Delete stored file if exists with strict path boundary check
