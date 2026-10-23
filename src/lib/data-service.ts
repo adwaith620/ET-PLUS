@@ -13,8 +13,16 @@ import {
   DEMO_ANNOUNCEMENTS,
 } from './demo-data';
 import { calculateAttendanceSummary } from './attendance-calculator';
-import { etlabFetchProfile, etlabFetchAttendance, etlabFetchResults, etlabFetchTimetable } from './etlab-client';
-import { normalizeStudentProfile, normalizeSubjectAttendance, STUDENT_B_TIMETABLE } from './course-catalog';
+import { etlabFetchProfile, etlabFetchAttendance, etlabFetchResults, etlabFetchTimetable, etlabFetchTeachers } from './etlab-client';
+import {
+  normalizeStudentProfile,
+  normalizeSubjectAttendance,
+  STUDENT_B_TIMETABLE,
+  DEMO_TEACHERS_A,
+  DEMO_TEACHERS_B,
+  applyTeachersToSubjects,
+  applyTeachersToTimetable,
+} from './course-catalog';
 import { generateDynamicNotifications } from './notifications-service';
 import { getCombinedAnnouncements, getCohortAnnouncements } from './announcements-service';
 import { getSharedMaterials, getCombinedMaterials } from './materials-service';
@@ -37,9 +45,10 @@ import type {
   EtlabAssessmentRecord,
   Announcement,
   NotificationItem,
+  TeacherRecord,
 } from '../types/index.ts';
 
-export { invalidateStudentCache, setCachedStudentData, getCachedStudentData };
+export { invalidateStudentCache, setCachedStudentData, getCachedStudentData, applyTeachersToSubjects, applyTeachersToTimetable };
 
 export interface DashboardData {
   mode: 'live' | 'demo';
@@ -58,6 +67,8 @@ export interface DashboardData {
   resultsError?: string;
   announcements: Announcement[];
   notifications: NotificationItem[];
+  teachers?: TeacherRecord[];
+  teachersError?: string;
   lastSynced: string;
   targetPercentage: number;
 }
@@ -143,15 +154,30 @@ export const getDashboardData = cache(async function getDashboardData(
           registerNo: session.username,
         });
 
-        // Parallelize independent ETLAB attendance and assignment synchronization
+        // Parallelize independent ETLAB attendance, assignment, timetable and teacher synchronization
         // (Examination results are loaded on-demand by /dashboard/results)
-        const [attResult, asgSync, cohortAnnouncements, sharedMaterials, ttResult] = await Promise.all([
+        const [attResult, asgSync, cohortAnnouncements, sharedMaterials, ttResult, teachersResult] = await Promise.all([
           etlabFetchAttendance(session.sessionId, profile.semester || 3),
           getSynchronizedAssignments(session, forceRefresh),
           getCohortAnnouncements(),
           getSharedMaterials(),
-          etlabFetchTimetable(session.sessionId).catch(() => ({ success: false as const, slots: undefined })),
+          etlabFetchTimetable(session.sessionId).catch(() => ({ success: false as const, slots: undefined, error: 'Timetable synchronization error' })),
+          etlabFetchTeachers(session.sessionId).catch(() => ({ success: false as const, teachers: undefined, error: 'Teacher synchronization error' })),
         ]);
+
+        let liveTeachers: TeacherRecord[] = [];
+        let teachersError: string | undefined;
+        if (teachersResult && 'teachers' in teachersResult && teachersResult.success && teachersResult.teachers) {
+          liveTeachers = teachersResult.teachers;
+          setCachedStudentData(session.username, 'teachers', liveTeachers);
+        } else {
+          const cachedTeachers = getCachedStudentData<TeacherRecord[]>(session.username, 'teachers');
+          if (cachedTeachers) {
+            liveTeachers = cachedTeachers;
+          } else if (teachersResult && !teachersResult.success) {
+            teachersError = 'error' in teachersResult ? teachersResult.error : undefined;
+          }
+        }
 
         let subjects: SubjectAttendanceData[] = [];
         let attendanceError: string | undefined;
@@ -166,15 +192,19 @@ export const getDashboardData = cache(async function getDashboardData(
           }
           attendanceError = attResult.error || 'Attendance records unavailable or not yet published on ETLAB.';
         }
+
+        if (liveTeachers.length > 0) {
+          subjects = applyTeachersToSubjects(subjects, liveTeachers);
+        }
         const attendance = calculateAttendanceSummary(subjects, effectiveTarget);
 
         let liveTimetable = DEMO_TIMETABLE;
         if (ttResult && 'slots' in ttResult && ttResult.success && ttResult.slots && ttResult.slots.length > 0) {
-          liveTimetable = ttResult.slots;
+          liveTimetable = applyTeachersToTimetable(ttResult.slots, liveTeachers);
           setCachedStudentData(session.username, 'timetable', liveTimetable);
         } else {
           const cachedTt = getCachedStudentData<TimetableSlot[]>(session.username, 'timetable');
-          if (cachedTt) liveTimetable = cachedTt;
+          if (cachedTt) liveTimetable = applyTeachersToTimetable(cachedTt, liveTeachers);
         }
 
         const assignments = asgSync.assignments;
@@ -213,6 +243,8 @@ export const getDashboardData = cache(async function getDashboardData(
           resultsError: undefined,
           announcements,
           notifications,
+          teachers: liveTeachers,
+          teachersError,
           lastSynced,
           targetPercentage: effectiveTarget,
         };
@@ -285,7 +317,11 @@ export const getDashboardData = cache(async function getDashboardData(
       getSharedMaterials(),
     ]);
 
-    const demoSubjects = isStudentB ? [] : DEMO_SUBJECTS;
+    const demoTeachers = isStudentB ? DEMO_TEACHERS_B : DEMO_TEACHERS_A;
+    setCachedStudentData(session.username, 'teachers', demoTeachers);
+
+    const rawSubjects = isStudentB ? [] : DEMO_SUBJECTS;
+    const demoSubjects = applyTeachersToSubjects(rawSubjects, demoTeachers);
     const attendance = calculateAttendanceSummary(demoSubjects, effectiveTarget);
     const assignments = asgSync.assignments;
     const upcomingAssignmentsCount = asgSync.upcomingCount;
@@ -303,7 +339,8 @@ export const getDashboardData = cache(async function getDashboardData(
     const demoResults = isStudentB ? [] : DEMO_RESULTS;
     const demoAssessmentRecords = isStudentB ? [] : DEMO_ASSESSMENT_RECORDS;
 
-    const demoTimetable = isStudentB ? STUDENT_B_TIMETABLE : DEMO_TIMETABLE;
+    const rawTimetable = isStudentB ? STUDENT_B_TIMETABLE : DEMO_TIMETABLE;
+    const demoTimetable = applyTeachersToTimetable(rawTimetable, demoTeachers);
 
     const demoResult: DashboardData = {
       mode: 'demo',
@@ -319,6 +356,7 @@ export const getDashboardData = cache(async function getDashboardData(
       assessmentRecords: demoAssessmentRecords,
       announcements,
       notifications,
+      teachers: demoTeachers,
       lastSynced: now,
       targetPercentage: effectiveTarget,
     };
@@ -431,19 +469,34 @@ export const getAttendancePageData = cache(async function getAttendancePageData(
 
   if (session.mode === 'live' && session.sessionId) {
     try {
-      const attResult = await etlabFetchAttendance(session.sessionId, session.profile?.semester || 3);
+      const [attResult, teachersResult] = await Promise.all([
+        etlabFetchAttendance(session.sessionId, session.profile?.semester || 3),
+        etlabFetchTeachers(session.sessionId).catch(() => ({ success: false as const, teachers: undefined, error: 'Teacher synchronization error' })),
+      ]);
+
       if (!attResult.success && (attResult.error?.toLowerCase().includes('session expired') || attResult.error?.toLowerCase().includes('login'))) {
         invalidateStudentCache(session.username);
         await destroySession();
         return null;
       }
+
+      let liveTeachers = getCachedStudentData<TeacherRecord[]>(session.username, 'teachers') || [];
+      if (teachersResult && 'teachers' in teachersResult && teachersResult.success && teachersResult.teachers) {
+        liveTeachers = teachersResult.teachers;
+        setCachedStudentData(session.username, 'teachers', liveTeachers);
+      }
+
       let subjects: SubjectAttendanceData[] = [];
       if (attResult.success && attResult.subjects) {
         subjects = attResult.subjects.map(normalizeSubjectAttendance);
       }
+      if (liveTeachers.length > 0) {
+        subjects = applyTeachersToSubjects(subjects, liveTeachers);
+      }
       const summary = calculateAttendanceSummary(subjects, effectiveTarget);
       if (attResult.success && subjects.length > 0) {
         setCachedStudentData(session.username, `attendance_${effectiveTarget}`, summary);
+        setCachedStudentData(session.username, 'subjects', subjects);
       }
       return {
         attendance: summary,
@@ -467,12 +520,17 @@ export const getAttendancePageData = cache(async function getAttendancePageData(
 
   // Demo mode
   const isStudentB = session.username === '25CTA99' || session.username === 'demo-b';
-  const subjects = isStudentB ? [] : DEMO_SUBJECTS;
+  const demoTeachers = isStudentB ? DEMO_TEACHERS_B : DEMO_TEACHERS_A;
+  const rawSubjects = isStudentB ? [] : DEMO_SUBJECTS;
+  const subjects = applyTeachersToSubjects(rawSubjects, demoTeachers);
   const summary = calculateAttendanceSummary(subjects, effectiveTarget);
   setCachedStudentData(session.username, `attendance_${effectiveTarget}`, summary);
+  setCachedStudentData(session.username, 'subjects', subjects);
+  const timetable = applyTeachersToTimetable(isStudentB ? STUDENT_B_TIMETABLE : DEMO_TIMETABLE, demoTeachers);
+
   return {
     attendance: summary,
-    timetable: isStudentB ? STUDENT_B_TIMETABLE : DEMO_TIMETABLE,
+    timetable,
     mode: 'demo' as const,
     lastSynced: now,
     syncSuccess: true,
@@ -501,17 +559,32 @@ export const getTimetablePageData = cache(async function getTimetablePageData() 
     session.displayName?.toLowerCase().includes('kavya');
 
   if (session.mode === 'live' && session.sessionId) {
+    let teachers = getCachedStudentData<TeacherRecord[]>(session.username, 'teachers') || [];
+    if (teachers.length === 0) {
+      try {
+        const tResult = await etlabFetchTeachers(session.sessionId);
+        if (tResult.success && tResult.teachers) {
+          teachers = tResult.teachers;
+          setCachedStudentData(session.username, 'teachers', teachers);
+        }
+      } catch {
+        // Fallback
+      }
+    }
+
     let timetable = getCachedStudentData<TimetableSlot[]>(session.username, 'timetable');
     if (!timetable) {
       try {
         const ttResult = await etlabFetchTimetable(session.sessionId);
         if (ttResult.success && ttResult.slots && ttResult.slots.length > 0) {
-          timetable = ttResult.slots;
+          timetable = applyTeachersToTimetable(ttResult.slots, teachers);
           setCachedStudentData(session.username, 'timetable', timetable);
         }
       } catch {
         // Fallback
       }
+    } else if (teachers.length > 0) {
+      timetable = applyTeachersToTimetable(timetable, teachers);
     }
 
     let subjects = getCachedStudentData<SubjectAttendanceData[]>(session.username, 'subjects');
@@ -520,11 +593,16 @@ export const getTimetablePageData = cache(async function getTimetablePageData() 
         const attResult = await etlabFetchAttendance(session.sessionId, session.profile?.semester || 3);
         if (attResult.success && attResult.subjects) {
           subjects = attResult.subjects.map(normalizeSubjectAttendance);
+          if (teachers.length > 0) {
+            subjects = applyTeachersToSubjects(subjects, teachers);
+          }
           setCachedStudentData(session.username, 'subjects', subjects);
         }
       } catch {
         // Fallback
       }
+    } else if (teachers.length > 0) {
+      subjects = applyTeachersToSubjects(subjects, teachers);
     }
 
     return {
@@ -536,8 +614,11 @@ export const getTimetablePageData = cache(async function getTimetablePageData() 
   }
 
   // Demo mode
-  const timetable = isStudentB ? STUDENT_B_TIMETABLE : DEMO_TIMETABLE;
-  const demoSubjects = isStudentB ? [] : DEMO_SUBJECTS;
+  const demoTeachers = isStudentB ? DEMO_TEACHERS_B : DEMO_TEACHERS_A;
+  const rawTimetable = isStudentB ? STUDENT_B_TIMETABLE : DEMO_TIMETABLE;
+  const timetable = applyTeachersToTimetable(rawTimetable, demoTeachers);
+  const rawSubjects = isStudentB ? [] : DEMO_SUBJECTS;
+  const demoSubjects = applyTeachersToSubjects(rawSubjects, demoTeachers);
 
   return {
     timetable,
@@ -660,24 +741,50 @@ export const getProfilePageData = cache(async function getProfilePageData() {
   const session = await getSession();
   if (!session) return null;
 
-  if (session.profile) {
-    return {
-      profile: normalizeStudentProfile(session.profile),
-      mode: session.mode,
-    };
-  }
+  const isStudentB =
+    session.username === '25CTA99' ||
+    session.username === 'demo-b' ||
+    session.username === 'student-b' ||
+    session.displayName?.toLowerCase().includes('kavya');
 
   if (session.mode === 'live' && session.sessionId) {
+    let teachers = getCachedStudentData<TeacherRecord[]>(session.username, 'teachers');
+    let teachersError: string | undefined;
+
+    if (!teachers) {
+      try {
+        const tResult = await etlabFetchTeachers(session.sessionId);
+        if (tResult.success && tResult.teachers) {
+          teachers = tResult.teachers;
+          setCachedStudentData(session.username, 'teachers', teachers);
+        } else {
+          teachersError = tResult.error || 'Unable to retrieve faculty details from ETLAB.';
+        }
+      } catch {
+        teachersError = 'Unable to synchronize faculty details from ETLAB.';
+      }
+    }
+
+    if (session.profile) {
+      return {
+        profile: normalizeStudentProfile(session.profile),
+        mode: session.mode,
+        teachers: teachers || [],
+        teachersError,
+      };
+    }
+
     const pResult = await etlabFetchProfile(session.sessionId);
     const profile = normalizeStudentProfile(pResult.profile || {
       name: session.displayName || session.username,
       admissionNo: session.username,
       registerNo: session.username,
     });
-    return { profile, mode: 'live' as const };
+    return { profile, mode: 'live' as const, teachers: teachers || [], teachersError };
   }
 
-  const isStudentB = session.username === '25CTA99' || session.username === 'demo-b';
-  const profile = normalizeStudentProfile(isStudentB ? DEMO_PROFILE_B : DEMO_PROFILE);
-  return { profile, mode: 'demo' as const };
+  // Demo mode
+  const teachers = isStudentB ? DEMO_TEACHERS_B : DEMO_TEACHERS_A;
+  const profile = normalizeStudentProfile(session.profile || (isStudentB ? DEMO_PROFILE_B : DEMO_PROFILE));
+  return { profile, mode: 'demo' as const, teachers, teachersError: undefined };
 });

@@ -36,7 +36,7 @@ export default async function DashboardOverviewPage() {
     : 'Monday';
 
   const todayClasses = timetable
-    .filter((slot) => slot.day === activeDay)
+    .filter((slot) => slot.day === activeDay && slot.period >= 1 && slot.period <= 6)
     .sort((a, b) => a.period - b.period);
 
   const isSafe = isAvailable && attendance.overallPercentage >= activeTarget;

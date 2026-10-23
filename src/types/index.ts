@@ -20,9 +20,20 @@ export interface SubjectAttendanceData {
   code: string;
   name: string;
   faculty: string;
+  facultyEmail?: string;
   attendedHours: number;
   totalHours: number;
   category?: 'Theory' | 'Lab' | 'Elective';
+}
+
+export interface TeacherRecord {
+  name: string;
+  subjectCode: string;
+  subjectName: string;
+  email?: string;
+  phone?: string;
+  department?: string;
+  designation?: string;
 }
 
 export interface SubjectAttendance extends SubjectAttendanceData {

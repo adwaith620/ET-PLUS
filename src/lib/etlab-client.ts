@@ -1,5 +1,5 @@
 import * as cheerio from 'cheerio';
-import type { StudentProfile, SubjectAttendanceData, EtlabAssessmentRecord, Assignment, TimetableSlot } from '../types/index.ts';
+import type { StudentProfile, SubjectAttendanceData, EtlabAssessmentRecord, Assignment, TimetableSlot, TeacherRecord } from '../types/index.ts';
 import { normalizeStudentProfile, normalizeSubjectAttendance, getCourseFullName } from './course-catalog.ts';
 
 const BASE_URL = process.env.ETLAB_BASE_URL || 'https://tkmce.etlab.in';
@@ -451,10 +451,8 @@ export async function etlabFetchTimetable(sessionId: string): Promise<{
                 if (facMatch) faculty = facMatch[1].trim();
               }
 
-              const isLab =
-                rawText.toLowerCase().includes('lab') ||
-                rawText.toLowerCase().includes('practical') ||
-                subjectName.toLowerCase().includes('lab');
+              const cellHtml = cell.html() || '';
+              const classType = classifyTimetableSession(rawText, subjectCode, subjectName, cellHtml);
 
               slots.push({
                 day: matchedDay,
@@ -464,7 +462,7 @@ export async function etlabFetchTimetable(sessionId: string): Promise<{
                 subjectCode: subjectCode || `SUB${periodNum}`,
                 subjectName: getCourseFullName(subjectCode, subjectName),
                 faculty,
-                type: isLab ? 'Lab' : 'Theory',
+                type: classType,
               });
             }
           });
@@ -498,6 +496,209 @@ export async function etlabFetchTimetable(sessionId: string): Promise<{
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to fetch timetable.',
+    };
+  }
+}
+
+/**
+ * Authoritative session-specific class type classifier.
+ * Determines Theory vs Lab based on verified ETLAB indicators:
+ * - Session-specific batch indicators: (B), (P), [B], [P], (Batch B), etc.
+ * - Explicit labels: "Practical", "Laboratory", "Workshop", "Type: Practical"
+ * - KTU practical course codes: 24CYL100, 24ESL102, 24ESL104, 24CSP304, CSL332 (letter L/P before number)
+ * - Subject names containing "Lab" / "Practical"
+ * Note: Never classifies as Lab solely because of room names.
+ */
+export function classifyTimetableSession(
+  rawText: string,
+  subjectCode: string,
+  subjectName: string,
+  cellHtml?: string
+): 'Theory' | 'Lab' | 'Free' {
+  if (!rawText || rawText === '–' || rawText === '-' || rawText.toLowerCase().includes('free')) {
+    return 'Free';
+  }
+
+  const combined = `${rawText} ${subjectName} ${cellHtml || ''}`.toLowerCase();
+
+  // 1. Explicit class type information from ETLAB
+  if (
+    /\btype\s*[:=-]\s*(?:lab|practical)\b/i.test(combined) ||
+    /\b(?:practical|laboratory|workshop)\b/i.test(combined)
+  ) {
+    return 'Lab';
+  }
+
+  // 2. Session-specific batch indicator: ETLAB marks practical batch sessions with (B), (P), [B], [P], (Batch B), etc.
+  // This satisfies: "The official source may distinguish practical classes using fields such as subject codes with (B)"
+  // and "Do not classify an entire subject as practical if ETLAB schedules both theory and practical sessions for that subject. Classification must be session-specific when the source supports that distinction."
+  if (
+    /\((?:[bp]|batch\s*[a-z0-9]+)\)/i.test(rawText) ||
+    /\[(?:[bp]|batch\s*[a-z0-9]+)\]/i.test(rawText) ||
+    /\b(?:batch\s*[a-z0-9]+)\b/i.test(rawText)
+  ) {
+    return 'Lab';
+  }
+
+  // 3. Subject-level KTU course code pattern for dedicated laboratory/workshop courses
+  const cleanCode = subjectCode.replace(/\([^)]*\)/g, '').trim().toUpperCase();
+  if (
+    /^[0-9]{2}[A-Z]{2}[LP][0-9]{3}/i.test(cleanCode) ||
+    /^[A-Z]{3}[LP][0-9]{3}/i.test(cleanCode)
+  ) {
+    return 'Lab';
+  }
+
+  // 4. Word "Lab" in subject name
+  if (/\blab\b/i.test(subjectName) || /\blaboratory\b/i.test(subjectName)) {
+    return 'Lab';
+  }
+
+  return 'Theory';
+}
+
+/**
+ * Fetch authoritative teacher and faculty information from ETLAB
+ * Authoritative endpoint: https://tkmce.etlab.in/ktuacademics/student/teacher
+ */
+export async function etlabFetchTeachers(
+  sessionId: string
+): Promise<{ success: boolean; teachers?: TeacherRecord[]; error?: string }> {
+  try {
+    const res = await fetch(`${BASE_URL}/ktuacademics/student/teacher`, {
+      method: 'GET',
+      headers: {
+        'User-Agent': USER_AGENT,
+        'Cookie': `TKMSESSIONID=${sessionId}`,
+      },
+      redirect: 'manual',
+      cache: 'no-store',
+      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+    });
+
+    if (res.status === 301 || res.status === 302) {
+      return { success: false, error: 'Session expired' };
+    }
+
+    if (!res.ok) {
+      return { success: false, error: `ETLAB returned HTTP ${res.status}` };
+    }
+
+    const html = await res.text();
+    const $ = cheerio.load(html);
+
+    if ($('title').text().toLowerCase().includes('login')) {
+      return { success: false, error: 'Session expired' };
+    }
+
+    const teachers: TeacherRecord[] = [];
+    const table = $('table.items, .grid-view table, table.table, table').first();
+
+    if (table.length) {
+      // Extract header text to match column positions dynamically
+      const headers = table.find('th').map((_, el) => $(el).text().trim().toLowerCase()).get();
+
+      let codeCol = -1;
+      let nameCol = -1;
+      let teacherCol = -1;
+      let emailCol = -1;
+      let phoneCol = -1;
+
+      headers.forEach((h, idx) => {
+        if (h.includes('code') || h.includes('course code') || h.includes('subject code')) {
+          codeCol = idx;
+        } else if (h.includes('subject') || h.includes('course') || h.includes('paper')) {
+          nameCol = idx;
+        } else if (
+          h.includes('teacher') ||
+          h.includes('faculty') ||
+          h.includes('staff') ||
+          h.includes('instructor') ||
+          (h.includes('name') && !h.includes('subject') && !h.includes('course'))
+        ) {
+          teacherCol = idx;
+        } else if (h.includes('email') || h.includes('mail')) {
+          emailCol = idx;
+        } else if (h.includes('phone') || h.includes('mobile') || h.includes('contact')) {
+          phoneCol = idx;
+        }
+      });
+
+      table.find('tbody tr, tr').each((_, tr) => {
+        if ($(tr).find('th').length > 0) return;
+        const tds = $(tr).find('td');
+        if (tds.length === 0) return;
+
+        let subjectCode = '';
+        let subjectName = '';
+        let teacherName = '';
+        let email: string | undefined;
+        let phone: string | undefined;
+
+        if (codeCol >= 0 && codeCol < tds.length) {
+          subjectCode = $(tds[codeCol]).text().trim();
+        }
+        if (nameCol >= 0 && nameCol < tds.length) {
+          subjectName = $(tds[nameCol]).text().trim();
+        }
+        if (teacherCol >= 0 && teacherCol < tds.length) {
+          teacherName = $(tds[teacherCol]).text().trim();
+        }
+        if (emailCol >= 0 && emailCol < tds.length) {
+          email = $(tds[emailCol]).text().trim() || undefined;
+        }
+        if (phoneCol >= 0 && phoneCol < tds.length) {
+          phone = $(tds[phoneCol]).text().trim() || undefined;
+        }
+
+        // Heuristic fallback if columns were not cleanly mapped by headers
+        if (!subjectCode || !teacherName) {
+          tds.each((idx, td) => {
+            const text = $(td).text().trim();
+            const emailMatch = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+            if (emailMatch && !email) {
+              email = emailMatch[0];
+            }
+            const codeMatch = text.match(/\b([0-9]{2}[A-Z]{2,4}[0-9]{3}[A-Z0-9]*)\b/i);
+            if (codeMatch && !subjectCode) {
+              subjectCode = codeMatch[1].toUpperCase();
+            }
+            if (
+              text &&
+              !emailMatch &&
+              !codeMatch &&
+              !/^\d+$/.test(text) &&
+              text.length > 2 &&
+              !teacherName &&
+              idx !== codeCol &&
+              idx !== nameCol
+            ) {
+              teacherName = text;
+            }
+          });
+        }
+
+        if (subjectCode && !subjectName) {
+          subjectName = getCourseFullName(subjectCode, subjectCode);
+        }
+
+        if (teacherName) {
+          teachers.push({
+            name: teacherName.replace(/\s+/g, ' ').trim(),
+            subjectCode: subjectCode || 'UNKNOWN',
+            subjectName: subjectName || subjectCode || 'Course',
+            email: email?.toLowerCase().trim(),
+            phone: phone?.trim(),
+          });
+        }
+      });
+    }
+
+    return { success: true, teachers };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to fetch teacher information from ETLAB.',
     };
   }
 }

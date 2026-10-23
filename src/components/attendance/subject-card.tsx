@@ -119,7 +119,18 @@ export function SubjectList({ subjects, targetPercentage }: SubjectListProps) {
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-stone-500 dark:text-stone-400 mt-1.5">{subject.faculty}</p>
+                    <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                      <p className="text-xs text-stone-500 dark:text-stone-400">{subject.faculty}</p>
+                      {subject.facultyEmail && (
+                        <a
+                          href={`mailto:${subject.facultyEmail}`}
+                          className="text-[11px] text-[#78716c] dark:text-[#9ca3af] hover:text-[#1c1917] dark:hover:text-[#f3f4f6] hover:underline"
+                          title={`Email ${subject.faculty}`}
+                        >
+                          • {subject.facultyEmail}
+                        </a>
+                      )}
+                    </div>
                   </div>
 
                   <div className="text-right shrink-0">

@@ -15,26 +15,24 @@ interface TimetableClientProps {
 export function TimetableClient({ slots, subjects = [] }: TimetableClientProps) {
   const { target } = useAttendanceTarget();
 
-  const defaultDays: TimetableSlot['day'][] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-  const hasSaturday = slots.some((s) => s.day === 'Saturday');
-  const days: TimetableSlot['day'][] = hasSaturday ? [...defaultDays, 'Saturday'] : defaultDays;
+  // Strictly Monday through Friday (Saturday explicitly excluded)
+  const days: TimetableSlot['day'][] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 
   const [selectedDay, setSelectedDay] = useState<TimetableSlot['day']>('Monday');
   const [viewMode, setViewMode] = useState<'daily' | 'weekly'>('daily');
 
-  // Filter slots for selected day
+  // Filter slots for selected day, strictly limited to periods 1-6
   const dailySlots = slots
-    .filter((s) => s.day === selectedDay)
+    .filter((s) => s.day === selectedDay && s.period >= 1 && s.period <= 6)
     .sort((a, b) => a.period - b.period);
 
-  // Dynamic periods matrix based on schedule
-  const maxPeriod = Math.max(6, ...slots.map((s) => s.period || 0));
-  const periods = Array.from({ length: maxPeriod }, (_, i) => i + 1);
+  // Strictly periods 1 through 6
+  const periods = [1, 2, 3, 4, 5, 6];
 
   const handleExportCsv = () => {
-    let csv = ['Day', ...periods.map((p) => `Period ${p}`)].join(',') + '\n';
+    let csv = 'Day,Period 1,Period 2,Period 3,Period 4,Period 5,Period 6\n';
     days.forEach((day) => {
-      const daySlots = slots.filter((s) => s.day === day);
+      const daySlots = slots.filter((s) => s.day === day && s.period >= 1 && s.period <= 6);
       const row: string[] = [day];
       periods.forEach((p) => {
         const slot = daySlots.find((s) => s.period === p);

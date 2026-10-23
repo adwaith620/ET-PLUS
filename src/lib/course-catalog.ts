@@ -1,4 +1,4 @@
-import type { StudentProfile, SubjectAttendanceData, TimetableSlot } from '../types/index.ts';
+import type { StudentProfile, SubjectAttendanceData, TimetableSlot, TeacherRecord } from '../types/index.ts';
 
 export interface CourseDefinition {
   code: string;
@@ -131,10 +131,39 @@ export function normalizeSubjectAttendance(sub: SubjectAttendanceData): SubjectA
     ...sub,
     code: verifiedDef?.code || sub.code,
     name: verifiedDef?.name || getCourseFullName(sub.code, sub.name),
-    faculty: verifiedDef?.faculty || sub.faculty || 'Department Faculty',
+    faculty: (sub.faculty && sub.faculty !== 'Department Faculty') ? sub.faculty : (verifiedDef?.faculty || sub.faculty || 'Department Faculty'),
+    facultyEmail: sub.facultyEmail,
     category: verifiedDef?.category || sub.category || 'Theory',
   };
 }
+
+/**
+ * Verified Third-Semester Faculty and Teacher Mappings for Account A (25CTA12)
+ */
+export const DEMO_TEACHERS_A: TeacherRecord[] = [
+  { name: 'Fayis Thazhethe Palliyali', subjectCode: '24MAP300', subjectName: 'Advanced Linear Algebra and Transforms', email: 'fayis@tkmce.ac.in', department: 'Mathematics' },
+  { name: 'Deepak D', subjectCode: '24MAP300', subjectName: 'Advanced Linear Algebra and Transforms', email: 'deepak@tkmce.ac.in', department: 'Mathematics' },
+  { name: 'Manu J Pillai', subjectCode: '24EST382', subjectName: 'Discrete Mathematics', email: 'manujpillai@tkmce.ac.in', department: 'Mathematics' },
+  { name: 'Nisa A K', subjectCode: '24AIJ303', subjectName: 'Introduction to Machine Learning', email: 'nisa@tkmce.ac.in', department: 'Computer Science' },
+  { name: 'Aswathy Gandhi S', subjectCode: '24CSP304', subjectName: 'Data Structures and Algorithms', email: 'aswathygandhi@tkmce.ac.in', department: 'Computer Science' },
+  { name: 'Amina M', subjectCode: '24AIP305', subjectName: 'Computing Systems and Organization', email: 'amina@tkmce.ac.in', department: 'Computer Science' },
+  { name: 'Prof. Anumod B', subjectCode: '24HUT310', subjectName: 'Life Skills and Professional Ethics', email: 'anumod@tkmce.ac.in', department: 'Humanities' },
+  { name: 'Asif Navas K R', subjectCode: '24EST372', subjectName: 'Optimization Techniques', email: 'asifnavas@tkmce.ac.in', department: 'Mathematics' },
+];
+
+/**
+ * Isolated First-Semester Faculty and Teacher Mappings for Account B (25CTA99)
+ */
+export const DEMO_TEACHERS_B: TeacherRecord[] = [
+  { name: 'Dr. Reji R', subjectCode: '24MAT101', subjectName: 'Linear Algebra and Calculus', email: 'rejir@tkmce.ac.in', department: 'Mathematics' },
+  { name: 'Dr. Sreeja P', subjectCode: '24CYT100', subjectName: 'Engineering Chemistry', email: 'sreejap@tkmce.ac.in', department: 'Chemistry' },
+  { name: 'Prof. Mathew K', subjectCode: '24EST104', subjectName: 'Basics of Civil & Mechanical Engineering', email: 'mathewk@tkmce.ac.in', department: 'Mechanical Engineering' },
+  { name: 'Dr. Lekshmi M', subjectCode: '24EST102', subjectName: 'Basics of Electrical & Electronics Engineering', email: 'lekshmim@tkmce.ac.in', department: 'Electrical Engineering' },
+  { name: 'Prof. Anumod B', subjectCode: '24HUT101', subjectName: 'Life Skills', email: 'anumod@tkmce.ac.in', department: 'Humanities' },
+  { name: 'Dr. Sreeja P', subjectCode: '24CYL100', subjectName: 'Engineering Chemistry Lab', email: 'sreejap@tkmce.ac.in', department: 'Chemistry' },
+  { name: 'Dr. Lekshmi M', subjectCode: '24ESL102', subjectName: 'Electrical & Electronics Workshop', email: 'lekshmim@tkmce.ac.in', department: 'Electrical Engineering' },
+  { name: 'Prof. Mathew K', subjectCode: '24ESL104', subjectName: 'Civil & Mechanical Workshop', email: 'mathewk@tkmce.ac.in', department: 'Mechanical Engineering' },
+];
 
 /**
  * Known address keywords to detect and prevent address fields from polluting academic profile fields
@@ -317,4 +346,59 @@ export const STUDENT_B_TIMETABLE: TimetableSlot[] = [
   { day: 'Friday', period: 5, startTime: '14:00', endTime: '14:55', subjectCode: '24ESL104', subjectName: 'Civil & Mechanical Workshop', faculty: 'Prof. Mathew K', type: 'Lab' },
   { day: 'Friday', period: 6, startTime: '15:05', endTime: '16:00', subjectCode: '24ESL104', subjectName: 'Civil & Mechanical Workshop', faculty: 'Prof. Mathew K', type: 'Lab' },
 ];
+
+/**
+ * Maps authoritative faculty and teacher records to subject attendance items.
+ * Preserves all valid teacher names and email addresses.
+ */
+export function applyTeachersToSubjects(subjects: SubjectAttendanceData[], teachers?: TeacherRecord[]): SubjectAttendanceData[] {
+  if (!teachers || teachers.length === 0) return subjects;
+
+  return subjects.map((sub) => {
+    const cleanSubCode = sub.code.trim().toUpperCase();
+    const matchingTeachers = teachers.filter((t) => {
+      const tCode = t.subjectCode.trim().toUpperCase();
+      return tCode === cleanSubCode || cleanSubCode.includes(tCode) || tCode.includes(cleanSubCode);
+    });
+
+    if (matchingTeachers.length > 0) {
+      const facultyNames = Array.from(new Set(matchingTeachers.map((t) => t.name))).join(' and ');
+      const facultyEmails = Array.from(new Set(matchingTeachers.map((t) => t.email).filter(Boolean))).join(', ');
+      return {
+        ...sub,
+        faculty: facultyNames || sub.faculty,
+        facultyEmail: facultyEmails || sub.facultyEmail,
+      };
+    }
+    return sub;
+  });
+}
+
+/**
+ * Maps authoritative faculty and teacher records to timetable slots.
+ */
+export function applyTeachersToTimetable(slots: TimetableSlot[], teachers?: TeacherRecord[]): TimetableSlot[] {
+  if (!teachers || teachers.length === 0) return slots;
+
+  return slots.map((slot) => {
+    if (slot.type === 'Free' || slot.subjectCode === 'FREE') return slot;
+    if (slot.faculty && slot.faculty !== 'Department Faculty' && slot.faculty !== 'Faculty') return slot;
+
+    const cleanCode = slot.subjectCode.trim().toUpperCase();
+    const matchingTeachers = teachers.filter((t) => {
+      const tCode = t.subjectCode.trim().toUpperCase();
+      return tCode === cleanCode || cleanCode.includes(tCode) || tCode.includes(cleanCode);
+    });
+
+    if (matchingTeachers.length > 0) {
+      const names = Array.from(new Set(matchingTeachers.map((t) => t.name))).join(' and ');
+      return {
+        ...slot,
+        faculty: names,
+      };
+    }
+    return slot;
+  });
+}
+
 
