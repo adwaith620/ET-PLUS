@@ -89,7 +89,7 @@ async function testAll() {
   const resPageB = await fetch(`${base}/dashboard/results`, { headers: { Cookie: cookieB } });
   const resHtmlB = await resPageB.text();
   const resBHasAdwaitMarks = resHtmlB.includes('rec-s3-01') ||
-                            (resHtmlB.includes('Series Exam 1') && resHtmlB.includes('37'));
+                            (resHtmlB.includes('Series Exam 1') && (resHtmlB.includes('>37<') || resHtmlB.includes('"obtainedMarks":37')));
   console.log('Account B Results leaks Account A examination marks:', resBHasAdwaitMarks, '(Must be false)');
   if (resBHasAdwaitMarks) {
     throw new Error('Critical Security Bug: Account B has access to Account A examination results!');

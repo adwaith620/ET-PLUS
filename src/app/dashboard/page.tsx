@@ -340,7 +340,7 @@ export default async function DashboardOverviewPage() {
                   <th className="py-2.5 px-3 font-semibold uppercase tracking-wider text-[10px]">Course Code</th>
                   <th className="py-2.5 px-3 font-semibold uppercase tracking-wider text-[10px]">Course Name</th>
                   <th className="py-2.5 px-3 font-semibold uppercase tracking-wider text-[10px]">Faculty</th>
-                  <th className="py-2.5 px-3 font-semibold uppercase tracking-wider text-[10px]">Room</th>
+                  <th className="py-2.5 px-3 font-semibold uppercase tracking-wider text-[10px]">Type</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#efece6] dark:divide-[#262831]">
@@ -371,9 +371,9 @@ export default async function DashboardOverviewPage() {
                       <td className="py-3 px-3 text-stone-600 dark:text-stone-400">
                         {slot.faculty}
                       </td>
-                      <td className="py-3 px-3 font-mono text-stone-600 dark:text-stone-300">
-                        <span className="px-1.5 py-0.5 rounded bg-[#f7f6f3] dark:bg-[#202227] border border-[#e7e4de] dark:border-[#2a2d35]">
-                          {slot.room}
+                      <td className="py-3 px-3">
+                        <span className="text-[11px] font-medium px-2 py-0.5 rounded border bg-[#f4f1eb] dark:bg-[#202227] text-[#78716c] dark:text-[#9ca3af] border-[#e7e4de] dark:border-[#2a2d35]">
+                          {slot.type === 'Lab' ? 'Lab' : slot.type === 'Elective' ? 'Elective' : 'Theory'}
                         </span>
                       </td>
                     </tr>

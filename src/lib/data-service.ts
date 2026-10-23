@@ -13,8 +13,8 @@ import {
   DEMO_ANNOUNCEMENTS,
 } from './demo-data';
 import { calculateAttendanceSummary } from './attendance-calculator';
-import { etlabFetchProfile, etlabFetchAttendance, etlabFetchResults } from './etlab-client';
-import { normalizeStudentProfile, normalizeSubjectAttendance } from './course-catalog';
+import { etlabFetchProfile, etlabFetchAttendance, etlabFetchResults, etlabFetchTimetable } from './etlab-client';
+import { normalizeStudentProfile, normalizeSubjectAttendance, STUDENT_B_TIMETABLE } from './course-catalog';
 import { generateDynamicNotifications } from './notifications-service';
 import { getCombinedAnnouncements, getCohortAnnouncements } from './announcements-service';
 import { getSharedMaterials, getCombinedMaterials } from './materials-service';
@@ -145,11 +145,12 @@ export const getDashboardData = cache(async function getDashboardData(
 
         // Parallelize independent ETLAB attendance and assignment synchronization
         // (Examination results are loaded on-demand by /dashboard/results)
-        const [attResult, asgSync, cohortAnnouncements, sharedMaterials] = await Promise.all([
+        const [attResult, asgSync, cohortAnnouncements, sharedMaterials, ttResult] = await Promise.all([
           etlabFetchAttendance(session.sessionId, profile.semester || 3),
           getSynchronizedAssignments(session, forceRefresh),
           getCohortAnnouncements(),
           getSharedMaterials(),
+          etlabFetchTimetable(session.sessionId).catch(() => ({ success: false as const, slots: undefined })),
         ]);
 
         let subjects: SubjectAttendanceData[] = [];
@@ -166,6 +167,15 @@ export const getDashboardData = cache(async function getDashboardData(
           attendanceError = attResult.error || 'Attendance records unavailable or not yet published on ETLAB.';
         }
         const attendance = calculateAttendanceSummary(subjects, effectiveTarget);
+
+        let liveTimetable = DEMO_TIMETABLE;
+        if (ttResult && 'slots' in ttResult && ttResult.success && ttResult.slots && ttResult.slots.length > 0) {
+          liveTimetable = ttResult.slots;
+          setCachedStudentData(session.username, 'timetable', liveTimetable);
+        } else {
+          const cachedTt = getCachedStudentData<TimetableSlot[]>(session.username, 'timetable');
+          if (cachedTt) liveTimetable = cachedTt;
+        }
 
         const assignments = asgSync.assignments;
         const assignmentError = asgSync.error;
@@ -191,7 +201,7 @@ export const getDashboardData = cache(async function getDashboardData(
           profile,
           attendance,
           attendanceError,
-          timetable: DEMO_TIMETABLE,
+          timetable: liveTimetable,
           dayHistory: DEMO_DAY_HISTORY,
           assignments,
           assignmentSyncResult: asgSync,
@@ -211,6 +221,7 @@ export const getDashboardData = cache(async function getDashboardData(
         if (isSyncSuccessful) {
           setCachedStudentData(session.username, `dashboardData_${effectiveTarget}`, dashboardResult);
           setCachedStudentData(session.username, `attendance_${effectiveTarget}`, attendance);
+          setCachedStudentData(session.username, 'subjects', subjects);
         }
         setCachedStudentData(session.username, 'assignments', assignments);
 
@@ -292,11 +303,13 @@ export const getDashboardData = cache(async function getDashboardData(
     const demoResults = isStudentB ? [] : DEMO_RESULTS;
     const demoAssessmentRecords = isStudentB ? [] : DEMO_ASSESSMENT_RECORDS;
 
+    const demoTimetable = isStudentB ? STUDENT_B_TIMETABLE : DEMO_TIMETABLE;
+
     const demoResult: DashboardData = {
       mode: 'demo',
       profile,
       attendance,
-      timetable: DEMO_TIMETABLE,
+      timetable: demoTimetable,
       dayHistory: DEMO_DAY_HISTORY,
       assignments,
       assignmentSyncResult: asgSync,
@@ -312,6 +325,8 @@ export const getDashboardData = cache(async function getDashboardData(
 
     setCachedStudentData(session.username, `dashboardData_${effectiveTarget}`, demoResult);
     setCachedStudentData(session.username, `attendance_${effectiveTarget}`, attendance);
+    setCachedStudentData(session.username, 'subjects', demoSubjects);
+    setCachedStudentData(session.username, 'timetable', demoTimetable);
     setCachedStudentData(session.username, 'assignments', assignments);
     setCachedStudentData(session.username, 'results', demoResults);
     setCachedStudentData(session.username, 'assessmentRecords', demoAssessmentRecords);
@@ -457,7 +472,7 @@ export const getAttendancePageData = cache(async function getAttendancePageData(
   setCachedStudentData(session.username, `attendance_${effectiveTarget}`, summary);
   return {
     attendance: summary,
-    timetable: DEMO_TIMETABLE,
+    timetable: isStudentB ? STUDENT_B_TIMETABLE : DEMO_TIMETABLE,
     mode: 'demo' as const,
     lastSynced: now,
     syncSuccess: true,
@@ -465,15 +480,72 @@ export const getAttendancePageData = cache(async function getAttendancePageData(
 });
 
 /**
- * Instant static timetable data provider.
- * Completely eliminates server roundtrips and ETLAB calls.
+ * Authoritative timetable and subject attendance provider for the Timetable page.
+ * Loads student-specific timetable and attendance data for bunkability forecasting.
  */
-export function getTimetablePageData() {
+export const getTimetablePageData = cache(async function getTimetablePageData() {
+  const session = await getSession();
+  if (!session) {
+    return {
+      timetable: DEMO_TIMETABLE,
+      dayHistory: DEMO_DAY_HISTORY,
+      subjects: DEMO_SUBJECTS,
+      mode: 'demo' as const,
+    };
+  }
+
+  const isStudentB =
+    session.username === '25CTA99' ||
+    session.username === 'demo-b' ||
+    session.username === 'student-b' ||
+    session.displayName?.toLowerCase().includes('kavya');
+
+  if (session.mode === 'live' && session.sessionId) {
+    let timetable = getCachedStudentData<TimetableSlot[]>(session.username, 'timetable');
+    if (!timetable) {
+      try {
+        const ttResult = await etlabFetchTimetable(session.sessionId);
+        if (ttResult.success && ttResult.slots && ttResult.slots.length > 0) {
+          timetable = ttResult.slots;
+          setCachedStudentData(session.username, 'timetable', timetable);
+        }
+      } catch {
+        // Fallback
+      }
+    }
+
+    let subjects = getCachedStudentData<SubjectAttendanceData[]>(session.username, 'subjects');
+    if (!subjects) {
+      try {
+        const attResult = await etlabFetchAttendance(session.sessionId, session.profile?.semester || 3);
+        if (attResult.success && attResult.subjects) {
+          subjects = attResult.subjects.map(normalizeSubjectAttendance);
+          setCachedStudentData(session.username, 'subjects', subjects);
+        }
+      } catch {
+        // Fallback
+      }
+    }
+
+    return {
+      timetable: timetable || DEMO_TIMETABLE,
+      dayHistory: DEMO_DAY_HISTORY,
+      subjects: subjects || [],
+      mode: 'live' as const,
+    };
+  }
+
+  // Demo mode
+  const timetable = isStudentB ? STUDENT_B_TIMETABLE : DEMO_TIMETABLE;
+  const demoSubjects = isStudentB ? [] : DEMO_SUBJECTS;
+
   return {
-    timetable: DEMO_TIMETABLE,
+    timetable,
     dayHistory: DEMO_DAY_HISTORY,
+    subjects: demoSubjects,
+    mode: 'demo' as const,
   };
-}
+});
 
 /**
  * Targeted data fetcher for the Assignments page.

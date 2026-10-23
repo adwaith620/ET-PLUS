@@ -5,18 +5,12 @@ import Link from 'next/link';
 import { EtlabAssessmentRecord, SemesterResult } from '@/types';
 import {
   FileText,
-  Layers,
-  FolderKanban,
   FileCheck2,
-  BookOpen,
-  Mic,
   Calculator,
   FlaskConical,
   ExternalLink,
   Eye,
   X,
-  CheckCircle2,
-  Award,
   AlertCircle,
 } from 'lucide-react';
 
@@ -30,33 +24,85 @@ interface ResultsClientProps {
 const SEMESTERS = ['IIIrd Semester', 'IInd Semester', 'Ist Semester'] as const;
 type SemesterOption = typeof SEMESTERS[number];
 
-const CATEGORIES: { label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-  { label: 'Sessional Exams', icon: FileText },
-  { label: 'Module Test', icon: Layers },
-  { label: 'Class Projects', icon: FolderKanban },
-  { label: 'Assignments', icon: FileCheck2 },
-  { label: 'Tutorials', icon: BookOpen },
-  { label: 'Seminars', icon: Mic },
+const RESULTS_CATEGORIES: { label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  { label: 'Series Exam 1', icon: FileText },
+  { label: 'Series Exam 2', icon: FileText },
   { label: 'Internal Marks', icon: Calculator },
-  { label: 'Lab Evaluation', icon: FlaskConical },
-  { label: 'Lab Internal Test', icon: FlaskConical },
+  { label: 'Assignments', icon: FileCheck2 },
+  { label: 'Lab', icon: FlaskConical },
 ];
+
+function recordMatchesCategory(rec: EtlabAssessmentRecord, category: string): boolean {
+  const exam = (rec.examName || '').toLowerCase();
+  const cat = (rec.category || '').toLowerCase();
+  const sub = (rec.subjectName || '').toLowerCase();
+
+  switch (category) {
+    case 'Series Exam 1':
+      return (
+        exam.includes('series 1') ||
+        exam.includes('series exam 1') ||
+        exam.includes('series test 1') ||
+        exam.includes('first series') ||
+        exam.includes('sessional 1') ||
+        exam.includes('series-1') ||
+        (cat.includes('sessional') && (exam.includes('1') || !exam.includes('2')))
+      );
+
+    case 'Series Exam 2':
+      return (
+        exam.includes('series 2') ||
+        exam.includes('series exam 2') ||
+        exam.includes('series test 2') ||
+        exam.includes('second series') ||
+        exam.includes('sessional 2') ||
+        exam.includes('series-2') ||
+        (cat.includes('sessional') && exam.includes('2'))
+      );
+
+    case 'Internal Marks':
+      return (
+        cat.includes('internal marks') ||
+        exam.includes('internal marks') ||
+        exam.includes('continuous assessment') ||
+        cat.includes('module') ||
+        cat.includes('tutorial') ||
+        cat.includes('seminar') ||
+        cat.includes('project')
+      );
+
+    case 'Assignments':
+      return cat.includes('assignment') || exam.includes('assignment');
+
+    case 'Lab':
+      return (
+        cat.includes('lab') ||
+        cat.includes('practical') ||
+        exam.includes('lab') ||
+        exam.includes('practical') ||
+        sub.includes('practical') ||
+        sub.includes('lab')
+      );
+
+    default:
+      return false;
+  }
+}
 
 export function ResultsClient({
   assessmentRecords = [],
-  results = [],
   resultsError,
-  mode = 'live',
 }: ResultsClientProps) {
   const [selectedSem, setSelectedSem] = useState<SemesterOption>('IIIrd Semester');
-  const [selectedCategory, setSelectedCategory] = useState<string>('Sessional Exams');
+  const [selectedCategory, setSelectedCategory] = useState<string>('Series Exam 1');
   const [selectedRecord, setSelectedRecord] = useState<EtlabAssessmentRecord | null>(null);
 
   // Filter records by selected semester and category
   const filteredRecords = React.useMemo(
-    () => assessmentRecords.filter(
-      (rec) => rec.semester === selectedSem && rec.category === selectedCategory
-    ),
+    () =>
+      assessmentRecords.filter(
+        (rec) => rec.semester === selectedSem && recordMatchesCategory(rec, selectedCategory)
+      ),
     [assessmentRecords, selectedSem, selectedCategory]
   );
 
@@ -142,22 +188,22 @@ export function ResultsClient({
         </div>
       </div>
 
-      {/* 3. 9 Category Tabs with Icons */}
-      <div className="flex items-center gap-1.5 overflow-x-auto p-1.5 rounded-xl bg-white dark:bg-[#1b1d22] border border-[#e7e4de] dark:border-[#2a2d35] shadow-xs scrollbar-none">
-        {CATEGORIES.map((cat) => {
+      {/* 3. Five Simplified Category Tabs with Responsive Wrapping */}
+      <div className="flex flex-wrap items-center gap-1.5 p-1.5 rounded-xl bg-white dark:bg-[#1b1d22] border border-[#e7e4de] dark:border-[#2a2d35] shadow-xs">
+        {RESULTS_CATEGORIES.map((cat) => {
           const Icon = cat.icon;
           const isActive = selectedCategory === cat.label;
           return (
             <button
               key={cat.label}
               onClick={() => setSelectedCategory(cat.label)}
-              className={`flex items-center gap-1.5 px-3.5 py-2 min-h-[38px] shrink-0 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
+              className={`flex items-center gap-1.5 px-4 py-2 min-h-[38px] rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
                 isActive
-                  ? 'bg-[#1c1917] text-white dark:bg-[#f3f4f6] dark:text-[#141518] shadow-xs font-semibold'
+                  ? 'bg-[#1c1917] text-white dark:bg-[#f3f4f6] dark:text-[#141518] shadow-xs'
                   : 'text-[#78716c] dark:text-[#9ca3af] hover:bg-[#f4f1eb] dark:hover:bg-[#202227]'
               }`}
             >
-              <Icon className="w-3.5 h-3.5" />
+              <Icon className="w-3.5 h-3.5 shrink-0" />
               <span>{cat.label}</span>
             </button>
           );
@@ -171,7 +217,7 @@ export function ResultsClient({
             <span>Synchronization paused.</span>
           ) : (
             <>
-              Total <strong className="text-[#1c1917] dark:text-[#f3f4f6]">{filteredRecords.length}</strong> results.
+              Total <strong className="text-[#1c1917] dark:text-[#f3f4f6]">{filteredRecords.length}</strong> results in {selectedCategory}.
             </>
           )}
         </p>
@@ -184,7 +230,7 @@ export function ResultsClient({
         role="region"
         aria-label="Student examination evaluation records"
       >
-        <table className="w-full text-xs text-left border-collapse min-w-[780px]">
+        <table className="w-full text-xs text-left border-collapse min-w-[700px]">
           <thead>
             <tr className="bg-[#f9f8f5] dark:bg-[#181a1f] border-b border-[#e7e4de] dark:border-[#2a2d35]">
               <th className="p-3.5 font-semibold text-[#78716c] dark:text-[#9ca3af] uppercase tracking-wider text-[11px]">
@@ -200,182 +246,152 @@ export function ResultsClient({
                 MAXIMUM MARKS
               </th>
               <th className="p-3.5 font-semibold text-[#78716c] dark:text-[#9ca3af] uppercase tracking-wider text-right text-[11px] whitespace-nowrap">
-                MARKS OBTAINED
+                OBTAINED MARKS
               </th>
               <th className="p-3.5 font-semibold text-[#78716c] dark:text-[#9ca3af] uppercase tracking-wider text-center text-[11px] whitespace-nowrap">
-                VIEW RESPONSE
+                STATUS / VIEW
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#e7e4de] dark:divide-[#2a2d35]">
-            {filteredRecords.length > 0 ? (
-              filteredRecords.map((rec) => (
-                <tr
-                  key={rec.id}
-                  className="hover:bg-[#fdfcfb] dark:hover:bg-[#202227]/50 transition-colors"
-                >
-                  <td className="p-3.5 font-medium text-[#1c1917] dark:text-[#f3f4f6]">
-                    <span className="font-mono font-semibold">{rec.subjectCode}</span> - {rec.subjectName}
-                  </td>
-                  <td className="p-3.5 text-[#78716c] dark:text-[#9ca3af] whitespace-nowrap">
-                    {rec.semester}
-                  </td>
-                  <td className="p-3.5 font-medium text-[#1c1917] dark:text-[#f3f4f6] whitespace-nowrap">
-                    {rec.examName}
-                  </td>
-                  <td className="p-3.5 text-right font-mono text-[#78716c] dark:text-[#9ca3af]">
-                    {rec.maxMarks}
-                  </td>
-                  <td className="p-3.5 text-right font-mono font-bold text-[#1c1917] dark:text-[#f3f4f6]">
-                    {rec.obtainedMarks}
-                  </td>
-                  <td className="p-3.5 text-center">
-                    <button
-                      onClick={() => setSelectedRecord(rec)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold bg-[#f4f1eb] dark:bg-[#202227] hover:bg-[#e7e4de] dark:hover:bg-[#2a2d35] text-[#1c1917] dark:text-[#f3f4f6] border border-[#e7e4de] dark:border-[#2a2d35] transition-colors"
-                    >
-                      <Eye className="w-3.5 h-3.5 text-[#78716c] dark:text-[#9ca3af]" />
-                      <span>View Response</span>
-                    </button>
-                  </td>
-                </tr>
-              ))
-            ) : resultsError ? (
+          <tbody className="divide-y divide-[#efece6] dark:divide-[#262831]">
+            {filteredRecords.length === 0 ? (
               <tr>
-                <td colSpan={6} className="p-10 text-center text-[#78716c] dark:text-[#9ca3af] space-y-3">
-                  <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 mx-auto">
-                    <AlertCircle className="w-5 h-5" />
+                <td colSpan={6} className="p-12 text-center text-xs text-[#78716c] dark:text-[#9ca3af]">
+                  <div className="space-y-1">
+                    <p className="font-semibold text-[#1c1917] dark:text-[#f3f4f6] text-sm">
+                      No records available
+                    </p>
+                    <p className="text-[11px]">
+                      No evaluation records available for {selectedCategory} in {selectedSem}. Evaluations will appear here once published by the academic department.
+                    </p>
                   </div>
-                  <p className="font-semibold text-[#1c1917] dark:text-[#f3f4f6]">
-                    {resultsError.toLowerCase().includes('expired')
-                      ? 'Results Unavailable — Session Timed Out'
-                      : 'Results Unavailable'}
-                  </p>
-                  <p className="text-xs text-[#a8a29e] dark:text-[#6b7280] max-w-md mx-auto leading-relaxed">
-                    {resultsError.toLowerCase().includes('expired')
-                      ? 'Your institutional session has timed out. Please sign in again to re-sync your latest evaluation records.'
-                      : resultsError}
-                  </p>
-                  {resultsError.toLowerCase().includes('expired') && (
-                    <div className="pt-1">
-                      <Link
-                        href="/login"
-                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-[#1c1917] hover:bg-[#292524] text-white dark:bg-[#f3f4f6] dark:hover:bg-white dark:text-[#141518] transition-colors"
-                      >
-                        <span>Sign In with ETLAB</span>
-                      </Link>
-                    </div>
-                  )}
                 </td>
               </tr>
             ) : (
-              <tr>
-                <td colSpan={6} className="p-10 text-center text-[#78716c] dark:text-[#9ca3af] space-y-2">
-                  <p className="font-medium text-[#1c1917] dark:text-[#f3f4f6]">
-                    No records found for {selectedCategory} in {selectedSem}.
-                  </p>
-                  <p className="text-xs text-[#a8a29e] dark:text-[#6b7280]">
-                    Evaluations will appear here once published by the academic department.
-                  </p>
-                </td>
-              </tr>
+              filteredRecords.map((rec) => {
+                const percentage =
+                  rec.maxMarks > 0 ? (rec.obtainedMarks / rec.maxMarks) * 100 : 0;
+                const isPassing = percentage >= 40;
+
+                return (
+                  <tr
+                    key={rec.id}
+                    className="hover:bg-[#fbfaf8] dark:hover:bg-[#202228] transition-colors"
+                  >
+                    <td className="p-3.5">
+                      <div className="font-semibold text-stone-900 dark:text-stone-100">
+                        {rec.subjectName}
+                      </div>
+                      <div className="font-mono text-[10px] text-stone-500 dark:text-stone-400 mt-0.5">
+                        {rec.subjectCode}
+                      </div>
+                    </td>
+                    <td className="p-3.5 whitespace-nowrap text-stone-600 dark:text-stone-400">
+                      {rec.semester}
+                    </td>
+                    <td className="p-3.5 whitespace-nowrap">
+                      <span className="font-medium text-stone-800 dark:text-stone-200">
+                        {rec.examName}
+                      </span>
+                    </td>
+                    <td className="p-3.5 text-right font-mono font-medium text-stone-600 dark:text-stone-400">
+                      {rec.maxMarks}
+                    </td>
+                    <td className="p-3.5 text-right font-mono font-bold text-stone-900 dark:text-stone-100">
+                      {rec.obtainedMarks}
+                    </td>
+                    <td className="p-3.5 text-center whitespace-nowrap">
+                      <div className="flex items-center justify-center gap-2">
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${
+                            isPassing
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/60'
+                              : 'bg-red-50 text-red-700 border-red-200/80 dark:bg-red-950/40 dark:text-red-400 dark:border-red-800/60'
+                          }`}
+                        >
+                          {percentage.toFixed(1)}%
+                        </span>
+
+                        {rec.viewResponseUrl && (
+                          <button
+                            onClick={() => setSelectedRecord(rec)}
+                            aria-label={`View answer sheet for ${rec.subjectCode}`}
+                            className="p-1 rounded text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors"
+                            title="View official answer sheet"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
       </div>
 
-      {/* 6. View Response Modal */}
+      {/* Answer Sheet Modal */}
       {selectedRecord && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="w-full max-w-lg rounded-xl bg-white dark:bg-[#1b1d22] border border-[#e7e4de] dark:border-[#2a2d35] shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            {/* Modal Header */}
-            <div className="px-5 py-4 border-b border-[#e7e4de] dark:border-[#2a2d35] flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Award className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                <h3 className="text-sm font-bold text-[#1c1917] dark:text-[#f3f4f6]">
-                  Assessment Response Sheet
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+          <div className="bg-white dark:bg-[#1b1d22] rounded-xl border border-[#e7e4de] dark:border-[#2a2d35] shadow-xl max-w-lg w-full p-6 space-y-4">
+            <div className="flex items-start justify-between pb-3 border-b border-[#e7e4de] dark:border-[#2a2d35]">
+              <div>
+                <h3 className="font-bold text-base text-stone-900 dark:text-stone-100">
+                  {selectedRecord.examName} — Answer Sheet
                 </h3>
+                <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
+                  {selectedRecord.subjectName} ({selectedRecord.subjectCode})
+                </p>
               </div>
               <button
                 onClick={() => setSelectedRecord(null)}
-                className="p-1 rounded-md text-[#78716c] dark:text-[#9ca3af] hover:bg-[#f4f1eb] dark:hover:bg-[#202227]"
+                className="p-1 rounded-md text-stone-400 hover:text-stone-700 dark:hover:text-stone-200"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Modal Content */}
-            <div className="p-5 space-y-4">
-              <div>
-                <span className="text-[10px] font-mono uppercase tracking-wider text-[#78716c] dark:text-[#9ca3af] block">
-                  Course
+            <div className="p-4 rounded-lg bg-[#f9f8f5] dark:bg-[#202227] border border-[#e7e4de] dark:border-[#2a2d35] text-xs space-y-2">
+              <div className="flex justify-between">
+                <span className="text-stone-500">Maximum Marks:</span>
+                <span className="font-mono font-bold text-stone-900 dark:text-stone-100">
+                  {selectedRecord.maxMarks}
                 </span>
-                <p className="text-sm font-semibold text-[#1c1917] dark:text-[#f3f4f6] mt-0.5">
-                  {selectedRecord.subjectCode} — {selectedRecord.subjectName}
-                </p>
               </div>
-
-              <div className="grid grid-cols-2 gap-3 pt-1">
-                <div className="p-3 rounded-lg bg-[#f9f8f5] dark:bg-[#202227] border border-[#e7e4de] dark:border-[#282b33]">
-                  <span className="text-[10px] text-[#78716c] dark:text-[#9ca3af] block">Examination</span>
-                  <span className="text-xs font-bold text-[#1c1917] dark:text-[#f3f4f6] mt-0.5 block">
-                    {selectedRecord.examName}
-                  </span>
-                </div>
-                <div className="p-3 rounded-lg bg-[#f9f8f5] dark:bg-[#202227] border border-[#e7e4de] dark:border-[#282b33]">
-                  <span className="text-[10px] text-[#78716c] dark:text-[#9ca3af] block">Semester</span>
-                  <span className="text-xs font-bold text-[#1c1917] dark:text-[#f3f4f6] mt-0.5 block">
-                    {selectedRecord.semester}
-                  </span>
-                </div>
+              <div className="flex justify-between">
+                <span className="text-stone-500">Obtained Score:</span>
+                <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                  {selectedRecord.obtainedMarks}
+                </span>
               </div>
-
-              {/* Score Display Card */}
-              <div className="p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-between">
-                <div>
-                  <span className="text-xs text-emerald-800 dark:text-emerald-300 font-medium block">
-                    Marks Obtained
-                  </span>
-                  <span className="text-2xl font-extrabold text-emerald-800 dark:text-emerald-300 font-mono">
-                    {selectedRecord.obtainedMarks} <span className="text-sm font-normal text-emerald-700/80 dark:text-emerald-400/80">/ {selectedRecord.maxMarks}</span>
-                  </span>
-                </div>
-                <div className="text-right">
-                  <span className="text-xs font-semibold text-emerald-800 dark:text-emerald-300 block">
-                    {((selectedRecord.obtainedMarks / selectedRecord.maxMarks) * 100).toFixed(1)}%
-                  </span>
-                  <span className="text-[10px] text-emerald-700 dark:text-emerald-400 flex items-center gap-1 justify-end mt-0.5">
-                    <CheckCircle2 className="w-3 h-3" /> Evaluated & Verified
-                  </span>
-                </div>
-              </div>
-
-              <div className="p-3 rounded-lg bg-[#f9f8f5] dark:bg-[#202227] border border-[#e7e4de] dark:border-[#282b33] text-xs text-[#78716c] dark:text-[#9ca3af] space-y-1">
-                <p className="font-semibold text-[#1c1917] dark:text-[#f3f4f6]">Official Evaluation Verification:</p>
-                <p>
-                  Marks awarded and entered directly into the institutional examination records by the course faculty. All evaluation keys and rubrics verified by the department academic committee.
-                </p>
+              <div className="flex justify-between">
+                <span className="text-stone-500">Evaluation Category:</span>
+                <span className="font-medium text-stone-700 dark:text-stone-300">
+                  {selectedRecord.category}
+                </span>
               </div>
             </div>
 
-            {/* Modal Footer */}
-            <div className="px-5 py-3 border-t border-[#e7e4de] dark:border-[#2a2d35] flex items-center justify-between bg-[#f9f8f5] dark:bg-[#181a1f]">
-              <a
-                href={selectedRecord.viewResponseUrl || 'https://tkmce.etlab.in/student/results'}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs font-medium text-[#1c1917] dark:text-[#f3f4f6] hover:underline flex items-center gap-1"
-              >
-                <span>View on ETLAB Portal</span>
-                <ExternalLink className="w-3 h-3" />
-              </a>
-
+            <div className="flex justify-end gap-2 pt-2">
               <button
                 onClick={() => setSelectedRecord(null)}
-                className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-[#1c1917] hover:bg-[#292524] text-white dark:bg-[#f3f4f6] dark:hover:bg-white dark:text-[#141518] transition-colors"
+                className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 hover:bg-stone-200"
               >
                 Close
               </button>
+              {selectedRecord.viewResponseUrl && (
+                <a
+                  href={selectedRecord.viewResponseUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-stone-900 dark:bg-stone-100 text-white dark:text-stone-900 hover:opacity-90 inline-flex items-center gap-1.5"
+                >
+                  <span>Open in ETLAB</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              )}
             </div>
           </div>
         </div>

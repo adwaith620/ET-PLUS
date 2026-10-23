@@ -1,16 +1,24 @@
 'use client';
 
 import React, { useState } from 'react';
-import { TimetableSlot } from '@/types';
+import { TimetableSlot, SubjectAttendanceData } from '@/types';
 import { getCourseFullName } from '@/lib/course-catalog';
-import { Clock, MapPin, User, Download, List, Grid } from 'lucide-react';
+import { isClassBunkable } from '@/lib/attendance-calculator';
+import { useAttendanceTarget } from '@/context/attendance-target-context';
+import { Clock, User, Download, List, Grid } from 'lucide-react';
 
 interface TimetableClientProps {
   slots: TimetableSlot[];
+  subjects?: SubjectAttendanceData[];
 }
 
-export function TimetableClient({ slots }: TimetableClientProps) {
-  const days: TimetableSlot['day'][] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+export function TimetableClient({ slots, subjects = [] }: TimetableClientProps) {
+  const { target } = useAttendanceTarget();
+
+  const defaultDays: TimetableSlot['day'][] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+  const hasSaturday = slots.some((s) => s.day === 'Saturday');
+  const days: TimetableSlot['day'][] = hasSaturday ? [...defaultDays, 'Saturday'] : defaultDays;
+
   const [selectedDay, setSelectedDay] = useState<TimetableSlot['day']>('Monday');
   const [viewMode, setViewMode] = useState<'daily' | 'weekly'>('daily');
 
@@ -19,11 +27,12 @@ export function TimetableClient({ slots }: TimetableClientProps) {
     .filter((s) => s.day === selectedDay)
     .sort((a, b) => a.period - b.period);
 
-  // Periods matrix for weekly view
-  const periods = [1, 2, 3, 4, 5, 6];
+  // Dynamic periods matrix based on schedule
+  const maxPeriod = Math.max(6, ...slots.map((s) => s.period || 0));
+  const periods = Array.from({ length: maxPeriod }, (_, i) => i + 1);
 
   const handleExportCsv = () => {
-    let csv = 'Day,Period 1,Period 2,Period 3,Period 4,Period 5,Period 6\n';
+    let csv = ['Day', ...periods.map((p) => `Period ${p}`)].join(',') + '\n';
     days.forEach((day) => {
       const daySlots = slots.filter((s) => s.day === day);
       const row: string[] = [day];
@@ -32,7 +41,7 @@ export function TimetableClient({ slots }: TimetableClientProps) {
         if (!slot || slot.type === 'Free') {
           row.push(slot?.type === 'Free' ? '"Free Period"' : '"-"');
         } else {
-          row.push(`"${slot.subjectCode} - ${getCourseFullName(slot.subjectCode, slot.subjectName)} (${slot.faculty}) [${slot.room || 'WR101'}]"`);
+          row.push(`"${slot.subjectCode} - ${getCourseFullName(slot.subjectCode, slot.subjectName)} (${slot.faculty}) - ${slot.type}"`);
         }
       });
       csv += row.join(',') + '\n';
@@ -42,7 +51,7 @@ export function TimetableClient({ slots }: TimetableClientProps) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `TKMCE_Timetable_S3_${new Date().getFullYear()}.csv`;
+    a.download = `TKMCE_Timetable_${new Date().getFullYear()}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -56,7 +65,7 @@ export function TimetableClient({ slots }: TimetableClientProps) {
             Class Timetable
           </h1>
           <p className="text-xs text-[#78716c] dark:text-[#9ca3af] mt-1">
-            Official class schedule for KTU B.Tech Computer Science (AI) (Semester 3) • TKM College of Engineering
+            Official academic schedule • TKM College of Engineering
           </p>
         </div>
 
@@ -144,7 +153,7 @@ export function TimetableClient({ slots }: TimetableClientProps) {
                           </span>
                         </div>
                         <p className="text-xs text-[#a8a29e] dark:text-[#6b7280] mt-1">
-                          Unscheduled study gap. Next session starts at 14:00 (Period 5).
+                          Unscheduled study gap.
                         </p>
                       </div>
                     </div>
@@ -154,6 +163,8 @@ export function TimetableClient({ slots }: TimetableClientProps) {
                   </div>
                 );
               }
+
+              const bunkable = isClassBunkable(slot.subjectCode, subjects, target, 1);
 
               return (
                 <div
@@ -185,32 +196,20 @@ export function TimetableClient({ slots }: TimetableClientProps) {
                           <User className="w-3.5 h-3.5 text-[#a8a29e]" />
                           {slot.faculty}
                         </span>
-                        {slot.room && slot.room !== 'Not specified' && slot.room !== '–' ? (
-                          <span className="flex items-center gap-1">
-                            <MapPin className="w-3.5 h-3.5 text-[#a8a29e]" />
-                            {slot.room}
-                          </span>
-                        ) : (
-                          <span className="flex items-center gap-1 text-[#a8a29e] dark:text-[#6b7280]">
-                            <MapPin className="w-3.5 h-3.5 text-[#a8a29e] dark:text-[#6b7280]" />
-                            Room not specified
-                          </span>
-                        )}
                       </div>
                     </div>
                   </div>
 
-                  <span
-                    className={`text-[11px] font-medium px-2.5 py-1 rounded border self-start sm:self-auto ${
-                      slot.type === 'Lab'
-                        ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20'
-                        : slot.type === 'Elective'
-                        ? 'bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20'
-                        : 'bg-[#f4f1eb] dark:bg-[#202227] text-[#78716c] dark:text-[#9ca3af] border-[#e7e4de] dark:border-[#2a2d35]'
-                    }`}
-                  >
-                    {slot.type === 'Lab' ? 'Practical Lab' : slot.type === 'Elective' ? 'Elective' : 'Theory Course'}
-                  </span>
+                  <div className="flex items-center gap-2 self-start sm:self-auto">
+                    {bunkable && (
+                      <span className="text-[11px] font-medium px-2.5 py-1 rounded border bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/50">
+                        Bunkable
+                      </span>
+                    )}
+                    <span className="text-[11px] font-medium px-2.5 py-1 rounded border bg-[#f4f1eb] dark:bg-[#202227] text-[#78716c] dark:text-[#9ca3af] border-[#e7e4de] dark:border-[#2a2d35]">
+                      {slot.type === 'Lab' ? 'Lab' : slot.type === 'Elective' ? 'Elective' : 'Theory'}
+                    </span>
+                  </div>
                 </div>
               );
             })}
@@ -259,7 +258,7 @@ export function TimetableClient({ slots }: TimetableClientProps) {
                                 <div className="flex items-center justify-between gap-1">
                                   <span className="font-mono text-[10px] text-[#78716c] dark:text-[#9ca3af]">{slot.subjectCode}</span>
                                   {slot.type === 'Lab' && (
-                                    <span className="text-[9px] font-semibold uppercase px-1 rounded bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
+                                    <span className="text-[9px] font-semibold uppercase px-1 rounded bg-[#f4f1eb] dark:bg-[#202227] text-[#78716c] dark:text-[#9ca3af] border border-[#e7e4de] dark:border-[#2a2d35]">
                                       Lab
                                     </span>
                                   )}
@@ -267,11 +266,8 @@ export function TimetableClient({ slots }: TimetableClientProps) {
                                 <p className="font-semibold text-[#1c1917] dark:text-[#f3f4f6] text-[11px] line-clamp-2 leading-tight">
                                   {getCourseFullName(slot.subjectCode, slot.subjectName)}
                                 </p>
-                                <div className="flex items-center justify-between text-[10px] text-[#78716c] dark:text-[#9ca3af]">
-                                  <span className="truncate max-w-[80px]" title={slot.faculty}>{slot.faculty}</span>
-                                  {slot.room && slot.room !== 'Not specified' && slot.room !== '–' && (
-                                    <span className="font-medium">{slot.room}</span>
-                                  )}
+                                <div className="text-[10px] text-[#78716c] dark:text-[#9ca3af]">
+                                  <span className="truncate block" title={slot.faculty}>{slot.faculty}</span>
                                 </div>
                               </div>
                             )

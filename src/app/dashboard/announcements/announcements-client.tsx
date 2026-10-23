@@ -214,8 +214,15 @@ export function AnnouncementsClient({
       {/* Announcements List */}
       <div className="space-y-3">
         {filtered.length === 0 ? (
-          <div className="p-8 text-center rounded-xl bg-white dark:bg-[#1b1d22] border border-[#e7e4de] dark:border-[#2a2d35]">
-            <p className="text-xs text-[#78716c] dark:text-[#9ca3af]">No announcements found matching the criteria.</p>
+          <div className="p-10 text-center rounded-xl bg-white dark:bg-[#1b1d22] border border-[#e7e4de] dark:border-[#2a2d35] space-y-1.5 shadow-xs">
+            <h3 className="text-sm font-semibold text-[#1c1917] dark:text-[#f3f4f6]">
+              {announcements.length === 0 ? 'No announcements available' : 'No announcements found matching the criteria'}
+            </h3>
+            <p className="text-xs text-[#78716c] dark:text-[#9ca3af]">
+              {announcements.length === 0
+                ? 'Official circulars, exam notifications, and cohort announcements will appear here when posted.'
+                : 'Try adjusting your search terms or filter selection.'}
+            </p>
           </div>
         ) : (
           filtered.map((ann) => {

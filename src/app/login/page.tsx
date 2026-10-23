@@ -2,7 +2,6 @@
 
 import React, { useState } from 'react';
 import {
-  GraduationCap,
   Lock,
   User,
   Eye,
@@ -12,6 +11,7 @@ import {
   ArrowRight,
   ExternalLink,
 } from 'lucide-react';
+import { BrandLogo } from '@/components/brand-logo';
 
 export default function LoginPage() {
   const [username, setUsername] = useState('');
@@ -74,8 +74,8 @@ export default function LoginPage() {
     <div className="min-h-screen bg-[#fdfcfb] dark:bg-[#141518] flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       {/* Top institution header */}
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center px-4">
-        <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-[#1c1917] text-white dark:bg-[#f3f4f6] dark:text-[#141518] border border-[#e7e4de] dark:border-[#2a2d35] mb-3 shadow-xs">
-          <GraduationCap className="w-6 h-6" />
+        <div className="inline-flex items-center justify-center mb-3">
+          <BrandLogo size={48} className="rounded-xl shadow-xs" priority />
         </div>
         <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#1c1917] dark:text-[#f3f4f6]">
           ETPlus

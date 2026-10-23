@@ -1,5 +1,5 @@
 import * as cheerio from 'cheerio';
-import type { StudentProfile, SubjectAttendanceData, EtlabAssessmentRecord, Assignment } from '../types/index.ts';
+import type { StudentProfile, SubjectAttendanceData, EtlabAssessmentRecord, Assignment, TimetableSlot } from '../types/index.ts';
 import { normalizeStudentProfile, normalizeSubjectAttendance, getCourseFullName } from './course-catalog.ts';
 
 const BASE_URL = process.env.ETLAB_BASE_URL || 'https://tkmce.etlab.in';
@@ -333,11 +333,39 @@ export async function etlabFetchAttendance(
 }
 
 /**
- * Fetch timetable from ETLAB CSV export or HTML page
+ * Standard default period schedule times
  */
-export async function etlabFetchTimetable(sessionId: string) {
+const PERIOD_TIMES: Record<number, { startTime: string; endTime: string }> = {
+  1: { startTime: '09:00', endTime: '09:55' },
+  2: { startTime: '10:00', endTime: '10:55' },
+  3: { startTime: '11:05', endTime: '12:00' },
+  4: { startTime: '13:00', endTime: '13:55' },
+  5: { startTime: '14:00', endTime: '14:55' },
+  6: { startTime: '15:05', endTime: '16:00' },
+  7: { startTime: '16:05', endTime: '17:00' },
+};
+
+const WEEKDAY_NAMES: TimetableSlot['day'][] = [
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+];
+
+/**
+ * Fetch and parse timetable from ETLAB HTML page or CSV export
+ */
+export async function etlabFetchTimetable(sessionId: string): Promise<{
+  success: boolean;
+  slots?: TimetableSlot[];
+  rawCsv?: string;
+  error?: string;
+}> {
   try {
-    const res = await fetch(`${BASE_URL}/student/timetable?format=csv&yt0=`, {
+    // 1. Try HTML Timetable page
+    const res = await fetch(`${BASE_URL}/student/timetable`, {
       method: 'GET',
       headers: {
         'User-Agent': USER_AGENT,
@@ -348,8 +376,120 @@ export async function etlabFetchTimetable(sessionId: string) {
       signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
     });
 
-    if (res.status === 200) {
+    if (res.status === 301 || res.status === 302) {
+      const loc = res.headers.get('location') || '';
+      if (loc.toLowerCase().includes('login') || loc.toLowerCase().includes('/user/')) {
+        return { success: false, error: 'Session expired' };
+      }
+    }
+
+    if (res.ok) {
       const text = await res.text();
+      if (text.toLowerCase().includes('login') && !text.toLowerCase().includes('logout')) {
+        return { success: false, error: 'Session expired' };
+      }
+
+      if (text.includes('<table') || text.includes('timetable')) {
+        const $ = cheerio.load(text);
+        const slots: TimetableSlot[] = [];
+        const table = $('table.items, table.table, .grid-view table, table').first();
+
+        if (table.length) {
+          table.find('tbody tr, tr').each((_, tr) => {
+            const cells = $(tr).find('th, td');
+            if (cells.length < 2) return;
+
+            const dayText = $(cells[0]).text().trim();
+            const matchedDay = WEEKDAY_NAMES.find((d) =>
+              dayText.toLowerCase().includes(d.toLowerCase())
+            );
+            if (!matchedDay) return;
+
+            // Iterate period cells starting from index 1
+            for (let pIdx = 1; pIdx < cells.length; pIdx++) {
+              const cell = $(cells[pIdx]);
+              const rawText = cell.text().trim();
+              const periodNum = pIdx;
+              const times = PERIOD_TIMES[periodNum] || { startTime: '09:00', endTime: '10:00' };
+
+              if (!rawText || rawText === '–' || rawText === '-' || rawText.toLowerCase().includes('free')) {
+                slots.push({
+                  day: matchedDay,
+                  period: periodNum,
+                  startTime: times.startTime,
+                  endTime: times.endTime,
+                  subjectCode: 'FREE',
+                  subjectName: 'Free Period / Gap',
+                  faculty: 'No Class Scheduled',
+                  type: 'Free',
+                });
+                continue;
+              }
+
+              // Extract subject code and name
+              const lines = rawText.split('\n').map((l) => l.trim()).filter(Boolean);
+              let subjectCode = '';
+              let subjectName = rawText;
+              let faculty = 'Department Faculty';
+
+              const codeMatch = rawText.match(/\b([0-9]{2}[A-Z]{2,4}[0-9]{3}[A-Z0-9]*)\b/i);
+              if (codeMatch) {
+                subjectCode = codeMatch[1].toUpperCase();
+              } else if (lines.length > 0 && lines[0].includes('-')) {
+                const parts = lines[0].split('-');
+                subjectCode = parts[0].trim();
+                subjectName = parts.slice(1).join('-').trim();
+              } else if (lines.length > 0) {
+                subjectCode = lines[0];
+                if (lines.length > 1) subjectName = lines[1];
+              }
+
+              if (lines.length >= 3) {
+                faculty = lines[2];
+              } else {
+                const facMatch = rawText.match(/\(([^)]+)\)/);
+                if (facMatch) faculty = facMatch[1].trim();
+              }
+
+              const isLab =
+                rawText.toLowerCase().includes('lab') ||
+                rawText.toLowerCase().includes('practical') ||
+                subjectName.toLowerCase().includes('lab');
+
+              slots.push({
+                day: matchedDay,
+                period: periodNum,
+                startTime: times.startTime,
+                endTime: times.endTime,
+                subjectCode: subjectCode || `SUB${periodNum}`,
+                subjectName: getCourseFullName(subjectCode, subjectName),
+                faculty,
+                type: isLab ? 'Lab' : 'Theory',
+              });
+            }
+          });
+
+          if (slots.length > 0) {
+            return { success: true, slots };
+          }
+        }
+      }
+    }
+
+    // 2. Try CSV export endpoint
+    const csvRes = await fetch(`${BASE_URL}/student/timetable?format=csv&yt0=`, {
+      method: 'GET',
+      headers: {
+        'User-Agent': USER_AGENT,
+        'Cookie': `TKMSESSIONID=${sessionId}`,
+      },
+      redirect: 'manual',
+      cache: 'no-store',
+      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+    });
+
+    if (csvRes.status === 200) {
+      const text = await csvRes.text();
       return { success: true, rawCsv: text };
     }
 
@@ -528,8 +668,9 @@ export async function etlabFetchResults(
  */
 export async function etlabFetchAssignments(
   sessionId: string,
-  semester: number = 3
+  _semester: number = 3
 ): Promise<{ success: boolean; assignments?: Assignment[]; error?: string }> {
+  void _semester;
   try {
     const candidateUrls = [
       `${BASE_URL}/student/assignments`,

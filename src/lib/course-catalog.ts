@@ -272,3 +272,49 @@ export const SEMESTER_3_OFFICIAL_TIMETABLE: TimetableSlot[] = [
   { day: 'Friday', period: 6, startTime: '15:05', endTime: '16:00', subjectCode: '24EST382', subjectName: 'Discrete Mathematics', faculty: 'Manu J Pillai', room: 'WR101', type: 'Theory' },
 ];
 
+/**
+ * Isolated First-Semester Timetable for Account B (25CTA99 / Circuit Branch)
+ * Ensuring student schedules are never cross-pollinated or shared across different student accounts.
+ */
+export const STUDENT_B_TIMETABLE: TimetableSlot[] = [
+  // Monday
+  { day: 'Monday', period: 1, startTime: '09:00', endTime: '09:55', subjectCode: '24MAT101', subjectName: 'Linear Algebra and Calculus', faculty: 'Dr. Reji R', type: 'Theory' },
+  { day: 'Monday', period: 2, startTime: '10:00', endTime: '10:55', subjectCode: '24CYT100', subjectName: 'Engineering Chemistry', faculty: 'Dr. Sreeja P', type: 'Theory' },
+  { day: 'Monday', period: 3, startTime: '11:05', endTime: '12:00', subjectCode: '24EST104', subjectName: 'Basics of Civil & Mechanical Engineering', faculty: 'Prof. Mathew K', type: 'Theory' },
+  { day: 'Monday', period: 4, startTime: '13:00', endTime: '13:55', subjectCode: '24EST102', subjectName: 'Basics of Electrical & Electronics Engineering', faculty: 'Dr. Lekshmi M', type: 'Theory' },
+  { day: 'Monday', period: 5, startTime: '14:00', endTime: '14:55', subjectCode: '24CYL100', subjectName: 'Engineering Chemistry Lab', faculty: 'Dr. Sreeja P', type: 'Lab' },
+  { day: 'Monday', period: 6, startTime: '15:05', endTime: '16:00', subjectCode: '24CYL100', subjectName: 'Engineering Chemistry Lab', faculty: 'Dr. Sreeja P', type: 'Lab' },
+
+  // Tuesday
+  { day: 'Tuesday', period: 1, startTime: '09:00', endTime: '09:55', subjectCode: '24CYT100', subjectName: 'Engineering Chemistry', faculty: 'Dr. Sreeja P', type: 'Theory' },
+  { day: 'Tuesday', period: 2, startTime: '10:00', endTime: '10:55', subjectCode: '24MAT101', subjectName: 'Linear Algebra and Calculus', faculty: 'Dr. Reji R', type: 'Theory' },
+  { day: 'Tuesday', period: 3, startTime: '11:05', endTime: '12:00', subjectCode: '24EST102', subjectName: 'Basics of Electrical & Electronics Engineering', faculty: 'Dr. Lekshmi M', type: 'Theory' },
+  { day: 'Tuesday', period: 4, startTime: '13:00', endTime: '13:55', subjectCode: '24EST104', subjectName: 'Basics of Civil & Mechanical Engineering', faculty: 'Prof. Mathew K', type: 'Theory' },
+  { day: 'Tuesday', period: 5, startTime: '14:00', endTime: '14:55', subjectCode: '24HUT101', subjectName: 'Life Skills', faculty: 'Prof. Anumod B', type: 'Theory' },
+  { day: 'Tuesday', period: 6, startTime: '15:05', endTime: '16:00', subjectCode: 'FREE', subjectName: 'Free Period / Gap', faculty: 'No Class Scheduled', type: 'Free' },
+
+  // Wednesday
+  { day: 'Wednesday', period: 1, startTime: '09:00', endTime: '09:55', subjectCode: '24MAT101', subjectName: 'Linear Algebra and Calculus', faculty: 'Dr. Reji R', type: 'Theory' },
+  { day: 'Wednesday', period: 2, startTime: '10:00', endTime: '10:55', subjectCode: '24EST104', subjectName: 'Basics of Civil & Mechanical Engineering', faculty: 'Prof. Mathew K', type: 'Theory' },
+  { day: 'Wednesday', period: 3, startTime: '11:05', endTime: '12:00', subjectCode: '24CYT100', subjectName: 'Engineering Chemistry', faculty: 'Dr. Sreeja P', type: 'Theory' },
+  { day: 'Wednesday', period: 4, startTime: '13:00', endTime: '13:55', subjectCode: '24EST102', subjectName: 'Basics of Electrical & Electronics Engineering', faculty: 'Dr. Lekshmi M', type: 'Theory' },
+  { day: 'Wednesday', period: 5, startTime: '14:00', endTime: '14:55', subjectCode: '24ESL102', subjectName: 'Electrical & Electronics Workshop', faculty: 'Dr. Lekshmi M', type: 'Lab' },
+  { day: 'Wednesday', period: 6, startTime: '15:05', endTime: '16:00', subjectCode: '24ESL102', subjectName: 'Electrical & Electronics Workshop', faculty: 'Dr. Lekshmi M', type: 'Lab' },
+
+  // Thursday
+  { day: 'Thursday', period: 1, startTime: '09:00', endTime: '09:55', subjectCode: '24EST102', subjectName: 'Basics of Electrical & Electronics Engineering', faculty: 'Dr. Lekshmi M', type: 'Theory' },
+  { day: 'Thursday', period: 2, startTime: '10:00', endTime: '10:55', subjectCode: '24MAT101', subjectName: 'Linear Algebra and Calculus', faculty: 'Dr. Reji R', type: 'Theory' },
+  { day: 'Thursday', period: 3, startTime: '11:05', endTime: '12:00', subjectCode: '24HUT101', subjectName: 'Life Skills', faculty: 'Prof. Anumod B', type: 'Theory' },
+  { day: 'Thursday', period: 4, startTime: '13:00', endTime: '13:55', subjectCode: '24CYT100', subjectName: 'Engineering Chemistry', faculty: 'Dr. Sreeja P', type: 'Theory' },
+  { day: 'Thursday', period: 5, startTime: '14:00', endTime: '14:55', subjectCode: '24EST104', subjectName: 'Basics of Civil & Mechanical Engineering', faculty: 'Prof. Mathew K', type: 'Theory' },
+  { day: 'Thursday', period: 6, startTime: '15:05', endTime: '16:00', subjectCode: 'FREE', subjectName: 'Free Period / Gap', faculty: 'No Class Scheduled', type: 'Free' },
+
+  // Friday
+  { day: 'Friday', period: 1, startTime: '09:00', endTime: '09:55', subjectCode: '24CYT100', subjectName: 'Engineering Chemistry', faculty: 'Dr. Sreeja P', type: 'Theory' },
+  { day: 'Friday', period: 2, startTime: '10:00', endTime: '10:55', subjectCode: '24MAT101', subjectName: 'Linear Algebra and Calculus', faculty: 'Dr. Reji R', type: 'Theory' },
+  { day: 'Friday', period: 3, startTime: '11:05', endTime: '12:00', subjectCode: '24EST104', subjectName: 'Basics of Civil & Mechanical Engineering', faculty: 'Prof. Mathew K', type: 'Theory' },
+  { day: 'Friday', period: 4, startTime: '13:00', endTime: '13:55', subjectCode: 'FREE', subjectName: 'Free Period / Gap', faculty: 'No Class Scheduled', type: 'Free' },
+  { day: 'Friday', period: 5, startTime: '14:00', endTime: '14:55', subjectCode: '24ESL104', subjectName: 'Civil & Mechanical Workshop', faculty: 'Prof. Mathew K', type: 'Lab' },
+  { day: 'Friday', period: 6, startTime: '15:05', endTime: '16:00', subjectCode: '24ESL104', subjectName: 'Civil & Mechanical Workshop', faculty: 'Prof. Mathew K', type: 'Lab' },
+];
+

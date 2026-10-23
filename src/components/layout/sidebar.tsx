@@ -10,12 +10,12 @@ import {
   FileCheck2,
   FolderDown,
   ClipboardList,
-  GraduationCap,
   BellRing,
   User,
   Settings,
   LogOut,
 } from 'lucide-react';
+import { BrandLogo } from '@/components/brand-logo';
 import { StudentProfile } from '@/types';
 import { useAttendanceTarget } from '@/context/attendance-target-context';
 
@@ -91,9 +91,7 @@ export function Sidebar({
       {/* Brand Header */}
       <div className="h-14 px-5 flex items-center justify-between border-b border-[#e7e4de] dark:border-[#26282f]">
         <Link href="/dashboard" className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-md bg-[#1c1917] dark:bg-stone-100 text-white dark:text-stone-900 flex items-center justify-center">
-            <GraduationCap className="w-4 h-4" />
-          </div>
+          <BrandLogo size={28} className="rounded-md" />
           <div className="flex items-baseline gap-1.5">
             <span className="font-semibold text-sm tracking-tight text-stone-900 dark:text-stone-100">
               ETPlus
@@ -163,7 +161,7 @@ export function Sidebar({
             {isAttendanceAvailable ? `${overallPercentage}%` : 'Unavailable'}
           </span>
         </div>
-        <div className="w-full bg-[#e7e4de] dark:bg-[#2b2e37] h-1.5 rounded-full overflow-hidden">
+        <div className="w-full bg-[#e7e4de] dark:bg-[#252830] h-1.5 rounded-full overflow-hidden">
           <div
             className={`h-full rounded-full transition-all duration-300 ${
               !isAttendanceAvailable

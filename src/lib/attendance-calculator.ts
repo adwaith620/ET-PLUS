@@ -125,6 +125,45 @@ export function calculateSafeBunks(
 }
 
 /**
+ * Determine if an individual class slot is bunkable.
+ * Missing 1 class of weight `durationHours` leaves subject attendance >= target.
+ *
+ * Formula:
+ * projected = (A / (C + durationHours)) * 100
+ * Bunkable only when projected >= target.
+ *
+ * Guard rules:
+ * - Free period: never bunkable
+ * - Missing or zero conducted attendance (C <= 0): never bunkable
+ * - Target <= 0 or > 100: false
+ */
+export function isClassBunkable(
+  subjectCode: string,
+  subjects: { code: string; attendedHours: number; totalHours: number }[],
+  targetPercentage: number = 75,
+  durationHours: number = 1
+): boolean {
+  if (!subjectCode || subjectCode.toUpperCase() === 'FREE') return false;
+  if (!subjects || subjects.length === 0) return false;
+  if (targetPercentage <= 0 || targetPercentage > 100) return false;
+
+  const cleanCode = subjectCode.trim().toUpperCase();
+  const sub = subjects.find((s) => {
+    const sCode = s.code.trim().toUpperCase();
+    return sCode === cleanCode || cleanCode.includes(sCode) || sCode.includes(cleanCode);
+  });
+
+  if (!sub) return false;
+  if (sub.totalHours <= 0) return false;
+
+  const newTotal = sub.totalHours + durationHours;
+  if (newTotal <= 0) return false;
+
+  const projectedPercentage = calculatePercentage(sub.attendedHours, newTotal);
+  return projectedPercentage >= targetPercentage;
+}
+
+/**
  * Get status indicator relative to target:
  * - 'safe': >= target
  * - 'warning': between (target - 5%) and target

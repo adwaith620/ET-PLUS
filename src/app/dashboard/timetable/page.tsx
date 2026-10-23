@@ -6,7 +6,7 @@ export const metadata = {
   title: 'Timetable',
 };
 
-export default function TimetablePage() {
-  const { timetable } = getTimetablePageData();
-  return <TimetableClient slots={timetable} />;
+export default async function TimetablePage() {
+  const data = await getTimetablePageData();
+  return <TimetableClient slots={data.timetable} subjects={data.subjects} />;
 }

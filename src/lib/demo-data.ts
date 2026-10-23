@@ -478,44 +478,7 @@ export const DEMO_ASSESSMENT_RECORDS: EtlabAssessmentRecord[] = [
   },
 ];
 
-export const DEMO_ANNOUNCEMENTS: Announcement[] = [
-  {
-    id: 'ann-01',
-    title: 'KTU S3 B.Tech End-Semester Examination Registration Notification',
-    date: '2026-10-15',
-    author: 'Dean Academics & KTU Exam Cell, TKMCE',
-    category: 'Exam',
-    pinned: true,
-    content: 'Registration for B.Tech Semester 3 (Regular) 2024 Scheme examinations is open on the KTU portal. Students with minimum 75% attendance in all courses are eligible to register. Last date without fine: 30th October 2026.',
-  },
-  {
-    id: 'ann-02',
-    title: 'Second Series Internal Assessment Test Schedule Released',
-    date: '2026-10-14',
-    author: 'Head of Department, Computer Science (AI)',
-    category: 'Academic',
-    pinned: true,
-    content: 'The second internal test for B.Tech S3 Computer Science (AI) will commence from November 10, 2026. Portions covered: Modules 3 and 4 across 24MAP300, 24EST382, 24AIJ303, 24CSP304, and 24AIP305.',
-  },
-  {
-    id: 'ann-03',
-    title: 'AI & Machine Learning Student Project Contest 2026',
-    date: '2026-10-11',
-    author: 'TKMCE ACM Student Chapter',
-    category: 'Academic',
-    pinned: false,
-    content: 'All S3 Computer Science (AI) students are invited to register teams of 2-4 members for the annual Machine Learning Hackathon in the AI Center of Excellence.',
-  },
-  {
-    id: 'ann-04',
-    title: 'Annual Technical Symposium: HESTIA 2026 Call for Coordinators',
-    date: '2026-10-06',
-    author: 'Student Council, TKMCE',
-    category: 'General',
-    pinned: false,
-    content: 'Applications are invited from students across all departments for core committee and sub-committee coordinator roles for Hestia 2026.',
-  },
-];
+export const DEMO_ANNOUNCEMENTS: Announcement[] = [];
 
 export const DEMO_NOTIFICATIONS: NotificationItem[] = [
   {
@@ -545,14 +508,5 @@ export const DEMO_NOTIFICATIONS: NotificationItem[] = [
     timestamp: '1 day ago',
     read: true,
     link: '/dashboard/materials',
-  },
-  {
-    id: 'notif-04',
-    type: 'announcement',
-    title: 'KTU S3 Exam Registration Open',
-    message: 'S3 End-Semester Examination registration is now open without fine until October 30.',
-    timestamp: '2 days ago',
-    read: true,
-    link: '/dashboard/announcements',
   },
 ];

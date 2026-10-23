@@ -10,13 +10,13 @@ import {
   FileCheck2,
   FolderDown,
   ClipboardList,
-  GraduationCap,
   BellRing,
   User,
   Settings,
   LogOut,
   X,
 } from 'lucide-react';
+import { BrandLogo } from '@/components/brand-logo';
 import { StudentProfile } from '@/types';
 
 interface MobileNavProps {
@@ -144,9 +144,7 @@ export function MobileNav({
             {/* Header */}
             <div className="p-4 border-b border-[#e7e4de] dark:border-[#26282f] flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-md bg-[#1c1917] dark:bg-stone-100 text-white dark:text-stone-900 flex items-center justify-center">
-                  <GraduationCap className="w-4 h-4" />
-                </div>
+                <BrandLogo size={28} className="rounded-md" />
                 <div>
                   <span className="font-semibold text-xs text-stone-900 dark:text-stone-100">ETPlus</span>
                   <p className="text-[10px] text-stone-400 font-mono">TKMCE • {mode} Mode</p>
