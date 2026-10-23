@@ -1,7 +1,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { getDashboardData } from '@/lib/data-service';
-import { getCourseFullName } from '@/lib/course-catalog';
+import { getCourseFullName, normalizeTimetableSlot } from '@/lib/course-catalog';
 import {
   FolderDown,
   ArrowRight,
@@ -37,6 +37,7 @@ export default async function DashboardOverviewPage() {
 
   const todayClasses = timetable
     .filter((slot) => slot.day === activeDay && slot.period >= 1 && slot.period <= 6)
+    .map(normalizeTimetableSlot)
     .sort((a, b) => a.period - b.period);
 
   const isSafe = isAvailable && attendance.overallPercentage >= activeTarget;

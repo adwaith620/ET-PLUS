@@ -1,6 +1,12 @@
 import * as cheerio from 'cheerio';
 import type { StudentProfile, SubjectAttendanceData, EtlabAssessmentRecord, Assignment, TimetableSlot, TeacherRecord } from '../types/index.ts';
-import { normalizeStudentProfile, normalizeSubjectAttendance, getCourseFullName } from './course-catalog.ts';
+import {
+  normalizeStudentProfile,
+  normalizeSubjectAttendance,
+  getCourseFullName,
+  matchApprovedCourse,
+  normalizeTimetableSlot,
+} from './course-catalog.ts';
 
 const BASE_URL = process.env.ETLAB_BASE_URL || 'https://tkmce.etlab.in';
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
@@ -13,6 +19,7 @@ export const UPSTREAM_TIMEOUT_MS = 15000;       // 15s standard for academic end
 export const RESULTS_TIMEOUT_MS = 25000;        // 25s for heavy examination and assessment records
 
 let cachedWorkingAssignmentsUrl = '';
+let cachedWorkingResultsUrl = '';
 
 export interface LoginResult {
   success: boolean;
@@ -614,13 +621,21 @@ export async function etlabFetchTimetable(sessionId: string): Promise<{
                 faculty = lines[2];
               } else {
                 const facMatch = rawText.match(/\(([^)]+)\)/);
-                if (facMatch) faculty = facMatch[1].trim();
+                if (facMatch && facMatch[1].trim().length > 1) faculty = facMatch[1].trim();
+              }
+
+              // Match with approved catalog if course code was missing or course name was extracted as code
+              const approved = matchApprovedCourse(subjectCode) || matchApprovedCourse(subjectName) || matchApprovedCourse(rawText);
+              if (approved) {
+                subjectCode = approved.courseCode;
+                subjectName = approved.courseName;
+                faculty = approved.facultyName;
               }
 
               const cellHtml = cell.html() || '';
               const classType = classifyTimetableSession(rawText, subjectCode, subjectName, cellHtml);
 
-              slots.push({
+              slots.push(normalizeTimetableSlot({
                 day: matchedDay,
                 period: periodNum,
                 startTime: times.startTime,
@@ -629,7 +644,7 @@ export async function etlabFetchTimetable(sessionId: string): Promise<{
                 subjectName: getCourseFullName(subjectCode, subjectName),
                 faculty,
                 type: classType,
-              });
+              }));
             }
           });
 
@@ -878,55 +893,93 @@ export async function etlabFetchResults(
   sessionId: string
 ): Promise<{ success: boolean; records?: EtlabAssessmentRecord[]; error?: string }> {
   try {
-    let currentRes = await fetch(`${BASE_URL}/student/results`, {
-      method: 'GET',
-      headers: {
-        'User-Agent': USER_AGENT,
-        'Cookie': `TKMSESSIONID=${sessionId}`,
-      },
-      redirect: 'manual',
-      cache: 'no-store',
-      signal: AbortSignal.timeout(RESULTS_TIMEOUT_MS),
-    });
+    const candidateUrls = [
+      `${BASE_URL}/student/results`,
+      `${BASE_URL}/ktuacademics/student/viewresults`,
+      `${BASE_URL}/ktuacademics/student/results`,
+      `${BASE_URL}/student/viewresults`,
+      `${BASE_URL}/student/seriesexam`,
+      `${BASE_URL}/ktuacademics/student/internalmarks`,
+    ];
 
-    let redirectCount = 0;
-    while ((currentRes.status === 301 || currentRes.status === 302) && redirectCount < 2) {
-      redirectCount++;
-      const location = currentRes.headers.get('location') || '';
-      if (!location || location.toLowerCase().includes('login') || location.toLowerCase().includes('/user/')) {
-        return { success: false, error: 'Session expired' };
-      }
-      let targetUrl: string;
-      if (location.startsWith('http://') || location.startsWith('https://')) {
-        try {
-          const parsedLoc = new URL(location);
-          if (parsedLoc.origin !== new URL(BASE_URL).origin) {
+    const urlsToTry = cachedWorkingResultsUrl
+      ? [cachedWorkingResultsUrl, ...candidateUrls.filter((u) => u !== cachedWorkingResultsUrl)]
+      : candidateUrls;
+
+    let html = '';
+
+    for (const targetUrl of urlsToTry) {
+      try {
+        let currentRes = await fetch(targetUrl, {
+          method: 'GET',
+          headers: {
+            'User-Agent': USER_AGENT,
+            'Cookie': `TKMSESSIONID=${sessionId}`,
+          },
+          redirect: 'manual',
+          cache: 'no-store',
+          signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+        });
+
+        let redirectCount = 0;
+        while ((currentRes.status === 301 || currentRes.status === 302) && redirectCount < 2) {
+          redirectCount++;
+          const location = currentRes.headers.get('location') || '';
+          if (!location || location.toLowerCase().includes('login') || location.toLowerCase().includes('/user/login')) {
             return { success: false, error: 'Session expired' };
           }
-          targetUrl = location;
-        } catch {
-          return { success: false, error: 'Session expired' };
+          let nextUrl: string;
+          if (location.startsWith('http://') || location.startsWith('https://')) {
+            try {
+              const parsedLoc = new URL(location);
+              const baseHost = new URL(BASE_URL).hostname;
+              if (parsedLoc.hostname !== baseHost) {
+                return { success: false, error: 'Session expired' };
+              }
+              // Preserve https if original was https
+              if (BASE_URL.startsWith('https://')) {
+                parsedLoc.protocol = 'https:';
+              }
+              nextUrl = parsedLoc.toString();
+            } catch {
+              return { success: false, error: 'Session expired' };
+            }
+          } else {
+            nextUrl = `${BASE_URL}${location.startsWith('/') ? '' : '/'}${location}`;
+          }
+
+          currentRes = await fetch(nextUrl, {
+            method: 'GET',
+            headers: {
+              'User-Agent': USER_AGENT,
+              'Cookie': `TKMSESSIONID=${sessionId}`,
+            },
+            redirect: 'manual',
+            cache: 'no-store',
+            signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+          });
         }
-      } else {
-        targetUrl = `${BASE_URL}${location.startsWith('/') ? '' : '/'}${location}`;
+
+        if (currentRes.ok) {
+          const body = await currentRes.text();
+          if (body.toLowerCase().includes('login') && !body.toLowerCase().includes('logout')) {
+            return { success: false, error: 'Session expired' };
+          }
+          if (body.includes('<table') || body.includes('grid-view') || body.toLowerCase().includes('result')) {
+            html = body;
+            cachedWorkingResultsUrl = targetUrl;
+            break;
+          }
+        }
+      } catch {
+        // Try next candidate endpoint
       }
-      currentRes = await fetch(targetUrl, {
-        method: 'GET',
-        headers: {
-          'User-Agent': USER_AGENT,
-          'Cookie': `TKMSESSIONID=${sessionId}`,
-        },
-        redirect: 'manual',
-        cache: 'no-store',
-        signal: AbortSignal.timeout(RESULTS_TIMEOUT_MS),
-      });
     }
 
-    if (currentRes.status === 301 || currentRes.status === 302) {
-      return { success: false, error: 'Session expired' };
+    if (!html) {
+      return { success: true, records: [] };
     }
 
-    const html = await currentRes.text();
     const $ = cheerio.load(html);
 
     if ($('title').text().toLowerCase().includes('login')) {
@@ -934,15 +987,36 @@ export async function etlabFetchResults(
     }
 
     const records: EtlabAssessmentRecord[] = [];
-    const table = $('table.items, .grid-view table, table.table');
+    const table = $('table.items, .grid-view table, table.table, table').first();
 
     if (table.length) {
-      table.find('tr').each((idx, tr) => {
+      let subjectCol = 0;
+      let semCol = 1;
+      let examCol = 2;
+      let maxCol = 3;
+      let marksCol = 4;
+      let viewCol = 5;
+
+      const headers = table.find('th').map((_, el) => $(el).text().trim().toLowerCase()).get();
+      if (headers.length > 0) {
+        headers.forEach((h, idx) => {
+          if (h.includes('subject') || h.includes('course') || h.includes('paper')) subjectCol = idx;
+          else if (h.includes('sem')) semCol = idx;
+          else if (h.includes('exam') || h.includes('assessment') || h.includes('test') || h.includes('name')) examCol = idx;
+          else if (h.includes('max') || h.includes('total')) maxCol = idx;
+          else if (h.includes('mark') || h.includes('obtained') || h.includes('score')) marksCol = idx;
+          else if (h.includes('action') || h.includes('view') || h.includes('response') || h.includes('status')) viewCol = idx;
+        });
+      }
+
+      table.find('tbody tr, tr').each((idx, tr) => {
         if ($(tr).find('th').length > 0) return; // Skip table header rows
         const tds = $(tr).find('td');
-        if (tds.length >= 5) {
-          const subjectRaw = $(tds[0]).text().trim();
-          let semester = $(tds[1]).text().trim() || 'IIIrd Semester';
+        if (tds.length >= 3) {
+          const subjectRaw = subjectCol < tds.length ? $(tds[subjectCol]).text().trim() : '';
+          let semester = semCol < tds.length ? $(tds[semCol]).text().trim() : 'IIIrd Semester';
+          if (!semester) semester = 'IIIrd Semester';
+
           // Normalize common semester formats so filter matches
           if (/\b(?:iii|3|s3|semester\s*3)\b/i.test(semester) || /iiird/i.test(semester)) {
             semester = 'IIIrd Semester';
@@ -962,14 +1036,15 @@ export async function etlabFetchResults(
             semester = 'VIIIth Semester';
           }
 
-          const examName = $(tds[2]).text().trim();
-          const maxMarksStr = $(tds[3]).text().trim();
-          const obtainedMarksStr = $(tds[4]).text().trim();
-          const viewResponseLink = $(tds[5]).find('a').attr('href');
+          const examName = examCol < tds.length ? $(tds[examCol]).text().trim() : 'Continuous Evaluation';
+          const maxMarksStr = maxCol < tds.length ? $(tds[maxCol]).text().trim() : '40';
+          const obtainedMarksStr = marksCol < tds.length ? $(tds[marksCol]).text().trim() : '0';
+          const viewResponseLink = viewCol < tds.length ? $(tds[viewCol]).find('a').attr('href') : undefined;
 
-          const parts = subjectRaw.split('-');
+          const parts = subjectRaw.split(/[-–:]/);
           const subjectCode = parts[0]?.trim() || `SUB${idx}`;
-          const subjectName = parts.slice(1).join('-').trim() || subjectRaw;
+          const rawName = parts.slice(1).join('-').trim() || subjectRaw;
+          const subjectName = getCourseFullName(subjectCode, rawName);
 
           const maxMarks = parseFloat(maxMarksStr) || 40;
           const obtainedMarks = parseFloat(obtainedMarksStr) || 0;

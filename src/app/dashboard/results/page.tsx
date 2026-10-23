@@ -19,6 +19,7 @@ export default async function ResultsPage() {
       assessmentRecords={data.assessmentRecords || []}
       resultsError={data.resultsError}
       mode={data.mode}
+      lastSynced={data.lastSynced}
     />
   );
 }

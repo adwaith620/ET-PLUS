@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { EtlabAssessmentRecord, SemesterResult } from '@/types';
 import {
   FileText,
@@ -12,6 +13,7 @@ import {
   Eye,
   X,
   AlertCircle,
+  RefreshCw,
 } from 'lucide-react';
 
 interface ResultsClientProps {
@@ -19,6 +21,7 @@ interface ResultsClientProps {
   results?: SemesterResult[];
   resultsError?: string;
   mode?: 'live' | 'demo';
+  lastSynced?: string;
 }
 
 const SEMESTERS = ['IIIrd Semester', 'IInd Semester', 'Ist Semester'] as const;
@@ -92,18 +95,55 @@ function recordMatchesCategory(rec: EtlabAssessmentRecord, category: string): bo
 export function ResultsClient({
   assessmentRecords = [],
   resultsError,
+  lastSynced = 'Just now',
 }: ResultsClientProps) {
+  const router = useRouter();
+  const [syncedRecords, setSyncedRecords] = useState<EtlabAssessmentRecord[] | null>(null);
+  const [clientError, setClientError] = useState<string | null>(null);
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const [syncTime, setSyncTime] = useState<string>(lastSynced);
+
+  const records = syncedRecords ?? assessmentRecords;
+  const syncError = clientError !== null ? (clientError || undefined) : resultsError;
+
   const [selectedSem, setSelectedSem] = useState<SemesterOption>('IIIrd Semester');
   const [selectedCategory, setSelectedCategory] = useState<string>('Series Exam 1');
   const [selectedRecord, setSelectedRecord] = useState<EtlabAssessmentRecord | null>(null);
 
+  const handleSync = async () => {
+    if (isSyncing) return;
+    setIsSyncing(true);
+    setClientError(null);
+
+    try {
+      const res = await fetch('/api/results?refresh=true');
+      const data = await res.json();
+      if (data.records) {
+        setSyncedRecords(data.records);
+      }
+      if (data.lastSynced) {
+        setSyncTime(data.lastSynced);
+      }
+      if (data.resultsError) {
+        setClientError(data.resultsError);
+      } else {
+        setClientError('');
+      }
+      router.refresh();
+    } catch {
+      setClientError('Unable to connect to ETLAB. Please check your network and try again.');
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   // Filter records by selected semester and category
   const filteredRecords = React.useMemo(
     () =>
-      assessmentRecords.filter(
+      records.filter(
         (rec) => rec.semester === selectedSem && recordMatchesCategory(rec, selectedCategory)
       ),
-    [assessmentRecords, selectedSem, selectedCategory]
+    [records, selectedSem, selectedCategory]
   );
 
   return (
@@ -123,49 +163,78 @@ export function ResultsClient({
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#1c1917] dark:text-[#f3f4f6]">
-            Results
-          </h1>
-          <p className="text-xs text-[#78716c] dark:text-[#9ca3af] mt-1">
+          <div className="flex items-center gap-2 mb-1">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#1c1917] dark:text-[#f3f4f6]">
+              Results
+            </h1>
+            <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-[#f4f1eb] dark:bg-[#202227] text-stone-600 dark:text-stone-400 border border-[#e7e4de] dark:border-[#2a2d35]">
+              Synced {syncTime}
+            </span>
+          </div>
+          <p className="text-xs text-[#78716c] dark:text-[#9ca3af]">
             Continuous internal evaluations, sessional series tests, lab practicals, and coursework marks
           </p>
         </div>
 
-        <a
-          href="https://tkmce.etlab.in/student/results"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#1c1917] hover:bg-[#292524] text-white dark:bg-[#f3f4f6] dark:hover:bg-white dark:text-[#141518] transition-colors shadow-xs self-start sm:self-auto"
-        >
-          <span>Open ETLAB Portal</span>
-          <ExternalLink className="w-3.5 h-3.5" />
-        </a>
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          <button
+            onClick={handleSync}
+            disabled={isSyncing}
+            title="Synchronize examination results with ETLAB"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white dark:bg-[#1b1d22] border border-[#e7e4de] dark:border-[#2a2d35] text-[#1c1917] dark:text-[#f3f4f6] hover:bg-[#f9f8f5] dark:hover:bg-[#202227] transition-colors shadow-xs cursor-pointer disabled:opacity-50"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+            <span>{isSyncing ? 'Syncing...' : 'Sync ETLAB'}</span>
+          </button>
+
+          <a
+            href="https://tkmce.etlab.in/student/results"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#1c1917] hover:bg-[#292524] text-white dark:bg-[#f3f4f6] dark:hover:bg-white dark:text-[#141518] transition-colors shadow-xs"
+          >
+            <span>Open ETLAB Portal</span>
+            <ExternalLink className="w-3.5 h-3.5" />
+          </a>
+        </div>
       </div>
 
       {/* Synchronization Error or Status Alert */}
-      {resultsError && (
+      {syncError && (
         <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-900 dark:text-amber-300 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
           <div className="flex items-start sm:items-center gap-2.5">
             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 sm:mt-0 text-amber-600 dark:text-amber-400" />
             <div>
               <p className="font-semibold text-amber-950 dark:text-amber-200">
-                {resultsError.toLowerCase().includes('expired') ? 'ETLAB Session Timed Out' : 'Synchronization Notice'}
+                {syncError.toLowerCase().includes('expired') ? 'ETLAB Session Timed Out' : 'Synchronization Notice'}
               </p>
               <p className="text-[11px] text-amber-800 dark:text-amber-300/90 mt-0.5 leading-relaxed">
-                {resultsError.toLowerCase().includes('expired')
+                {syncError.toLowerCase().includes('expired')
                   ? 'Your upstream ETLAB portal session has timed out. Please sign in again with your credentials to refresh your official examination records.'
-                  : resultsError}
+                  : syncError}
               </p>
             </div>
           </div>
-          {resultsError.toLowerCase().includes('expired') && (
-            <Link
-              href="/login"
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white dark:bg-amber-500 dark:hover:bg-amber-400 dark:text-black transition-colors shrink-0 self-end sm:self-auto"
-            >
-              Sign In Again
-            </Link>
-          )}
+          <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+            {!syncError.toLowerCase().includes('expired') && (
+              <button
+                onClick={handleSync}
+                disabled={isSyncing}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white dark:bg-amber-500 dark:hover:bg-amber-400 dark:text-black transition-colors cursor-pointer disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+                <span>Retry Sync</span>
+              </button>
+            )}
+            {syncError.toLowerCase().includes('expired') && (
+              <Link
+                href="/login"
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white dark:bg-amber-500 dark:hover:bg-amber-400 dark:text-black transition-colors shrink-0"
+              >
+                Sign In Again
+              </Link>
+            )}
+          </div>
         </div>
       )}
 
@@ -213,7 +282,12 @@ export function ResultsClient({
       {/* 4. Total count indicator */}
       <div className="flex items-center justify-between">
         <p className="text-xs font-medium text-[#78716c] dark:text-[#9ca3af]">
-          {resultsError ? (
+          {isSyncing ? (
+            <span className="flex items-center gap-1.5 text-stone-600 dark:text-stone-300">
+              <RefreshCw className="w-3 h-3 animate-spin text-stone-500" />
+              <span>Connecting and synchronizing with ETLAB...</span>
+            </span>
+          ) : syncError ? (
             <span>Synchronization paused.</span>
           ) : (
             <>
@@ -254,16 +328,45 @@ export function ResultsClient({
             </tr>
           </thead>
           <tbody className="divide-y divide-[#efece6] dark:divide-[#262831]">
-            {filteredRecords.length === 0 ? (
+            {isSyncing ? (
+              <tr>
+                <td colSpan={6} className="p-12 sm:p-16 text-center text-xs text-[#78716c] dark:text-[#9ca3af]">
+                  <div className="flex flex-col items-center justify-center space-y-3 py-4">
+                    <div className="relative w-10 h-10" role="status" aria-label="Connecting to ETLAB">
+                      <div className="w-10 h-10 rounded-full border-2 border-stone-200 dark:border-stone-800" />
+                      <div className="w-10 h-10 rounded-full border-2 border-stone-800 dark:border-stone-200 border-t-transparent animate-spin absolute inset-0" />
+                    </div>
+                    <div className="space-y-1">
+                      <p className="font-semibold text-stone-900 dark:text-stone-100 text-sm">
+                        Connecting to ETLAB...
+                      </p>
+                      <p className="text-xs text-stone-500 dark:text-stone-400">
+                        Synchronizing examination records and evaluations. Please wait...
+                      </p>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            ) : filteredRecords.length === 0 ? (
               <tr>
                 <td colSpan={6} className="p-12 text-center text-xs text-[#78716c] dark:text-[#9ca3af]">
-                  <div className="space-y-1">
+                  <div className="space-y-2 max-w-md mx-auto">
                     <p className="font-semibold text-[#1c1917] dark:text-[#f3f4f6] text-sm">
                       No records available
                     </p>
-                    <p className="text-[11px]">
+                    <p className="text-[11px] leading-relaxed">
                       No evaluation records available for {selectedCategory} in {selectedSem}. Evaluations will appear here once published by the academic department.
                     </p>
+                    <div className="pt-2">
+                      <button
+                        onClick={handleSync}
+                        disabled={isSyncing}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#1c1917] hover:bg-[#292524] text-white dark:bg-[#f3f4f6] dark:hover:bg-white dark:text-[#141518] transition-colors shadow-xs cursor-pointer disabled:opacity-50"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+                        <span>Sync with ETLAB</span>
+                      </button>
+                    </div>
                   </div>
                 </td>
               </tr>

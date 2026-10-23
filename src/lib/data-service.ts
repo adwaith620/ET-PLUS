@@ -583,7 +583,7 @@ export const getTimetablePageData = cache(async function getTimetablePageData() 
       } catch {
         // Fallback
       }
-    } else if (teachers.length > 0) {
+    } else {
       timetable = applyTeachersToTimetable(timetable, teachers);
     }
 
@@ -668,20 +668,30 @@ export const getMaterialsPageData = cache(async function getMaterialsPageData() 
  * Targeted data fetcher for the Results page.
  * Fetches only examination results and internal assessment records.
  */
-export const getResultsPageData = cache(async function getResultsPageData() {
+export const getResultsPageData = cache(async function getResultsPageData(forceRefresh: boolean = false) {
   const session = await getSession();
   if (!session) return null;
 
-  // Check cache
-  const cachedResults = getCachedStudentData<SemesterResult[]>(session.username, 'results');
-  const cachedRecords = getCachedStudentData<EtlabAssessmentRecord[]>(session.username, 'assessmentRecords');
-  if (cachedResults && cachedRecords) {
-    return {
-      results: cachedResults,
-      assessmentRecords: cachedRecords,
-      resultsError: undefined,
-      mode: session.mode,
-    };
+  const now = new Date().toLocaleTimeString('en-IN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+  });
+
+  // Check cache first if not explicitly forced to refresh
+  if (!forceRefresh) {
+    const cachedResults = getCachedStudentData<SemesterResult[]>(session.username, 'results');
+    const cachedRecords = getCachedStudentData<EtlabAssessmentRecord[]>(session.username, 'assessmentRecords');
+    if (cachedResults && cachedRecords) {
+      return {
+        results: cachedResults,
+        assessmentRecords: cachedRecords,
+        resultsError: undefined,
+        mode: session.mode,
+        lastSynced: getCachedStudentData<string>(session.username, 'resultsLastSynced') || 'Recently',
+      };
+    }
   }
 
   if (session.mode === 'live' && session.sessionId) {
@@ -693,6 +703,7 @@ export const getResultsPageData = cache(async function getResultsPageData() {
     if (res.success) {
       setCachedStudentData(session.username, 'results', results);
       setCachedStudentData(session.username, 'assessmentRecords', records);
+      setCachedStudentData(session.username, 'resultsLastSynced', now);
     }
 
     return {
@@ -700,6 +711,7 @@ export const getResultsPageData = cache(async function getResultsPageData() {
       assessmentRecords: records,
       resultsError: error,
       mode: 'live' as const,
+      lastSynced: res.success ? now : (getCachedStudentData<string>(session.username, 'resultsLastSynced') || undefined),
     };
   }
 
@@ -710,12 +722,14 @@ export const getResultsPageData = cache(async function getResultsPageData() {
 
   setCachedStudentData(session.username, 'results', results);
   setCachedStudentData(session.username, 'assessmentRecords', assessmentRecords);
+  setCachedStudentData(session.username, 'resultsLastSynced', now);
 
   return {
     results,
     assessmentRecords,
     resultsError: undefined,
     mode: 'demo' as const,
+    lastSynced: now,
   };
 });
 

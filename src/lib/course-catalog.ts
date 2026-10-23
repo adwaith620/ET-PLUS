@@ -17,7 +17,7 @@ export const SEMESTER_3_COURSES: Record<string, CourseDefinition> = {
   '24CSP304': {
     code: '24CSP304',
     name: 'Data Structures and Algorithms',
-    faculty: 'Aswathy Gandhi S',
+    faculty: 'Mrs. ASWATHY GANDHI S',
     credits: 4,
     category: 'Theory',
     room: 'Not specified',
@@ -25,7 +25,7 @@ export const SEMESTER_3_COURSES: Record<string, CourseDefinition> = {
   '24AIJ303': {
     code: '24AIJ303',
     name: 'Introduction to Machine Learning',
-    faculty: 'Nisa A K',
+    faculty: 'Prof. NISA A K',
     credits: 4,
     category: 'Theory',
     room: 'Not specified',
@@ -33,7 +33,7 @@ export const SEMESTER_3_COURSES: Record<string, CourseDefinition> = {
   '24AIP305': {
     code: '24AIP305',
     name: 'Computing Systems and Organization',
-    faculty: 'Amina M',
+    faculty: 'AMINA M',
     credits: 4,
     category: 'Theory',
     room: 'Not specified',
@@ -41,7 +41,7 @@ export const SEMESTER_3_COURSES: Record<string, CourseDefinition> = {
   '24MAP300': {
     code: '24MAP300',
     name: 'Advanced Linear Algebra and Transforms',
-    faculty: 'Fayis Thazhethe Palliyali and Deepak D',
+    faculty: 'Mr. FAYIS THAZHETHE PALLIYALI & Dr. DEEPAK D.',
     credits: 4,
     category: 'Theory',
     room: 'Not specified',
@@ -49,7 +49,7 @@ export const SEMESTER_3_COURSES: Record<string, CourseDefinition> = {
   '24EST382': {
     code: '24EST382',
     name: 'Discrete Mathematics',
-    faculty: 'Manu J Pillai',
+    faculty: 'Dr. MANU J PILLAI',
     credits: 4,
     category: 'Theory',
     room: 'Not specified',
@@ -57,7 +57,7 @@ export const SEMESTER_3_COURSES: Record<string, CourseDefinition> = {
   '24HUT310': {
     code: '24HUT310',
     name: 'Life Skills and Professional Ethics',
-    faculty: 'Prof. Anumod B',
+    faculty: 'Prof. ANUMOD B',
     credits: 2,
     category: 'Theory',
     room: 'Not specified',
@@ -65,7 +65,7 @@ export const SEMESTER_3_COURSES: Record<string, CourseDefinition> = {
   '24EST372': {
     code: '24EST372',
     name: 'Optimization Techniques',
-    faculty: 'Asif Navas K R',
+    faculty: 'Dr. ASIF NAVAS K R',
     credits: 3,
     category: 'Theory',
     room: 'Not specified',
@@ -129,11 +129,119 @@ export const APPROVED_DEPARTMENT_FACULTY: DepartmentFacultyCourse[] = [
 ];
 
 /**
+ * Match a raw code, title, or alias against the approved Semester 3 course catalog.
+ */
+export function matchApprovedCourse(identifier?: string): DepartmentFacultyCourse | undefined {
+  if (!identifier) return undefined;
+  const raw = identifier.trim();
+  if (!raw || raw === '–' || raw === '-' || raw.toLowerCase().includes('free')) return undefined;
+
+  const clean = raw.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+  // 1. Direct code matching (e.g. 24MAP300, MAP300)
+  for (const item of APPROVED_DEPARTMENT_FACULTY) {
+    const itemCodeClean = item.courseCode.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const itemSuffix = itemCodeClean.replace(/^24/, '');
+    if (clean === itemCodeClean || clean.includes(itemCodeClean) || (itemSuffix && clean.includes(itemSuffix))) {
+      return item;
+    }
+  }
+
+  // 2. Full or partial course title matching
+  const lower = raw.toLowerCase();
+  for (const item of APPROVED_DEPARTMENT_FACULTY) {
+    const nameLower = item.courseName.toLowerCase();
+    if (lower === nameLower || lower.includes(nameLower) || nameLower.includes(lower)) {
+      return item;
+    }
+  }
+
+  // 3. Keyword-based matching for specific subjects
+  if (lower.includes('machine learning') || lower.includes('aij303') || lower.includes('intro to ml')) {
+    return APPROVED_DEPARTMENT_FACULTY.find((f) => f.courseCode === '24AIJ303');
+  }
+  if (lower.includes('data structures') || lower.includes('algorithms') || lower.includes('csp304') || lower.includes('dsa')) {
+    return APPROVED_DEPARTMENT_FACULTY.find((f) => f.courseCode === '24CSP304');
+  }
+  if (lower.includes('computing systems') || lower.includes('organization') || lower.includes('aip305') || lower.includes('cso')) {
+    return APPROVED_DEPARTMENT_FACULTY.find((f) => f.courseCode === '24AIP305');
+  }
+  if (lower.includes('linear algebra') || lower.includes('transforms') || lower.includes('map300')) {
+    return APPROVED_DEPARTMENT_FACULTY.find((f) => f.courseCode === '24MAP300');
+  }
+  if (lower.includes('discrete') || lower.includes('est382')) {
+    return APPROVED_DEPARTMENT_FACULTY.find((f) => f.courseCode === '24EST382');
+  }
+  if (lower.includes('optimization') || lower.includes('est372')) {
+    return APPROVED_DEPARTMENT_FACULTY.find((f) => f.courseCode === '24EST372');
+  }
+  if (lower.includes('life skills') || lower.includes('ethics') || lower.includes('hut310')) {
+    return APPROVED_DEPARTMENT_FACULTY.find((f) => f.courseCode === '24HUT310');
+  }
+
+  return undefined;
+}
+
+/**
+ * Returns the approved faculty name for a given course code or name if found.
+ */
+export function getApprovedFaculty(code?: string, name?: string): string | undefined {
+  const match = matchApprovedCourse(code) || matchApprovedCourse(name);
+  return match?.facultyName;
+}
+
+/**
+ * Normalizes a timetable slot so that:
+ * 1. Codes like "Introduction to Machine Learning" become "24AIJ303"
+ * 2. Faculty names like "Department Faculty" become the approved faculty names
+ * 3. Free periods are strictly formatted
+ */
+export function normalizeTimetableSlot(slot: TimetableSlot): TimetableSlot {
+  if (slot.type === 'Free' || slot.subjectCode === 'FREE') {
+    return {
+      ...slot,
+      subjectCode: 'FREE',
+      subjectName: 'Free Period / Gap',
+      faculty: slot.faculty || 'No Class Scheduled',
+      type: 'Free',
+    };
+  }
+
+  const match = matchApprovedCourse(slot.subjectCode) || matchApprovedCourse(slot.subjectName);
+  if (match) {
+    return {
+      ...slot,
+      subjectCode: match.courseCode,
+      subjectName: match.courseName,
+      faculty: match.facultyName,
+    };
+  }
+
+  const def = getCourseDefinition(slot.subjectCode);
+  const faculty = (slot.faculty && slot.faculty !== 'Department Faculty' && slot.faculty !== 'Faculty')
+    ? slot.faculty
+    : (def?.faculty || slot.faculty || 'Department Faculty');
+
+  return {
+    ...slot,
+    subjectCode: def?.code || slot.subjectCode,
+    subjectName: def?.name || getCourseFullName(slot.subjectCode, slot.subjectName),
+    faculty,
+  };
+}
+
+/**
  * Returns full verified course name for a given course code or alias.
  */
 export function getCourseFullName(code: string, fallbackName?: string): string {
   if (!code) return fallbackName || 'Unknown Course';
   const cleanCode = code.trim().toUpperCase();
+
+  // Check approved course match first
+  const approved = matchApprovedCourse(code) || matchApprovedCourse(fallbackName);
+  if (approved) {
+    return approved.courseName;
+  }
 
   // Direct lookup
   if (SEMESTER_3_COURSES[cleanCode]) {
@@ -159,6 +267,11 @@ export function getCourseFullName(code: string, fallbackName?: string): string {
  */
 export function getCourseDefinition(code: string): CourseDefinition | undefined {
   if (!code) return undefined;
+  const approved = matchApprovedCourse(code);
+  if (approved && SEMESTER_3_COURSES[approved.courseCode]) {
+    return SEMESTER_3_COURSES[approved.courseCode];
+  }
+
   const cleanCode = code.trim().toUpperCase();
   if (SEMESTER_3_COURSES[cleanCode]) return SEMESTER_3_COURSES[cleanCode];
 
@@ -175,11 +288,13 @@ export function getCourseDefinition(code: string): CourseDefinition | undefined 
  */
 export function normalizeSubjectAttendance(sub: SubjectAttendanceData): SubjectAttendanceData {
   const verifiedDef = getCourseDefinition(sub.code);
+  const approved = APPROVED_DEPARTMENT_FACULTY.find((f) => f.courseCode === (verifiedDef?.code || sub.code));
+  const facultyName = approved?.facultyName || (sub.faculty && sub.faculty !== 'Department Faculty' ? sub.faculty : (verifiedDef?.faculty || 'Department Faculty'));
   return {
     ...sub,
-    code: verifiedDef?.code || sub.code,
-    name: verifiedDef?.name || getCourseFullName(sub.code, sub.name),
-    faculty: (sub.faculty && sub.faculty !== 'Department Faculty') ? sub.faculty : (verifiedDef?.faculty || sub.faculty || 'Department Faculty'),
+    code: verifiedDef?.code || approved?.courseCode || sub.code,
+    name: verifiedDef?.name || approved?.courseName || getCourseFullName(sub.code, sub.name),
+    faculty: facultyName,
     facultyEmail: sub.facultyEmail,
     category: verifiedDef?.category || sub.category || 'Theory',
   };
@@ -309,44 +424,44 @@ export function normalizeStudentProfile(rawProfile: Partial<StudentProfile>): St
  */
 export const SEMESTER_3_OFFICIAL_TIMETABLE: TimetableSlot[] = [
   // Monday (All WR101, Theory)
-  { day: 'Monday', period: 1, startTime: '09:00', endTime: '09:55', subjectCode: '24CSP304', subjectName: 'Data Structures and Algorithms', faculty: 'Aswathy Gandhi S', room: 'WR101', type: 'Theory' },
-  { day: 'Monday', period: 2, startTime: '10:00', endTime: '10:55', subjectCode: '24AIJ303', subjectName: 'Introduction to Machine Learning', faculty: 'Nisa A K', room: 'WR101', type: 'Theory' },
-  { day: 'Monday', period: 3, startTime: '11:05', endTime: '12:00', subjectCode: '24AIJ303', subjectName: 'Introduction to Machine Learning', faculty: 'Nisa A K', room: 'WR101', type: 'Theory' },
-  { day: 'Monday', period: 4, startTime: '13:00', endTime: '13:55', subjectCode: '24CSP304', subjectName: 'Data Structures and Algorithms', faculty: 'Aswathy Gandhi S', room: 'WR101', type: 'Theory' },
-  { day: 'Monday', period: 5, startTime: '14:00', endTime: '14:55', subjectCode: '24HUT310', subjectName: 'Life Skills and Professional Ethics', faculty: 'Prof. Anumod B', room: 'WR101', type: 'Theory' },
-  { day: 'Monday', period: 6, startTime: '15:05', endTime: '16:00', subjectCode: '24EST382', subjectName: 'Discrete Mathematics', faculty: 'Manu J Pillai', room: 'WR101', type: 'Theory' },
+  { day: 'Monday', period: 1, startTime: '09:00', endTime: '09:55', subjectCode: '24CSP304', subjectName: 'Data Structures and Algorithms', faculty: 'Mrs. ASWATHY GANDHI S', room: 'WR101', type: 'Theory' },
+  { day: 'Monday', period: 2, startTime: '10:00', endTime: '10:55', subjectCode: '24AIJ303', subjectName: 'Introduction to Machine Learning', faculty: 'Prof. NISA A K', room: 'WR101', type: 'Theory' },
+  { day: 'Monday', period: 3, startTime: '11:05', endTime: '12:00', subjectCode: '24AIJ303', subjectName: 'Introduction to Machine Learning', faculty: 'Prof. NISA A K', room: 'WR101', type: 'Theory' },
+  { day: 'Monday', period: 4, startTime: '13:00', endTime: '13:55', subjectCode: '24CSP304', subjectName: 'Data Structures and Algorithms', faculty: 'Mrs. ASWATHY GANDHI S', room: 'WR101', type: 'Theory' },
+  { day: 'Monday', period: 5, startTime: '14:00', endTime: '14:55', subjectCode: '24HUT310', subjectName: 'Life Skills and Professional Ethics', faculty: 'Prof. ANUMOD B', room: 'WR101', type: 'Theory' },
+  { day: 'Monday', period: 6, startTime: '15:05', endTime: '16:00', subjectCode: '24EST382', subjectName: 'Discrete Mathematics', faculty: 'Dr. MANU J PILLAI', room: 'WR101', type: 'Theory' },
 
   // Tuesday (Periods 2 & 3: Computing Lab)
-  { day: 'Tuesday', period: 1, startTime: '09:00', endTime: '09:55', subjectCode: '24AIJ303', subjectName: 'Introduction to Machine Learning', faculty: 'Nisa A K', room: 'WR101', type: 'Theory' },
-  { day: 'Tuesday', period: 2, startTime: '10:00', endTime: '10:55', subjectCode: '24CSP304', subjectName: 'Data Structures and Algorithms', faculty: 'Aswathy Gandhi S', room: 'Computing Lab', type: 'Lab' },
-  { day: 'Tuesday', period: 3, startTime: '11:05', endTime: '12:00', subjectCode: '24CSP304', subjectName: 'Data Structures and Algorithms', faculty: 'Aswathy Gandhi S', room: 'Computing Lab', type: 'Lab' },
-  { day: 'Tuesday', period: 4, startTime: '13:00', endTime: '13:55', subjectCode: '24AIP305', subjectName: 'Computing Systems and Organization', faculty: 'Amina M', room: 'WR101', type: 'Theory' },
-  { day: 'Tuesday', period: 5, startTime: '14:00', endTime: '14:55', subjectCode: '24MAP300', subjectName: 'Advanced Linear Algebra and Transforms', faculty: 'Fayis Thazhethe Palliyali', room: 'WR101', type: 'Theory' },
-  { day: 'Tuesday', period: 6, startTime: '15:05', endTime: '16:00', subjectCode: '24EST372', subjectName: 'Optimization Techniques', faculty: 'Asif Navas K R', room: 'WR101', type: 'Theory' },
+  { day: 'Tuesday', period: 1, startTime: '09:00', endTime: '09:55', subjectCode: '24AIJ303', subjectName: 'Introduction to Machine Learning', faculty: 'Prof. NISA A K', room: 'WR101', type: 'Theory' },
+  { day: 'Tuesday', period: 2, startTime: '10:00', endTime: '10:55', subjectCode: '24CSP304', subjectName: 'Data Structures and Algorithms', faculty: 'Mrs. ASWATHY GANDHI S', room: 'Computing Lab', type: 'Lab' },
+  { day: 'Tuesday', period: 3, startTime: '11:05', endTime: '12:00', subjectCode: '24CSP304', subjectName: 'Data Structures and Algorithms', faculty: 'Mrs. ASWATHY GANDHI S', room: 'Computing Lab', type: 'Lab' },
+  { day: 'Tuesday', period: 4, startTime: '13:00', endTime: '13:55', subjectCode: '24AIP305', subjectName: 'Computing Systems and Organization', faculty: 'AMINA M', room: 'WR101', type: 'Theory' },
+  { day: 'Tuesday', period: 5, startTime: '14:00', endTime: '14:55', subjectCode: '24MAP300', subjectName: 'Advanced Linear Algebra and Transforms', faculty: 'Mr. FAYIS THAZHETHE PALLIYALI & Dr. DEEPAK D.', room: 'WR101', type: 'Theory' },
+  { day: 'Tuesday', period: 6, startTime: '15:05', endTime: '16:00', subjectCode: '24EST372', subjectName: 'Optimization Techniques', faculty: 'Dr. ASIF NAVAS K R', room: 'WR101', type: 'Theory' },
 
   // Wednesday (All WR101)
-  { day: 'Wednesday', period: 1, startTime: '09:00', endTime: '09:55', subjectCode: '24HUT310', subjectName: 'Life Skills and Professional Ethics', faculty: 'Prof. Anumod B', room: 'WR101', type: 'Theory' },
-  { day: 'Wednesday', period: 2, startTime: '10:00', endTime: '10:55', subjectCode: '24AIJ303', subjectName: 'Introduction to Machine Learning', faculty: 'Nisa A K', room: 'WR101', type: 'Theory' },
-  { day: 'Wednesday', period: 3, startTime: '11:05', endTime: '12:00', subjectCode: '24MAP300', subjectName: 'Advanced Linear Algebra and Transforms', faculty: 'Deepak D', room: 'WR101', type: 'Theory' },
-  { day: 'Wednesday', period: 4, startTime: '13:00', endTime: '13:55', subjectCode: '24AIP305', subjectName: 'Computing Systems and Organization', faculty: 'Amina M', room: 'WR101', type: 'Theory' },
-  { day: 'Wednesday', period: 5, startTime: '14:00', endTime: '14:55', subjectCode: '24EST372', subjectName: 'Optimization Techniques', faculty: 'Asif Navas K R', room: 'WR101', type: 'Theory' },
-  { day: 'Wednesday', period: 6, startTime: '15:05', endTime: '16:00', subjectCode: '24CSP304', subjectName: 'Data Structures and Algorithms', faculty: 'Aswathy Gandhi S', room: 'WR101', type: 'Theory' },
+  { day: 'Wednesday', period: 1, startTime: '09:00', endTime: '09:55', subjectCode: '24HUT310', subjectName: 'Life Skills and Professional Ethics', faculty: 'Prof. ANUMOD B', room: 'WR101', type: 'Theory' },
+  { day: 'Wednesday', period: 2, startTime: '10:00', endTime: '10:55', subjectCode: '24AIJ303', subjectName: 'Introduction to Machine Learning', faculty: 'Prof. NISA A K', room: 'WR101', type: 'Theory' },
+  { day: 'Wednesday', period: 3, startTime: '11:05', endTime: '12:00', subjectCode: '24MAP300', subjectName: 'Advanced Linear Algebra and Transforms', faculty: 'Mr. FAYIS THAZHETHE PALLIYALI & Dr. DEEPAK D.', room: 'WR101', type: 'Theory' },
+  { day: 'Wednesday', period: 4, startTime: '13:00', endTime: '13:55', subjectCode: '24AIP305', subjectName: 'Computing Systems and Organization', faculty: 'AMINA M', room: 'WR101', type: 'Theory' },
+  { day: 'Wednesday', period: 5, startTime: '14:00', endTime: '14:55', subjectCode: '24EST372', subjectName: 'Optimization Techniques', faculty: 'Dr. ASIF NAVAS K R', room: 'WR101', type: 'Theory' },
+  { day: 'Wednesday', period: 6, startTime: '15:05', endTime: '16:00', subjectCode: '24CSP304', subjectName: 'Data Structures and Algorithms', faculty: 'Mrs. ASWATHY GANDHI S', room: 'WR101', type: 'Theory' },
 
   // Thursday (Periods 2 & 3: AI LAB, Periods 4 & 5: LAB)
-  { day: 'Thursday', period: 1, startTime: '09:00', endTime: '09:55', subjectCode: '24EST382', subjectName: 'Discrete Mathematics', faculty: 'Manu J Pillai', room: 'WR101', type: 'Theory' },
-  { day: 'Thursday', period: 2, startTime: '10:00', endTime: '10:55', subjectCode: '24AIP305', subjectName: 'Computing Systems and Organization', faculty: 'Amina M', room: 'AI LAB', type: 'Lab' },
-  { day: 'Thursday', period: 3, startTime: '11:05', endTime: '12:00', subjectCode: '24AIP305', subjectName: 'Computing Systems and Organization', faculty: 'Amina M', room: 'AI LAB', type: 'Lab' },
-  { day: 'Thursday', period: 4, startTime: '13:00', endTime: '13:55', subjectCode: '24MAP300', subjectName: 'Advanced Linear Algebra and Transforms', faculty: 'Fayis Thazhethe Palliyali', room: 'LAB', type: 'Lab' },
-  { day: 'Thursday', period: 5, startTime: '14:00', endTime: '14:55', subjectCode: '24MAP300', subjectName: 'Advanced Linear Algebra and Transforms', faculty: 'Fayis Thazhethe Palliyali', room: 'LAB', type: 'Lab' },
-  { day: 'Thursday', period: 6, startTime: '15:05', endTime: '16:00', subjectCode: '24HUT310', subjectName: 'Life Skills and Professional Ethics', faculty: 'Prof. Anumod B', room: 'WR101', type: 'Theory' },
+  { day: 'Thursday', period: 1, startTime: '09:00', endTime: '09:55', subjectCode: '24EST382', subjectName: 'Discrete Mathematics', faculty: 'Dr. MANU J PILLAI', room: 'WR101', type: 'Theory' },
+  { day: 'Thursday', period: 2, startTime: '10:00', endTime: '10:55', subjectCode: '24AIP305', subjectName: 'Computing Systems and Organization', faculty: 'AMINA M', room: 'AI LAB', type: 'Lab' },
+  { day: 'Thursday', period: 3, startTime: '11:05', endTime: '12:00', subjectCode: '24AIP305', subjectName: 'Computing Systems and Organization', faculty: 'AMINA M', room: 'AI LAB', type: 'Lab' },
+  { day: 'Thursday', period: 4, startTime: '13:00', endTime: '13:55', subjectCode: '24MAP300', subjectName: 'Advanced Linear Algebra and Transforms', faculty: 'Mr. FAYIS THAZHETHE PALLIYALI & Dr. DEEPAK D.', room: 'LAB', type: 'Lab' },
+  { day: 'Thursday', period: 5, startTime: '14:00', endTime: '14:55', subjectCode: '24MAP300', subjectName: 'Advanced Linear Algebra and Transforms', faculty: 'Mr. FAYIS THAZHETHE PALLIYALI & Dr. DEEPAK D.', room: 'LAB', type: 'Lab' },
+  { day: 'Thursday', period: 6, startTime: '15:05', endTime: '16:00', subjectCode: '24HUT310', subjectName: 'Life Skills and Professional Ethics', faculty: 'Prof. ANUMOD B', room: 'WR101', type: 'Theory' },
 
   // Friday (Period 1: Life Skills, Period 4: Free/Unscheduled Gap, Period 5: Computing Lab, Period 6: Discrete Mathematics)
-  { day: 'Friday', period: 1, startTime: '09:00', endTime: '09:55', subjectCode: '24HUT310', subjectName: 'Life Skills and Professional Ethics', faculty: 'Prof. Anumod B', room: 'WR101', type: 'Theory' },
-  { day: 'Friday', period: 2, startTime: '10:00', endTime: '10:55', subjectCode: '24MAP300', subjectName: 'Advanced Linear Algebra and Transforms', faculty: 'Deepak D', room: 'WR101', type: 'Theory' },
-  { day: 'Friday', period: 3, startTime: '11:05', endTime: '12:00', subjectCode: '24MAP300', subjectName: 'Advanced Linear Algebra and Transforms', faculty: 'Fayis Thazhethe Palliyali and Deepak D', room: 'WR101', type: 'Theory' },
+  { day: 'Friday', period: 1, startTime: '09:00', endTime: '09:55', subjectCode: '24HUT310', subjectName: 'Life Skills and Professional Ethics', faculty: 'Prof. ANUMOD B', room: 'WR101', type: 'Theory' },
+  { day: 'Friday', period: 2, startTime: '10:00', endTime: '10:55', subjectCode: '24MAP300', subjectName: 'Advanced Linear Algebra and Transforms', faculty: 'Mr. FAYIS THAZHETHE PALLIYALI & Dr. DEEPAK D.', room: 'WR101', type: 'Theory' },
+  { day: 'Friday', period: 3, startTime: '11:05', endTime: '12:00', subjectCode: '24MAP300', subjectName: 'Advanced Linear Algebra and Transforms', faculty: 'Mr. FAYIS THAZHETHE PALLIYALI & Dr. DEEPAK D.', room: 'WR101', type: 'Theory' },
   { day: 'Friday', period: 4, startTime: '13:00', endTime: '13:55', subjectCode: 'FREE', subjectName: 'Free Period / Gap', faculty: 'No Class Scheduled', room: '–', type: 'Free' },
-  { day: 'Friday', period: 5, startTime: '14:00', endTime: '14:55', subjectCode: '24AIJ303', subjectName: 'Introduction to Machine Learning', faculty: 'Nisa A K', room: 'Computing Lab', type: 'Lab' },
-  { day: 'Friday', period: 6, startTime: '15:05', endTime: '16:00', subjectCode: '24EST382', subjectName: 'Discrete Mathematics', faculty: 'Manu J Pillai', room: 'WR101', type: 'Theory' },
+  { day: 'Friday', period: 5, startTime: '14:00', endTime: '14:55', subjectCode: '24AIJ303', subjectName: 'Introduction to Machine Learning', faculty: 'Prof. NISA A K', room: 'Computing Lab', type: 'Lab' },
+  { day: 'Friday', period: 6, startTime: '15:05', endTime: '16:00', subjectCode: '24EST382', subjectName: 'Discrete Mathematics', faculty: 'Dr. MANU J PILLAI', room: 'WR101', type: 'Theory' },
 ];
 
 /**
@@ -426,25 +541,40 @@ export function applyTeachersToSubjects(subjects: SubjectAttendanceData[], teach
  * Maps authoritative faculty and teacher records to timetable slots.
  */
 export function applyTeachersToTimetable(slots: TimetableSlot[], teachers?: TeacherRecord[]): TimetableSlot[] {
-  if (!teachers || teachers.length === 0) return slots;
+  if (!slots) return [];
 
-  return slots.map((slot) => {
+  return slots.map((rawSlot) => {
+    const slot = normalizeTimetableSlot(rawSlot);
     if (slot.type === 'Free' || slot.subjectCode === 'FREE') return slot;
-    if (slot.faculty && slot.faculty !== 'Department Faculty' && slot.faculty !== 'Faculty') return slot;
 
-    const cleanCode = slot.subjectCode.trim().toUpperCase();
-    const matchingTeachers = teachers.filter((t) => {
-      const tCode = t.subjectCode.trim().toUpperCase();
-      return tCode === cleanCode || cleanCode.includes(tCode) || tCode.includes(cleanCode);
-    });
+    // 1. If explicit teachers array is provided and contains a match for this slot:
+    if (teachers && teachers.length > 0) {
+      const cleanCode = slot.subjectCode.trim().toUpperCase();
+      const matchingTeachers = teachers.filter((t) => {
+        const tCode = t.subjectCode.trim().toUpperCase();
+        return tCode === cleanCode || cleanCode.includes(tCode) || tCode.includes(cleanCode);
+      });
 
-    if (matchingTeachers.length > 0) {
-      const names = Array.from(new Set(matchingTeachers.map((t) => t.name))).join(' and ');
+      if (matchingTeachers.length > 0) {
+        const names = Array.from(new Set(matchingTeachers.map((t) => t.name))).join(' and ');
+        return {
+          ...slot,
+          faculty: names,
+        };
+      }
+    }
+
+    // 2. Check approved department faculty catalog
+    const approved = matchApprovedCourse(slot.subjectCode) || matchApprovedCourse(slot.subjectName);
+    if (approved) {
       return {
         ...slot,
-        faculty: names,
+        subjectCode: approved.courseCode,
+        subjectName: approved.courseName,
+        faculty: approved.facultyName,
       };
     }
+
     return slot;
   });
 }

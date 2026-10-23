@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { TimetableSlot, SubjectAttendanceData } from '@/types';
-import { getCourseFullName, APPROVED_DEPARTMENT_FACULTY } from '@/lib/course-catalog';
+import { getCourseFullName, APPROVED_DEPARTMENT_FACULTY, normalizeTimetableSlot } from '@/lib/course-catalog';
 import { isClassBunkable } from '@/lib/attendance-calculator';
 import { useAttendanceTarget } from '@/context/attendance-target-context';
 import { Clock, User, Download, List, Grid, GraduationCap } from 'lucide-react';
@@ -21,8 +21,13 @@ export function TimetableClient({ slots, subjects = [] }: TimetableClientProps) 
   const [selectedDay, setSelectedDay] = useState<TimetableSlot['day']>('Monday');
   const [viewMode, setViewMode] = useState<'daily' | 'weekly'>('daily');
 
+  const normalizedSlots = React.useMemo(
+    () => (slots || []).map(normalizeTimetableSlot),
+    [slots]
+  );
+
   // Filter slots for selected day, strictly limited to periods 1-6
-  const dailySlots = slots
+  const dailySlots = normalizedSlots
     .filter((s) => s.day === selectedDay && s.period >= 1 && s.period <= 6)
     .sort((a, b) => a.period - b.period);
 
@@ -32,7 +37,7 @@ export function TimetableClient({ slots, subjects = [] }: TimetableClientProps) 
   const handleExportCsv = () => {
     let csv = 'Day,Period 1,Period 2,Period 3,Period 4,Period 5,Period 6\n';
     days.forEach((day) => {
-      const daySlots = slots.filter((s) => s.day === day && s.period >= 1 && s.period <= 6);
+      const daySlots = normalizedSlots.filter((s) => s.day === day && s.period >= 1 && s.period <= 6);
       const row: string[] = [day];
       periods.forEach((p) => {
         const slot = daySlots.find((s) => s.period === p);
@@ -234,7 +239,7 @@ export function TimetableClient({ slots, subjects = [] }: TimetableClientProps) 
             </thead>
             <tbody className="divide-y divide-[#e7e4de] dark:divide-[#2a2d35]">
               {days.map((day) => {
-                const daySlots = slots.filter((s) => s.day === day);
+                const daySlots = normalizedSlots.filter((s) => s.day === day);
                 return (
                   <tr key={day} className="hover:bg-[#fdfcfb] dark:hover:bg-[#202227]/50">
                     <td className="p-3 font-semibold text-[#1c1917] dark:text-[#f3f4f6] whitespace-nowrap">
