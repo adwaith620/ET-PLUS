@@ -4,7 +4,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { classifyTimetableSession } from '../src/lib/etlab-client.ts';
-import { applyTeachersToSubjects, applyTeachersToTimetable, DEMO_TEACHERS_A, DEMO_TEACHERS_B } from '../src/lib/course-catalog.ts';
+import {
+  applyTeachersToSubjects,
+  applyTeachersToTimetable,
+  DEMO_TEACHERS_A,
+  DEMO_TEACHERS_B,
+  APPROVED_DEPARTMENT_FACULTY,
+} from '../src/lib/course-catalog.ts';
 
 test('1. classifyTimetableSession - Session-specific Theory vs Lab classification', () => {
   // Test practical batch indicators: (B), (P), [B], [P], Batch B
@@ -248,4 +254,79 @@ test('6. API Endpoint for Teachers (/api/teachers)', () => {
     routeCode.includes('getProfilePageData') || routeCode.includes('etlabFetchTeachers'),
     'API route must retrieve teachers data via authoritative data provider'
   );
+});
+
+test('7. Approved Department Faculty in Timetable Section', () => {
+  // 1. Verify exactly 7 entries
+  assert.equal(APPROVED_DEPARTMENT_FACULTY.length, 7, 'Must contain exactly 7 approved course entries');
+
+  // 2. Expected entries matching the approved table
+  const expectedMappings = [
+    {
+      courseCode: '24MAP300',
+      courseName: 'Advanced Linear Algebra and Transforms',
+      facultyName: 'Mr. FAYIS THAZHETHE PALLIYALI & Dr. DEEPAK D.',
+    },
+    {
+      courseCode: '24EST382',
+      courseName: 'Discrete Mathematics',
+      facultyName: 'Dr. MANU J PILLAI',
+    },
+    {
+      courseCode: '24EST372',
+      courseName: 'Optimization Techniques',
+      facultyName: 'Dr. ASIF NAVAS K R',
+    },
+    {
+      courseCode: '24AIJ303',
+      courseName: 'Introduction to Machine Learning',
+      facultyName: 'Prof. NISA A K',
+    },
+    {
+      courseCode: '24CSP304',
+      courseName: 'Data Structures and Algorithms',
+      facultyName: 'Mrs. ASWATHY GANDHI S',
+    },
+    {
+      courseCode: '24AIP305',
+      courseName: 'Computing Systems and Organization',
+      facultyName: 'AMINA M',
+    },
+    {
+      courseCode: '24HUT310',
+      courseName: 'Life Skills and Professional Ethics',
+      facultyName: 'Prof. ANUMOD B',
+    },
+  ];
+
+  expectedMappings.forEach((exp) => {
+    const found = APPROVED_DEPARTMENT_FACULTY.find((f) => f.courseCode === exp.courseCode);
+    assert.ok(found, `Course ${exp.courseCode} must be present`);
+    assert.equal(found.courseName, exp.courseName);
+    assert.equal(found.facultyName, exp.facultyName);
+  });
+
+  // 3. Both Maths faculty in single entry separated by ' & '
+  const mathEntry = APPROVED_DEPARTMENT_FACULTY.find((f) => f.courseCode === '24MAP300');
+  assert.ok(mathEntry);
+  assert.equal(mathEntry.facultyName, 'Mr. FAYIS THAZHETHE PALLIYALI & Dr. DEEPAK D.');
+
+  // 4. Ensure no '(B)' practical courses exist
+  APPROVED_DEPARTMENT_FACULTY.forEach((f) => {
+    assert.ok(!f.courseCode.includes('(B)'), `Course code ${f.courseCode} must not contain (B)`);
+    assert.ok(!f.courseName.toLowerCase().includes('(b)'), `Course name ${f.courseName} must not contain (b)`);
+  });
+
+  // 5. Verify section in timetable-client.tsx
+  const timetableClientPath = path.resolve('src/app/dashboard/timetable/timetable-client.tsx');
+  const timetableClientCode = fs.readFileSync(timetableClientPath, 'utf8');
+
+  // Title check
+  assert.ok(timetableClientCode.includes('Department Faculty'), 'Must render Department Faculty section header');
+  assert.ok(timetableClientCode.includes('APPROVED_DEPARTMENT_FACULTY'), 'Must render APPROVED_DEPARTMENT_FACULTY');
+
+  // Verify placement below the timetable view
+  const weeklyIndex = timetableClientCode.indexOf('Weekly class timetable grid');
+  const facultyIndex = timetableClientCode.indexOf('Department Faculty');
+  assert.ok(weeklyIndex < facultyIndex, 'Department Faculty section must appear after the timetable views');
 });

@@ -80,6 +80,54 @@ export const SEMESTER_3_COURSES: Record<string, CourseDefinition> = {
   },
 };
 
+export interface DepartmentFacultyCourse {
+  courseCode: string;
+  courseName: string;
+  facultyName: string;
+}
+
+/**
+ * Approved Department Faculty & Course Mappings for the Timetable Section.
+ * Strictly limited to the seven approved courses without practical (B) entries.
+ */
+export const APPROVED_DEPARTMENT_FACULTY: DepartmentFacultyCourse[] = [
+  {
+    courseCode: '24MAP300',
+    courseName: 'Advanced Linear Algebra and Transforms',
+    facultyName: 'Mr. FAYIS THAZHETHE PALLIYALI & Dr. DEEPAK D.',
+  },
+  {
+    courseCode: '24EST382',
+    courseName: 'Discrete Mathematics',
+    facultyName: 'Dr. MANU J PILLAI',
+  },
+  {
+    courseCode: '24EST372',
+    courseName: 'Optimization Techniques',
+    facultyName: 'Dr. ASIF NAVAS K R',
+  },
+  {
+    courseCode: '24AIJ303',
+    courseName: 'Introduction to Machine Learning',
+    facultyName: 'Prof. NISA A K',
+  },
+  {
+    courseCode: '24CSP304',
+    courseName: 'Data Structures and Algorithms',
+    facultyName: 'Mrs. ASWATHY GANDHI S',
+  },
+  {
+    courseCode: '24AIP305',
+    courseName: 'Computing Systems and Organization',
+    facultyName: 'AMINA M',
+  },
+  {
+    courseCode: '24HUT310',
+    courseName: 'Life Skills and Professional Ethics',
+    facultyName: 'Prof. ANUMOD B',
+  },
+];
+
 /**
  * Returns full verified course name for a given course code or alias.
  */

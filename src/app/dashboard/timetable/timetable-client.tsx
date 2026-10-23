@@ -2,10 +2,10 @@
 
 import React, { useState } from 'react';
 import { TimetableSlot, SubjectAttendanceData } from '@/types';
-import { getCourseFullName } from '@/lib/course-catalog';
+import { getCourseFullName, APPROVED_DEPARTMENT_FACULTY } from '@/lib/course-catalog';
 import { isClassBunkable } from '@/lib/attendance-calculator';
 import { useAttendanceTarget } from '@/context/attendance-target-context';
-import { Clock, User, Download, List, Grid } from 'lucide-react';
+import { Clock, User, Download, List, Grid, GraduationCap } from 'lucide-react';
 
 interface TimetableClientProps {
   slots: TimetableSlot[];
@@ -284,6 +284,83 @@ export function TimetableClient({ slots, subjects = [] }: TimetableClientProps) 
           </table>
         </div>
       )}
+
+      {/* Department Faculty Section */}
+      <div className="p-5 sm:p-6 rounded-xl bg-white dark:bg-[#1b1d22] border border-[#e7e4de] dark:border-[#2a2d35] shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[#e7e4de] dark:border-[#2a2d35]">
+          <div className="flex items-center gap-2">
+            <GraduationCap className="w-4 h-4 text-[#78716c] dark:text-[#9ca3af] shrink-0" />
+            <h2 className="text-sm sm:text-base font-bold text-[#1c1917] dark:text-[#f3f4f6]">
+              Department Faculty
+            </h2>
+            <span className="text-xs text-[#78716c] dark:text-[#9ca3af] font-medium hidden sm:inline">
+              • Course Instructors
+            </span>
+          </div>
+          <span className="text-[11px] text-[#78716c] dark:text-[#9ca3af]">
+            7 Allocated Courses
+          </span>
+        </div>
+
+        {/* Desktop Table View */}
+        <div className="hidden sm:block overflow-x-auto rounded-lg border border-[#e7e4de] dark:border-[#2a2d35]">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="bg-[#f9f8f5] dark:bg-[#181a1f] border-b border-[#e7e4de] dark:border-[#2a2d35] text-[#78716c] dark:text-[#9ca3af]">
+                <th className="py-2.5 px-3.5 font-semibold uppercase tracking-wider text-[10px] w-[130px]">Course Code</th>
+                <th className="py-2.5 px-3.5 font-semibold uppercase tracking-wider text-[10px]">Course Name</th>
+                <th className="py-2.5 px-3.5 font-semibold uppercase tracking-wider text-[10px]">Faculty Name(s)</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#e7e4de] dark:divide-[#2a2d35]">
+              {APPROVED_DEPARTMENT_FACULTY.map((item) => (
+                <tr
+                  key={item.courseCode}
+                  className="hover:bg-[#fdfcfb] dark:hover:bg-[#202227]/50 transition-colors"
+                >
+                  <td className="py-3 px-3.5 font-mono whitespace-nowrap">
+                    <span className="px-2 py-0.5 rounded font-mono text-[11px] font-semibold text-[#1c1917] dark:text-[#f3f4f6] bg-[#f4f1eb] dark:bg-[#202227] border border-[#e7e4de] dark:border-[#2a2d35]">
+                      {item.courseCode}
+                    </span>
+                  </td>
+                  <td className="py-3 px-3.5 font-semibold text-[#1c1917] dark:text-[#f3f4f6]">
+                    {item.courseName}
+                  </td>
+                  <td className="py-3 px-3.5 text-xs text-[#44403c] dark:text-[#d1d5db] font-medium">
+                    <div className="flex items-center gap-1.5">
+                      <User className="w-3.5 h-3.5 text-[#a8a29e] shrink-0" />
+                      <span>{item.facultyName}</span>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Mobile Stacked Card View */}
+        <div className="grid grid-cols-1 gap-2.5 sm:hidden">
+          {APPROVED_DEPARTMENT_FACULTY.map((item) => (
+            <div
+              key={item.courseCode}
+              className="p-3.5 rounded-lg bg-[#fdfcfb] dark:bg-[#202227] border border-[#e7e4de] dark:border-[#2a2d35] space-y-1.5"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="px-2 py-0.5 rounded font-mono text-[11px] font-semibold text-[#1c1917] dark:text-[#f3f4f6] bg-[#f4f1eb] dark:bg-[#181a1f] border border-[#e7e4de] dark:border-[#2a2d35]">
+                  {item.courseCode}
+                </span>
+              </div>
+              <p className="text-xs font-semibold text-[#1c1917] dark:text-[#f3f4f6] leading-snug">
+                {item.courseName}
+              </p>
+              <div className="flex items-center gap-1.5 text-xs text-[#44403c] dark:text-[#d1d5db] pt-0.5">
+                <User className="w-3.5 h-3.5 text-[#a8a29e] shrink-0" />
+                <span className="font-medium">{item.facultyName}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
