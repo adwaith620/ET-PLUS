@@ -4,6 +4,7 @@ import { AuthSession, StudentProfile } from '@/types';
 import { getSessionSecret } from './security';
 
 const SESSION_COOKIE_NAME = 'etlab_session';
+export const SESSION_DURATION_MS = 2 * 60 * 60 * 1000; // 2 hours server-side session validity
 
 export { getSessionSecret };
 
@@ -53,7 +54,7 @@ function verify(token: string): ExtendedSession | null {
 }
 
 /**
- * Set session cookie in Next.js
+ * Set browser-session cookie in Next.js (cleared on browser session end)
  */
 export async function createSession(
   sessionData: {
@@ -64,7 +65,7 @@ export async function createSession(
     profile?: StudentProfile;
   }
 ): Promise<void> {
-  const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 days
+  const expiresAt = Date.now() + SESSION_DURATION_MS;
   const session: ExtendedSession = {
     ...sessionData,
     expiresAt,
@@ -73,12 +74,13 @@ export async function createSession(
   const token = sign(JSON.stringify(session));
   const cookieStore = await cookies();
 
+  // Browser-session cookie: omitting maxAge/expires ensures cookie expires when browser session ends.
+  // Secure, HttpOnly, and SameSite=lax protect against tampering, leakage, and CSRF.
   cookieStore.set(SESSION_COOKIE_NAME, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
     path: '/',
-    maxAge: 7 * 24 * 60 * 60,
   });
 }
 

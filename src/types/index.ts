@@ -41,6 +41,7 @@ export interface AttendanceSummary {
   safeBunks: number;
   classesToRecover: number;
   subjects: SubjectAttendance[];
+  isAvailable?: boolean;
 }
 
 export interface PeriodAttendanceRecord {

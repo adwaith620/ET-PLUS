@@ -23,14 +23,15 @@ export interface AttendanceSummaryCalculation {
   safeBunks: number;
   classesToRecover: number;
   subjects: CalculatedSubjectAttendance[];
+  isAvailable?: boolean;
 }
 
 /**
  * Calculate attendance percentage: P = 100 * (A / T)
- * If no classes conducted (T = 0), returns 100% as standard convention.
+ * If no classes conducted (T <= 0), returns 0% (never a fabricated 100%).
  */
 export function calculatePercentage(attended: number, total: number): number {
-  if (total <= 0) return 100;
+  if (total <= 0) return 0;
   if (attended <= 0) return 0;
   if (attended >= total) return 100;
   return Number(((attended / total) * 100).toFixed(2));
@@ -47,7 +48,7 @@ export function calculateProjectedAfterMiss(
 ): number {
   if (missCount <= 0) return calculatePercentage(attended, total);
   const newTotal = total + missCount;
-  if (newTotal <= 0) return 100;
+  if (newTotal <= 0) return 0;
   return Number(((attended / newTotal) * 100).toFixed(2));
 }
 
@@ -63,7 +64,7 @@ export function calculateProjectedAfterAttend(
   if (attendCount <= 0) return calculatePercentage(attended, total);
   const newAttended = attended + attendCount;
   const newTotal = total + attendCount;
-  if (newTotal <= 0) return 100;
+  if (newTotal <= 0) return 0;
   return Number(((newAttended / newTotal) * 100).toFixed(2));
 }
 
@@ -166,10 +167,11 @@ export function calculateAttendanceSummary(
     };
   });
 
-  const overallPercentage = calculatePercentage(totalAttended, totalConducted);
-  const overallSafeBunks = calculateSafeBunks(totalAttended, totalConducted, targetPercentage);
-  const overallClassesToRecover = calculateClassesToRecover(totalAttended, totalConducted, targetPercentage);
-  const overallStatus = getAttendanceStatus(overallPercentage, targetPercentage);
+  const isAvailable = totalConducted > 0 && subjects.length > 0;
+  const overallPercentage = isAvailable ? calculatePercentage(totalAttended, totalConducted) : 0;
+  const overallSafeBunks = isAvailable ? calculateSafeBunks(totalAttended, totalConducted, targetPercentage) : 0;
+  const overallClassesToRecover = isAvailable ? calculateClassesToRecover(totalAttended, totalConducted, targetPercentage) : 0;
+  const overallStatus = isAvailable ? getAttendanceStatus(overallPercentage, targetPercentage) : 'critical';
 
   return {
     totalAttended,
@@ -180,5 +182,6 @@ export function calculateAttendanceSummary(
     safeBunks: overallSafeBunks,
     classesToRecover: overallClassesToRecover,
     subjects: calculatedSubjects,
+    isAvailable,
   };
 }

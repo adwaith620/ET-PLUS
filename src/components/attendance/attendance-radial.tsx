@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { ShieldCheck, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { ShieldCheck, AlertTriangle, CheckCircle2, HelpCircle } from 'lucide-react';
 
 interface AttendanceRadialProps {
   percentage: number;
@@ -20,12 +20,15 @@ export function AttendanceRadial({
   safeBunks,
   classesToRecover,
 }: AttendanceRadialProps) {
+  const isAvailable = total > 0;
+
   // Generously sized radial gauge with comfortable text-to-ring gap
   const radius = 72;
   const circumference = 2 * Math.PI * radius;
 
   // Track animated percentage for smooth entrance and transition without resetting to 0
   const [animatedPercentage, setAnimatedPercentage] = useState<number>(() => {
+    if (!isAvailable) return 0;
     if (typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       return percentage;
     }
@@ -34,19 +37,23 @@ export function AttendanceRadial({
 
   useEffect(() => {
     const frameId = requestAnimationFrame(() => {
-      setAnimatedPercentage(percentage);
+      setAnimatedPercentage(isAvailable ? percentage : 0);
     });
 
     return () => cancelAnimationFrame(frameId);
-  }, [percentage]);
+  }, [percentage, isAvailable]);
 
-  const clampedVal = Math.min(100, Math.max(0, animatedPercentage));
-  const strokeDashoffset = circumference - (clampedVal / 100) * circumference;
+  const clampedVal = isAvailable ? Math.min(100, Math.max(0, animatedPercentage)) : 0;
+  const strokeDashoffset = isAvailable
+    ? circumference - (clampedVal / 100) * circumference
+    : circumference;
 
-  const isSafe = percentage >= targetPercentage;
-  const isWarning = !isSafe && percentage >= targetPercentage - 5;
+  const isSafe = isAvailable && percentage >= targetPercentage;
+  const isWarning = isAvailable && !isSafe && percentage >= targetPercentage - 5;
 
-  const strokeColor = isSafe
+  const strokeColor = !isAvailable
+    ? '#a8a29e'
+    : isSafe
     ? '#16a34a'
     : isWarning
     ? '#d97706'
@@ -68,14 +75,16 @@ export function AttendanceRadial({
           </span>
           <span
             className={`px-2.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider border ${
-              isSafe
+              !isAvailable
+                ? 'bg-stone-100 text-stone-600 border-stone-200 dark:bg-[#23262c] dark:text-stone-400 dark:border-[#2e3138]'
+                : isSafe
                 ? 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-[#14281c] dark:text-emerald-400 dark:border-[#1e3d29]'
                 : isWarning
                 ? 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-[#2b2210] dark:text-amber-400 dark:border-[#423519]'
                 : 'bg-red-50 text-red-800 border-red-200 dark:bg-[#2c1618] dark:text-red-400 dark:border-[#441f23]'
             }`}
           >
-            {isSafe ? 'Eligible' : isWarning ? 'Warning' : 'Shortage'}
+            {!isAvailable ? 'Unavailable' : isSafe ? 'Eligible' : isWarning ? 'Warning' : 'Shortage'}
           </span>
         </div>
       </div>
@@ -87,7 +96,7 @@ export function AttendanceRadial({
             className="w-full h-full transform -rotate-90"
             viewBox="0 0 170 170"
             role="img"
-            aria-label={`Attendance radial gauge: ${percentage}%, attended ${attended} of ${total} hours, active target ${targetPercentage}%`}
+            aria-label={`Attendance radial gauge: ${isAvailable ? `${percentage}%` : 'Unavailable'}, attended ${attended} of ${total} hours, active target ${targetPercentage}%`}
           >
             {/* Background track */}
             <circle
@@ -116,21 +125,23 @@ export function AttendanceRadial({
           {/* Centered label with generous spacing from ring */}
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-6 pointer-events-none select-none">
             <span className="text-3xl sm:text-4xl font-extrabold tracking-tight text-stone-900 dark:text-stone-100">
-              {percentage}%
+              {isAvailable ? `${percentage}%` : '—'}
             </span>
             <span className="text-xs text-stone-500 dark:text-stone-400 font-mono mt-1">
-              {attended} / {total} hrs
+              {isAvailable ? `${attended} / ${total} hrs` : 'No records'}
             </span>
             <span
               className={`mt-2 px-2.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider border ${
-                isSafe
+                !isAvailable
+                  ? 'bg-stone-100 text-stone-600 border-stone-200 dark:bg-[#23262c] dark:text-stone-400 dark:border-[#2e3138]'
+                  : isSafe
                   ? 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-[#14281c] dark:text-emerald-400 dark:border-[#1e3d29]'
                   : isWarning
                   ? 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-[#2b2210] dark:text-amber-400 dark:border-[#423519]'
                   : 'bg-red-50 text-red-800 border-red-200 dark:bg-[#2c1618] dark:text-red-400 dark:border-[#441f23]'
               }`}
             >
-              {isSafe ? 'Eligible' : isWarning ? 'Warning' : 'Shortage'}
+              {!isAvailable ? 'Unavailable' : isSafe ? 'Eligible' : isWarning ? 'Warning' : 'Shortage'}
             </span>
           </div>
         </div>
@@ -140,15 +151,21 @@ export function AttendanceRadial({
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
         <div className="p-3.5 rounded-lg bg-[#f9f8f5] dark:bg-[#202227] border border-[#e7e4de] dark:border-[#282b33]">
           <span className="text-[11px] font-medium text-stone-500 dark:text-stone-400 block">Attended Hours</span>
-          <span className="text-base sm:text-lg font-bold text-stone-900 dark:text-stone-100 mt-0.5 block">{attended} hrs</span>
+          <span className="text-base sm:text-lg font-bold text-stone-900 dark:text-stone-100 mt-0.5 block">
+            {isAvailable ? `${attended} hrs` : '—'}
+          </span>
         </div>
         <div className="p-3.5 rounded-lg bg-[#f9f8f5] dark:bg-[#202227] border border-[#e7e4de] dark:border-[#282b33]">
           <span className="text-[11px] font-medium text-stone-500 dark:text-stone-400 block">Conducted Hours</span>
-          <span className="text-base sm:text-lg font-bold text-stone-900 dark:text-stone-100 mt-0.5 block">{total} hrs</span>
+          <span className="text-base sm:text-lg font-bold text-stone-900 dark:text-stone-100 mt-0.5 block">
+            {isAvailable ? `${total} hrs` : '—'}
+          </span>
         </div>
         <div className="p-3.5 rounded-lg bg-[#f9f8f5] dark:bg-[#202227] border border-[#e7e4de] dark:border-[#282b33]">
           <span className="text-[11px] font-medium text-stone-500 dark:text-stone-400 block">Missed Hours</span>
-          <span className="text-base sm:text-lg font-bold text-stone-900 dark:text-stone-100 mt-0.5 block">{total - attended} hrs</span>
+          <span className="text-base sm:text-lg font-bold text-stone-900 dark:text-stone-100 mt-0.5 block">
+            {isAvailable ? `${total - attended} hrs` : '—'}
+          </span>
         </div>
         <div className="p-3.5 rounded-lg bg-[#f9f8f5] dark:bg-[#202227] border border-[#e7e4de] dark:border-[#282b33]">
           <span className="text-[11px] font-medium text-stone-500 dark:text-stone-400 block">Target Threshold</span>
@@ -160,25 +177,37 @@ export function AttendanceRadial({
       <div className="p-4 rounded-lg bg-[#f9f8f5] dark:bg-[#202227] border border-[#e7e4de] dark:border-[#282b33]">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            {isSafe ? (
+            {!isAvailable ? (
+              <HelpCircle className="w-4 h-4 text-stone-500 dark:text-stone-400" />
+            ) : isSafe ? (
               <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
             ) : (
               <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
             )}
             <span className="text-xs font-semibold text-stone-900 dark:text-stone-100">
-              {isSafe ? 'Safe Absence Allowance' : 'Consecutive Classes Required to Recover'}
+              {!isAvailable
+                ? 'Attendance Status'
+                : isSafe
+                ? 'Safe Absence Allowance'
+                : 'Consecutive Classes Required to Recover'}
             </span>
           </div>
           <span
             className={`text-xs font-bold ${
-              isSafe ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-400'
+              !isAvailable
+                ? 'text-stone-500 dark:text-stone-400'
+                : isSafe
+                ? 'text-emerald-700 dark:text-emerald-400'
+                : 'text-amber-700 dark:text-amber-400'
             }`}
           >
-            {isSafe ? `${safeBunks} classes` : `${classesToRecover} classes`}
+            {!isAvailable ? 'Unavailable' : isSafe ? `${safeBunks} classes` : `${classesToRecover} classes`}
           </span>
         </div>
         <p className="text-xs text-stone-600 dark:text-stone-400 mt-1.5 leading-relaxed">
-          {isSafe
+          {!isAvailable
+            ? 'No conducted class records found or attendance data has not yet been loaded from ETLAB.'
+            : isSafe
             ? `You have attended ${attended} out of ${total} conducted hours. Based on your ${targetPercentage}% target, you can safely miss up to ${safeBunks} more classes without falling into shortage.`
             : `You need to attend the next ${classesToRecover} consecutive class${classesToRecover > 1 ? 'es' : ''} without absence to restore your attendance to the required ${targetPercentage}% institutional threshold.`}
         </p>

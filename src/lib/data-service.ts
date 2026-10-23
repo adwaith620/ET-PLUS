@@ -1,6 +1,6 @@
 import { cache } from 'react';
 import { cookies } from 'next/headers';
-import { getSession } from './auth';
+import { getSession, destroySession } from './auth';
 import {
   DEMO_PROFILE,
   DEMO_PROFILE_B,
@@ -74,7 +74,7 @@ export interface DashboardShellData {
 }
 
 async function resolveEffectiveTarget(username?: string, targetPercentage?: number): Promise<number> {
-  if (targetPercentage && targetPercentage >= 50 && targetPercentage <= 100) {
+  if (typeof targetPercentage === 'number' && !isNaN(targetPercentage) && targetPercentage > 0 && targetPercentage <= 100) {
     return targetPercentage;
   }
 
@@ -85,7 +85,7 @@ async function resolveEffectiveTarget(username?: string, targetPercentage?: numb
     const cookieVal = userTargetCookie?.value || generalTargetCookie?.value;
     if (cookieVal) {
       const parsed = parseFloat(cookieVal);
-      if (!isNaN(parsed) && parsed >= 50 && parsed <= 100) {
+      if (!isNaN(parsed) && parsed > 0 && parsed <= 100) {
         return parsed;
       }
     }
@@ -158,6 +158,11 @@ export const getDashboardData = cache(async function getDashboardData(
         if (attResult.success && attResult.subjects && attResult.subjects.length > 0) {
           subjects = attResult.subjects.map(normalizeSubjectAttendance);
         } else if (!attResult.success) {
+          if (attResult.error?.toLowerCase().includes('session expired') || attResult.error?.toLowerCase().includes('login')) {
+            invalidateStudentCache(session.username);
+            await destroySession();
+            return null;
+          }
           attendanceError = attResult.error || 'Attendance records unavailable or not yet published on ETLAB.';
         }
         const attendance = calculateAttendanceSummary(subjects, effectiveTarget);
@@ -178,6 +183,9 @@ export const getDashboardData = cache(async function getDashboardData(
           targetPercentage: effectiveTarget,
         });
 
+        const isSyncSuccessful = attResult.success && subjects.length > 0;
+        const lastSynced = isSyncSuccessful ? now : '';
+
         const dashboardResult: DashboardData = {
           mode: 'live',
           profile,
@@ -195,13 +203,15 @@ export const getDashboardData = cache(async function getDashboardData(
           resultsError: undefined,
           announcements,
           notifications,
-          lastSynced: now,
+          lastSynced,
           targetPercentage: effectiveTarget,
         };
 
-        // Cache student data
-        setCachedStudentData(session.username, `dashboardData_${effectiveTarget}`, dashboardResult);
-        setCachedStudentData(session.username, `attendance_${effectiveTarget}`, attendance);
+        // Cache student data only when successful to prevent caching stale failure states
+        if (isSyncSuccessful) {
+          setCachedStudentData(session.username, `dashboardData_${effectiveTarget}`, dashboardResult);
+          setCachedStudentData(session.username, `attendance_${effectiveTarget}`, attendance);
+        }
         setCachedStudentData(session.username, 'assignments', assignments);
 
         return dashboardResult;
@@ -242,7 +252,7 @@ export const getDashboardData = cache(async function getDashboardData(
           resultsError: 'Unable to synchronize examination records from ETLAB portal.',
           announcements,
           notifications,
-          lastSynced: now,
+          lastSynced: '',
           targetPercentage: effectiveTarget,
         };
       }
@@ -332,7 +342,7 @@ export const getDashboardShellData = cache(async function getDashboardShellData(
       mode: cachedFull.mode,
       overallPercentage,
       hasShortage,
-      lastSynced: cachedFull.lastSynced,
+      lastSynced: cachedFull.lastSynced || 'Sync pending',
       notifications: cachedFull.notifications || [],
       targetPercentage: effectiveTarget,
       pendingAssignmentsCount: cachedFull.upcomingAssignmentsCount,
@@ -352,7 +362,7 @@ export const getDashboardShellData = cache(async function getDashboardShellData(
     mode: dashboardData.mode,
     overallPercentage,
     hasShortage,
-    lastSynced: dashboardData.lastSynced,
+    lastSynced: dashboardData.lastSynced || 'Sync pending',
     notifications: dashboardData.notifications || [],
     targetPercentage: effectiveTarget,
     pendingAssignmentsCount: dashboardData.upcomingAssignmentsCount,
@@ -363,51 +373,79 @@ export const getDashboardShellData = cache(async function getDashboardShellData(
  * Targeted data fetcher for the Attendance page.
  * Loads only attendance records without waiting for assignments or results.
  */
-export const getAttendancePageData = cache(async function getAttendancePageData(targetPercentage?: number) {
+export const getAttendancePageData = cache(async function getAttendancePageData(
+  targetPercentage?: number,
+  forceRefresh: boolean = false
+) {
   const session = await getSession();
   if (!session) return null;
 
   const effectiveTarget = await resolveEffectiveTarget(session.username, targetPercentage);
+  const now = new Date().toLocaleTimeString('en-IN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+  });
 
-  // Check cache
-  const cachedAttendance = getCachedStudentData<AttendanceSummary>(session.username, `attendance_${effectiveTarget}`);
-  if (cachedAttendance) {
-    return {
-      attendance: cachedAttendance,
-      timetable: DEMO_TIMETABLE,
-      mode: session.mode,
-    };
-  }
+  if (!forceRefresh) {
+    // Check cache
+    const cachedAttendance = getCachedStudentData<AttendanceSummary>(session.username, `attendance_${effectiveTarget}`);
+    if (cachedAttendance) {
+      return {
+        attendance: cachedAttendance,
+        timetable: DEMO_TIMETABLE,
+        mode: session.mode,
+        lastSynced: 'Just now',
+        syncSuccess: true,
+      };
+    }
 
-  // If full dashboard data is available, reuse it
-  const cachedFull = getCachedStudentData<DashboardData>(session.username, `dashboardData_${effectiveTarget}`);
-  if (cachedFull) {
-    return {
-      attendance: cachedFull.attendance,
-      timetable: cachedFull.timetable,
-      mode: cachedFull.mode,
-    };
+    // If full dashboard data is available, reuse it
+    const cachedFull = getCachedStudentData<DashboardData>(session.username, `dashboardData_${effectiveTarget}`);
+    if (cachedFull) {
+      return {
+        attendance: cachedFull.attendance,
+        timetable: cachedFull.timetable,
+        mode: cachedFull.mode,
+        lastSynced: cachedFull.lastSynced || 'Just now',
+        syncSuccess: true,
+      };
+    }
   }
 
   if (session.mode === 'live' && session.sessionId) {
     try {
       const attResult = await etlabFetchAttendance(session.sessionId, session.profile?.semester || 3);
+      if (!attResult.success && (attResult.error?.toLowerCase().includes('session expired') || attResult.error?.toLowerCase().includes('login'))) {
+        invalidateStudentCache(session.username);
+        await destroySession();
+        return null;
+      }
       let subjects: SubjectAttendanceData[] = [];
       if (attResult.success && attResult.subjects) {
         subjects = attResult.subjects.map(normalizeSubjectAttendance);
       }
       const summary = calculateAttendanceSummary(subjects, effectiveTarget);
-      setCachedStudentData(session.username, `attendance_${effectiveTarget}`, summary);
+      if (attResult.success && subjects.length > 0) {
+        setCachedStudentData(session.username, `attendance_${effectiveTarget}`, summary);
+      }
       return {
         attendance: summary,
         timetable: DEMO_TIMETABLE,
         mode: 'live' as const,
+        attendanceError: attResult.success ? undefined : attResult.error,
+        lastSynced: attResult.success ? now : 'Unavailable',
+        syncSuccess: attResult.success,
       };
     } catch {
       return {
         attendance: calculateAttendanceSummary([], effectiveTarget),
         timetable: DEMO_TIMETABLE,
         mode: 'live' as const,
+        attendanceError: 'Unable to synchronize attendance from ETLAB.',
+        lastSynced: 'Unavailable',
+        syncSuccess: false,
       };
     }
   }
@@ -421,6 +459,8 @@ export const getAttendancePageData = cache(async function getAttendancePageData(
     attendance: summary,
     timetable: DEMO_TIMETABLE,
     mode: 'demo' as const,
+    lastSynced: now,
+    syncSuccess: true,
   };
 });
 

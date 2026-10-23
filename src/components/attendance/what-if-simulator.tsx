@@ -12,8 +12,6 @@ import {
   Search,
   ShieldCheck,
   AlertTriangle,
-  Layers,
-  CheckCircle2,
 } from 'lucide-react';
 import { SubjectAttendance } from '@/types';
 import {
@@ -238,30 +236,37 @@ export function WhatIfSimulator({
                 </span>
                 <span
                   className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded border ${
-                    baselineStatus === 'safe'
+                    totalConducted <= 0
+                      ? 'bg-stone-100 text-stone-600 border-stone-200 dark:bg-[#23262c] dark:text-stone-400 dark:border-[#2e3138]'
+                      : baselineStatus === 'safe'
                       ? 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-[#14281c] dark:text-emerald-400 dark:border-[#1e3d29]'
                       : baselineStatus === 'warning'
                       ? 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-[#2b2210] dark:text-amber-400 dark:border-[#423519]'
                       : 'bg-red-50 text-red-800 border-red-200 dark:bg-[#2c1618] dark:text-red-400 dark:border-[#441f23]'
                   }`}
                 >
-                  {baselineStatus === 'safe' ? 'Eligible' : baselineStatus === 'warning' ? 'Warning' : 'Shortage'}
+                  {totalConducted <= 0 ? 'Unavailable' : baselineStatus === 'safe' ? 'Eligible' : baselineStatus === 'warning' ? 'Warning' : 'Shortage'}
                 </span>
               </div>
               <div className="mt-3 flex items-baseline justify-between">
                 <div>
                   <span className="text-3xl font-extrabold tracking-tight text-stone-900 dark:text-stone-100">
-                    {baselineOverallPercentage}%
+                    {totalConducted > 0 ? `${baselineOverallPercentage}%` : '—'}
                   </span>
                   <span className="text-xs text-stone-500 dark:text-stone-400 block font-mono mt-0.5">
-                    {totalAttended} / {totalConducted} hours conducted
+                    {totalConducted > 0 ? `${totalAttended} / ${totalConducted} hours conducted` : 'No records'}
                   </span>
                 </div>
               </div>
             </div>
 
             <div className="mt-4 pt-3 border-t border-[#e7e4de] dark:border-[#2a2d35] text-xs">
-              {baselineStatus === 'safe' ? (
+              {totalConducted <= 0 ? (
+                <div className="flex items-center gap-1.5 text-stone-500 dark:text-stone-400 font-medium">
+                  <Info className="w-4 h-4 shrink-0" />
+                  <span>No baseline attendance data recorded</span>
+                </div>
+              ) : baselineStatus === 'safe' ? (
                 <div className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400 font-medium">
                   <ShieldCheck className="w-4 h-4 shrink-0" />
                   <span>Can safely bunk <strong>{baselineSafeBunks}</strong> overall class{baselineSafeBunks !== 1 ? 'es' : ''}</span>
@@ -301,34 +306,51 @@ export function WhatIfSimulator({
                 <div>
                   <span
                     className={`text-3xl font-extrabold tracking-tight ${
-                      projectedOverallPercentage >= targetPercentage
+                      projectedOverallConducted <= 0
+                        ? 'text-stone-900 dark:text-stone-100'
+                        : projectedOverallPercentage >= targetPercentage
                         ? 'text-stone-900 dark:text-stone-100'
                         : 'text-amber-700 dark:text-amber-400'
                     }`}
                   >
-                    {projectedOverallPercentage}%
+                    {projectedOverallConducted > 0 ? `${projectedOverallPercentage}%` : '—'}
                   </span>
                   <span className="text-xs text-stone-500 dark:text-stone-400 block font-mono mt-0.5">
-                    {projectedOverallAttended} / {projectedOverallConducted} projected hours
+                    {projectedOverallConducted > 0
+                      ? `${projectedOverallAttended} / ${projectedOverallConducted} projected hours`
+                      : 'No records'}
                   </span>
                 </div>
 
                 <span
                   className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded border ${
-                    projectedStatus === 'safe'
+                    projectedOverallConducted <= 0
+                      ? 'bg-stone-100 text-stone-600 border-stone-200 dark:bg-[#23262c] dark:text-stone-400 dark:border-[#2e3138]'
+                      : projectedStatus === 'safe'
                       ? 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-[#14281c] dark:text-emerald-400 dark:border-[#1e3d29]'
                       : projectedStatus === 'warning'
                       ? 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-[#2b2210] dark:text-amber-400 dark:border-[#423519]'
                       : 'bg-red-50 text-red-800 border-red-200 dark:bg-[#2c1618] dark:text-red-400 dark:border-[#441f23]'
                   }`}
                 >
-                  {projectedStatus === 'safe' ? 'Eligible' : projectedStatus === 'warning' ? 'Warning' : 'Shortage'}
+                  {projectedOverallConducted <= 0
+                    ? 'Unavailable'
+                    : projectedStatus === 'safe'
+                    ? 'Eligible'
+                    : projectedStatus === 'warning'
+                    ? 'Warning'
+                    : 'Shortage'}
                 </span>
               </div>
             </div>
 
             <div className="mt-4 pt-3 border-t border-[#e7e4de] dark:border-[#2a2d35] text-xs">
-              {projectedStatus === 'safe' ? (
+              {projectedOverallConducted <= 0 ? (
+                <div className="flex items-center gap-1.5 text-stone-500 dark:text-stone-400 font-medium">
+                  <Info className="w-4 h-4 shrink-0" />
+                  <span>No projection data recorded</span>
+                </div>
+              ) : projectedStatus === 'safe' ? (
                 <div className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400 font-medium">
                   <ShieldCheck className="w-4 h-4 shrink-0" />
                   <span>Projected safe bunks: <strong>{projectedSafeBunks}</strong> class{projectedSafeBunks !== 1 ? 'es' : ''}</span>
@@ -595,6 +617,11 @@ export function WhatIfSimulator({
             </div>
           );
         })}
+        {displayedCalculations.length === 0 && (
+          <div className="col-span-full p-8 text-center rounded-lg bg-white dark:bg-[#1b1d22] border border-[#e7e4de] dark:border-[#2a2d35] text-stone-500 dark:text-stone-400 text-xs">
+            {subjects.length === 0 ? 'No subject attendance records available for simulation.' : 'No courses match the active filter.'}
+          </div>
+        )}
       </div>
     </div>
   );

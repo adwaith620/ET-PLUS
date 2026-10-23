@@ -84,7 +84,13 @@ export function Header({
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
-      await fetch('/api/attendance/summary');
+      const res = await fetch('/api/attendance/summary?refresh=true');
+      if (res.status === 401) {
+        router.push('/login');
+        return;
+      }
+      router.refresh();
+    } catch {
       router.refresh();
     } finally {
       setTimeout(() => setIsRefreshing(false), 600);
@@ -121,7 +127,7 @@ export function Header({
         <div className="flex items-center gap-1 sm:gap-2">
           {/* Sync status */}
           <div className="hidden lg:flex items-center gap-1.5 text-xs text-stone-500 dark:text-stone-400 mr-2">
-            <span>Synced {lastSynced}</span>
+            <span>{lastSynced === 'Unavailable' ? 'Sync Unavailable' : `Synced ${lastSynced}`}</span>
             <button
               onClick={handleRefresh}
               title="Refresh from ETLAB"

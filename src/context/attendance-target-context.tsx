@@ -27,18 +27,18 @@ export function AttendanceTargetProvider({
       const local = localStorage.getItem(storageKey) || localStorage.getItem('etlab_target');
       if (local) {
         const parsed = parseFloat(local);
-        if (!isNaN(parsed) && parsed >= 50 && parsed <= 100) {
+        if (!isNaN(parsed) && parsed > 0 && parsed <= 100) {
           return parsed;
         }
       }
     }
-    return initialTarget >= 50 && initialTarget <= 100 ? initialTarget : 75;
+    return initialTarget > 0 && initialTarget <= 100 ? initialTarget : 75;
   });
 
   // Keep in sync with server API and localStorage
   const setTarget = useCallback(
     (newTarget: number) => {
-      const valid = Math.min(100, Math.max(50, Math.round(newTarget * 10) / 10));
+      const valid = Math.min(100, Math.max(0.1, Math.round(newTarget * 10) / 10));
       setTargetState(valid);
 
       if (typeof window !== 'undefined') {
@@ -66,7 +66,7 @@ export function AttendanceTargetProvider({
       const saved = localStorage.getItem(storageKey) || localStorage.getItem('etlab_target');
       if (saved) {
         const parsed = parseFloat(saved);
-        if (!isNaN(parsed) && parsed >= 50 && parsed <= 100 && parsed !== target) {
+        if (!isNaN(parsed) && parsed > 0 && parsed <= 100 && parsed !== target) {
           queueMicrotask(() => {
             setTargetState(parsed);
           });

@@ -16,8 +16,9 @@ test('calculatePercentage - normal and boundary cases', () => {
   assert.equal(calculatePercentage(18, 20), 90);
   assert.equal(calculatePercentage(17, 23), 73.91);
 
-  // Zero conducted classes returns 100%
-  assert.equal(calculatePercentage(0, 0), 100);
+  // Zero conducted classes returns 0% (never fabricated 100%)
+  assert.equal(calculatePercentage(0, 0), 0);
+  assert.equal(calculatePercentage(0, -1), 0);
 
   // Zero attended classes with conducted > 0
   assert.equal(calculatePercentage(0, 10), 0);

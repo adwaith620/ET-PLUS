@@ -78,16 +78,21 @@ export function SubjectList({ subjects, targetPercentage }: SubjectListProps) {
       {/* Course Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
         {filteredSubjects.map((subject) => {
-          const isSafe = subject.percentage >= targetPercentage;
-          const isWarning = !isSafe && subject.percentage >= targetPercentage - 5;
+          const isAvailable = subject.totalHours > 0;
+          const isSafe = isAvailable && subject.percentage >= targetPercentage;
+          const isWarning = isAvailable && !isSafe && subject.percentage >= targetPercentage - 5;
 
-          const badgeClass = isSafe
+          const badgeClass = !isAvailable
+            ? 'bg-stone-100 text-stone-600 border-stone-200 dark:bg-[#23262c] dark:text-stone-400 dark:border-[#2e3138]'
+            : isSafe
             ? 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-[#14281c] dark:text-emerald-400 dark:border-[#1e3d29]'
             : isWarning
             ? 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-[#2b2210] dark:text-amber-400 dark:border-[#423519]'
             : 'bg-red-50 text-red-800 border-red-200 dark:bg-[#2c1618] dark:text-red-400 dark:border-[#441f23]';
 
-          const progressColor = isSafe
+          const progressColor = !isAvailable
+            ? 'bg-stone-300 dark:bg-stone-700'
+            : isSafe
             ? 'bg-emerald-600 dark:bg-emerald-500'
             : isWarning
             ? 'bg-amber-600 dark:bg-amber-500'
@@ -119,10 +124,10 @@ export function SubjectList({ subjects, targetPercentage }: SubjectListProps) {
 
                   <div className="text-right shrink-0">
                     <span className="text-2xl font-bold tracking-tight text-stone-900 dark:text-stone-100">
-                      {subject.percentage}%
+                      {isAvailable ? `${subject.percentage}%` : '—'}
                     </span>
                     <span className={`block text-[10px] font-medium uppercase tracking-wider px-2 py-0.2 rounded mt-1 border ${badgeClass}`}>
-                      {isSafe ? 'Eligible' : isWarning ? 'Warning' : 'Shortage'}
+                      {!isAvailable ? 'Unavailable' : isSafe ? 'Eligible' : isWarning ? 'Warning' : 'Shortage'}
                     </span>
                   </div>
                 </div>
@@ -131,14 +136,14 @@ export function SubjectList({ subjects, targetPercentage }: SubjectListProps) {
                 <div className="mt-3.5">
                   <div className="flex items-center justify-between text-[11px] text-stone-500 dark:text-stone-400 mb-1">
                     <span>
-                      {subject.attendedHours} attended of {subject.totalHours} hrs
+                      {isAvailable ? `${subject.attendedHours} attended of ${subject.totalHours} hrs` : 'No classes conducted'}
                     </span>
                     <span>Target: {targetPercentage}%</span>
                   </div>
                   <div className="w-full bg-[#efece6] dark:bg-[#272a31] h-1.5 rounded-full overflow-hidden">
                     <div
                       className={`h-full rounded-full transition-all duration-300 ${progressColor}`}
-                      style={{ width: `${Math.min(100, subject.percentage)}%` }}
+                      style={{ width: `${isAvailable ? Math.min(100, subject.percentage) : 0}%` }}
                     />
                   </div>
                 </div>
@@ -146,7 +151,9 @@ export function SubjectList({ subjects, targetPercentage }: SubjectListProps) {
 
               {/* Status footer */}
               <div className="mt-3.5 pt-2.5 border-t border-[#efece6] dark:border-[#26282f] flex items-center justify-between text-xs">
-                {isSafe ? (
+                {!isAvailable ? (
+                  <span className="text-stone-400 text-xs">No attendance recorded yet</span>
+                ) : isSafe ? (
                   <div className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400 font-medium">
                     <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
                     <span>Can safely bunk <strong>{subject.safeBunks}</strong> class{subject.safeBunks !== 1 ? 'es' : ''}</span>
@@ -158,7 +165,7 @@ export function SubjectList({ subjects, targetPercentage }: SubjectListProps) {
                   </div>
                 )}
                 <span className="text-stone-400 text-[11px]">
-                  {subject.totalHours - subject.attendedHours} missed
+                  {isAvailable ? `${subject.totalHours - subject.attendedHours} missed` : '—'}
                 </span>
               </div>
             </div>

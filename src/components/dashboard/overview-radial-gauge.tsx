@@ -18,7 +18,10 @@ export function OverviewRadialGauge({
   const radius = 70;
   const circumference = 2 * Math.PI * radius;
 
+  const isAvailable = total > 0;
+
   const [animatedPercentage, setAnimatedPercentage] = useState<number>(() => {
+    if (!isAvailable) return 0;
     if (typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       return percentage;
     }
@@ -27,18 +30,26 @@ export function OverviewRadialGauge({
 
   useEffect(() => {
     const frameId = requestAnimationFrame(() => {
-      setAnimatedPercentage(percentage);
+      setAnimatedPercentage(isAvailable ? percentage : 0);
     });
 
     return () => cancelAnimationFrame(frameId);
-  }, [percentage]);
+  }, [percentage, isAvailable]);
 
-  const clampedVal = Math.min(100, Math.max(0, animatedPercentage));
-  const strokeDashoffset = circumference - (clampedVal / 100) * circumference;
+  const clampedVal = isAvailable ? Math.min(100, Math.max(0, animatedPercentage)) : 0;
+  const strokeDashoffset = isAvailable
+    ? circumference - (clampedVal / 100) * circumference
+    : circumference;
 
-  const isSafe = percentage >= targetPercentage;
-  const isWarning = !isSafe && percentage >= targetPercentage - 5;
-  const strokeColor = isSafe ? '#16a34a' : isWarning ? '#d97706' : '#dc2626';
+  const isSafe = isAvailable && percentage >= targetPercentage;
+  const isWarning = isAvailable && !isSafe && percentage >= targetPercentage - 5;
+  const strokeColor = !isAvailable
+    ? '#a8a29e'
+    : isSafe
+    ? '#16a34a'
+    : isWarning
+    ? '#d97706'
+    : '#dc2626';
 
   return (
     <div className="relative w-48 h-48 sm:w-52 sm:h-52 flex items-center justify-center shrink-0">
@@ -67,21 +78,23 @@ export function OverviewRadialGauge({
 
       <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-4 pointer-events-none select-none">
         <span className="text-3xl sm:text-4xl font-extrabold tracking-tight text-stone-900 dark:text-stone-100">
-          {percentage}%
+          {isAvailable ? `${percentage}%` : '—'}
         </span>
         <span className="text-xs text-stone-500 dark:text-stone-400 font-mono mt-1">
-          {attended} / {total} hrs
+          {isAvailable ? `${attended} / ${total} hrs` : 'No records'}
         </span>
         <span
           className={`mt-2 px-2.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider border ${
-            isSafe
+            !isAvailable
+              ? 'bg-stone-100 text-stone-600 border-stone-200 dark:bg-[#23262c] dark:text-stone-400 dark:border-[#2e3138]'
+              : isSafe
               ? 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-[#14281c] dark:text-emerald-400 dark:border-[#1e3d29]'
               : isWarning
               ? 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-[#2b2210] dark:text-amber-400 dark:border-[#423519]'
               : 'bg-red-50 text-red-800 border-red-200 dark:bg-[#2c1618] dark:text-red-400 dark:border-[#441f23]'
           }`}
         >
-          {isSafe ? 'Eligible' : isWarning ? 'Warning' : 'Shortage'}
+          {!isAvailable ? 'Unavailable' : isSafe ? 'Eligible' : isWarning ? 'Warning' : 'Shortage'}
         </span>
       </div>
     </div>
