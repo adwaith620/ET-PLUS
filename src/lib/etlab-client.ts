@@ -4,16 +4,147 @@ import { normalizeStudentProfile, normalizeSubjectAttendance, getCourseFullName 
 
 const BASE_URL = process.env.ETLAB_BASE_URL || 'https://tkmce.etlab.in';
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
-const UPSTREAM_TIMEOUT_MS = 8000;
-const RESULTS_TIMEOUT_MS = 25000;
+
+// Tailored timeout thresholds (in milliseconds)
+export const AUTH_HANDSHAKE_TIMEOUT_MS = 15000; // 15s to fetch login page & CSRF token
+export const AUTH_SUBMIT_TIMEOUT_MS = 15000;    // 15s to authenticate credentials with ETLAB
+export const AUTH_PREFETCH_TIMEOUT_MS = 6000;   // 6s bounded profile prefetch (non-fatal)
+export const UPSTREAM_TIMEOUT_MS = 15000;       // 15s standard for academic endpoints
+export const RESULTS_TIMEOUT_MS = 25000;        // 25s for heavy examination and assessment records
 
 let cachedWorkingAssignmentsUrl = '';
 
-interface LoginResult {
+export interface LoginResult {
   success: boolean;
   sessionId?: string;
   error?: string;
+  errorCategory?: 'TIMEOUT' | 'UPSTREAM_UNAVAILABLE' | 'INVALID_CREDENTIALS' | 'MALFORMED_RESPONSE' | 'VALIDATION';
+  statusCode?: number;
   profile?: StudentProfile;
+}
+
+/**
+ * Normalizes any network, timeout, or HTTP error into a student-actionable message,
+ * strict error category, and semantic HTTP status code.
+ * Raw exceptions, stack traces, and internal server details are strictly filtered.
+ */
+export function classifyEtlabError(error: unknown): {
+  error: string;
+  errorCategory: 'TIMEOUT' | 'UPSTREAM_UNAVAILABLE';
+  statusCode: number;
+} {
+  if (error instanceof Error) {
+    const msg = error.message.toLowerCase();
+    const name = error.name.toLowerCase();
+
+    // Check for timeout / abort conditions
+    if (
+      name === 'timeouterror' ||
+      name === 'aborterror' ||
+      msg.includes('timeout') ||
+      msg.includes('aborted')
+    ) {
+      return {
+        error: 'ETLAB is taking too long to respond. Please try again.',
+        errorCategory: 'TIMEOUT',
+        statusCode: 504,
+      };
+    }
+
+    // Check for network connectivity / DNS / unreachable origin
+    if (
+      msg.includes('fetch failed') ||
+      msg.includes('econnrefused') ||
+      msg.includes('enotfound') ||
+      msg.includes('econnreset') ||
+      msg.includes('network') ||
+      msg.includes('etimedout')
+    ) {
+      return {
+        error: 'ETLAB is temporarily unavailable. Please try again later.',
+        errorCategory: 'UPSTREAM_UNAVAILABLE',
+        statusCode: 503,
+      };
+    }
+  }
+
+  return {
+    error: 'ETLAB is temporarily unavailable. Please try again later.',
+    errorCategory: 'UPSTREAM_UNAVAILABLE',
+    statusCode: 503,
+  };
+}
+
+/**
+ * Extracts and normalizes student profile fields from Cheerio-parsed profile HTML.
+ */
+export function parseStudentProfileFromCheerio($: cheerio.CheerioAPI, fallbackUsername: string): StudentProfile {
+  const findField = (labelRegex: RegExp): string => {
+    let value = '';
+    $('th, td.label, .control-label').each((_, el) => {
+      const text = $(el).text().trim();
+      if (labelRegex.test(text)) {
+        const nextTd = $(el).next('td');
+        if (nextTd.length) {
+          value = nextTd.text().trim();
+          return false;
+        }
+        const parentRow = $(el).closest('tr');
+        const td = parentRow.find('td').not(el);
+        if (td.length) {
+          value = td.first().text().trim();
+          return false;
+        }
+      }
+    });
+    return value;
+  };
+
+  const name = findField(/^Name$/i) || $('.student-name, .profile-name, h3, h4').first().text().trim() || fallbackUsername;
+  const admissionNo = findField(/^Admission\s*No$/i) || findField(/^Admission\s*Number$/i);
+  const registerNo = findField(/^(University\s*)?Reg(\.|istration)?\s*No/i) || admissionNo;
+  const rollNo = findField(/^Roll\s*No/i);
+  const dob = findField(/^Date\s*of\s*Birth$/i) || findField(/^DOB$/i);
+  const gender = findField(/^Gender$/i);
+  const department = findField(/^Department$/i) || findField(/^Branch$/i) || 'Computer Science & Engineering';
+  const programme = findField(/^Programme$/i) || findField(/^Course$/i) || 'B.Tech in Computer Science and Engineering';
+  const semesterStr = findField(/^Semester$/i);
+  const batch = findField(/^Batch$/i) || '2023 - 2027';
+  const academicYear = findField(/^Academic\s*Year$/i) || '2025 - 2026';
+  const email = findField(/^Email/i);
+  const mobile = findField(/^(Mobile|Phone)/i);
+
+  let photoUrl: string | undefined = undefined;
+  const photoEl = $('img.img-polaroid, img[src*="student"], .profile-image img, .avatar img').first();
+  if (photoEl.length) {
+    const src = photoEl.attr('src');
+    if (src) {
+      photoUrl = src.startsWith('http') ? src : `${BASE_URL}${src.startsWith('/') ? '' : '/'}${src}`;
+    }
+  }
+
+  const parsedSemester = parseInt(semesterStr.replace(/\D/g, ''), 10);
+  const semester = !isNaN(parsedSemester) && parsedSemester > 0 ? parsedSemester : 3;
+
+  const rawProfile: Partial<StudentProfile> = {
+    name,
+    admissionNo: admissionNo || fallbackUsername,
+    registerNo: registerNo || admissionNo || fallbackUsername,
+    rollNo: rollNo || undefined,
+    dob,
+    gender,
+    department: department || 'Computer Science & Engineering',
+    programme: programme || 'B.Tech in Computer Science and Engineering',
+    semester,
+    batch: batch || '2023 - 2027',
+    academicYear: academicYear || '2025 - 2026',
+    institution: 'TKM College of Engineering, Kollam',
+    photoUrl,
+    email,
+    mobile,
+  };
+
+  return normalizeStudentProfile(rawProfile);
 }
 
 /**
@@ -21,21 +152,49 @@ interface LoginResult {
  * No password is saved or logged. Credentials are used only for this single HTTPS handshake.
  */
 export async function etlabLogin(username: string, password: string): Promise<LoginResult> {
+  const cleanUsername = username ? username.trim() : '';
+
+  if (!cleanUsername || !password) {
+    return {
+      success: false,
+      error: 'Username and password are required.',
+      errorCategory: 'VALIDATION',
+      statusCode: 400,
+    };
+  }
+
   try {
-    if (!username || !password) {
-      return { success: false, error: 'Username and password are required.' };
+    // Step 1: Fetch login page to extract CSRF token and initial session cookie
+    let loginPageRes: Response;
+    try {
+      loginPageRes = await fetch(`${BASE_URL}/user/login`, {
+        method: 'GET',
+        headers: {
+          'User-Agent': USER_AGENT,
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        },
+        cache: 'no-store',
+        signal: AbortSignal.timeout(AUTH_HANDSHAKE_TIMEOUT_MS),
+      });
+    } catch (fetchErr) {
+      const classified = classifyEtlabError(fetchErr);
+      return {
+        success: false,
+        error: classified.error,
+        errorCategory: classified.errorCategory,
+        statusCode: classified.statusCode,
+      };
     }
 
-    // Step 1: Fetch login page to extract CSRF token and initial session cookie
-    const loginPageRes = await fetch(`${BASE_URL}/user/login`, {
-      method: 'GET',
-      headers: {
-        'User-Agent': USER_AGENT,
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      },
-      cache: 'no-store',
-      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
-    });
+    // Check HTTP status of login page (handle Cloudflare 522/525 or 5xx outages immediately)
+    if (!loginPageRes.ok || loginPageRes.status >= 500) {
+      return {
+        success: false,
+        error: 'ETLAB is temporarily unavailable. Please try again later.',
+        errorCategory: 'UPSTREAM_UNAVAILABLE',
+        statusCode: 503,
+      };
+    }
 
     const loginPageHtml = await loginPageRes.text();
     const rawSetCookies = loginPageRes.headers.getSetCookie
@@ -45,6 +204,16 @@ export async function etlabLogin(username: string, password: string): Promise<Lo
     // Extract CSRF token from HTML
     const csrfMatch = loginPageHtml.match(/YII_CSRF_TOKEN["']\s*:\s*["']([^"']+)["']/);
     const csrfToken = csrfMatch ? csrfMatch[1] : '';
+
+    // If login form is missing or response is malformed
+    if (!csrfToken && !loginPageHtml.includes('LoginForm')) {
+      return {
+        success: false,
+        error: 'ETLAB is temporarily unavailable or returned an unexpected response. Please try again later.',
+        errorCategory: 'MALFORMED_RESPONSE',
+        statusCode: 503,
+      };
+    }
 
     // Extract cookies
     const cookieMap: Record<string, string> = {};
@@ -65,24 +234,45 @@ export async function etlabLogin(username: string, password: string): Promise<Lo
     if (csrfToken) {
       formData.append('YII_CSRF_TOKEN', csrfToken);
     }
-    formData.append('LoginForm[username]', username.trim());
+    formData.append('LoginForm[username]', cleanUsername);
     formData.append('LoginForm[password]', password);
     formData.append('yt0', 'Login');
 
-    const authRes = await fetch(`${BASE_URL}/user/login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Cookie': cookieHeader,
-        'User-Agent': USER_AGENT,
-        'Origin': BASE_URL,
-        'Referer': `${BASE_URL}/user/login`,
-      },
-      body: formData.toString(),
-      redirect: 'manual',
-      cache: 'no-store',
-      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
-    });
+    let authRes: Response;
+    try {
+      authRes = await fetch(`${BASE_URL}/user/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Cookie': cookieHeader,
+          'User-Agent': USER_AGENT,
+          'Origin': BASE_URL,
+          'Referer': `${BASE_URL}/user/login`,
+        },
+        body: formData.toString(),
+        redirect: 'manual',
+        cache: 'no-store',
+        signal: AbortSignal.timeout(AUTH_SUBMIT_TIMEOUT_MS),
+      });
+    } catch (fetchErr) {
+      const classified = classifyEtlabError(fetchErr);
+      return {
+        success: false,
+        error: classified.error,
+        errorCategory: classified.errorCategory,
+        statusCode: classified.statusCode,
+      };
+    }
+
+    // Check for upstream server error on POST
+    if (authRes.status >= 500) {
+      return {
+        success: false,
+        error: 'ETLAB is temporarily unavailable. Please try again later.',
+        errorCategory: 'UPSTREAM_UNAVAILABLE',
+        statusCode: 503,
+      };
+    }
 
     // Capture updated session cookies from POST response
     const postCookies = authRes.headers.getSetCookie
@@ -100,54 +290,92 @@ export async function etlabLogin(username: string, password: string): Promise<Lo
     const tkmSessionId = cookieMap['TKMSESSIONID'];
     const postHtml = await authRes.text();
 
-    // Check for error indicator in response
-    if (postHtml.includes('flash-error') || postHtml.includes('Invalid username or password') || postHtml.includes('Incorrect username or password')) {
-      return {
-        success: false,
-        error: 'Invalid username or password. Please verify your TKMCE credentials.',
-      };
-    }
-
-    // Check if redirected or successful session
     const isRedirect = authRes.status === 302 || authRes.status === 301;
     const location = authRes.headers.get('location') || '';
 
-    // If redirected to login again, it failed
+    // If redirected to login again, credentials were rejected by ETLAB
     if (isRedirect && location.includes('/user/login')) {
       return {
         success: false,
-        error: 'Authentication failed. Please check your credentials.',
+        error: 'Invalid ETLAB username or password.',
+        errorCategory: 'INVALID_CREDENTIALS',
+        statusCode: 401,
       };
     }
 
+    // Check for inline error indicator in response
+    if (
+      postHtml.includes('flash-error') ||
+      postHtml.includes('Invalid username or password') ||
+      postHtml.includes('Incorrect username or password') ||
+      postHtml.includes('Username cannot be blank') ||
+      postHtml.includes('Password cannot be blank')
+    ) {
+      return {
+        success: false,
+        error: 'Invalid ETLAB username or password.',
+        errorCategory: 'INVALID_CREDENTIALS',
+        statusCode: 401,
+      };
+    }
+
+    // Check for missing session cookie
     if (!tkmSessionId) {
       return {
         success: false,
-        error: 'Could not establish ETLAB session. Session cookie missing.',
+        error: 'Could not establish ETLAB session. Please try again.',
+        errorCategory: 'UPSTREAM_UNAVAILABLE',
+        statusCode: 503,
       };
     }
 
-    // Step 3: Verify session by attempting to fetch the real profile
-    const profileResult = await etlabFetchProfile(tkmSessionId);
-    if (!profileResult.success || !profileResult.profile) {
-      // If profile returned session expired or failed
-      if (profileResult.error?.includes('expired') || !isRedirect) {
-        return {
-          success: false,
-          error: 'Authentication failed or account does not have student portal access.',
-        };
+    // Authentication confirmed by ETLAB!
+    // Step 3: Attempt quick profile prefetch with bounded timeout (non-blocking for login success)
+    let profile: StudentProfile | undefined;
+    try {
+      const profileRes = await fetch(`${BASE_URL}/student/profile`, {
+        method: 'GET',
+        headers: {
+          'User-Agent': USER_AGENT,
+          'Cookie': `TKMSESSIONID=${tkmSessionId}`,
+        },
+        redirect: 'manual',
+        cache: 'no-store',
+        signal: AbortSignal.timeout(AUTH_PREFETCH_TIMEOUT_MS),
+      });
+
+      if (profileRes.ok && profileRes.status === 200) {
+        const html = await profileRes.text();
+        const $ = cheerio.load(html);
+        if (!$('title').text().toLowerCase().includes('login')) {
+          profile = parseStudentProfileFromCheerio($, cleanUsername);
+        }
       }
+    } catch {
+      // Non-fatal: Academic data & full profile will be synchronized on dashboard load
+    }
+
+    // If profile prefetch was slow or timed out, provide provisional profile
+    if (!profile) {
+      profile = normalizeStudentProfile({
+        name: cleanUsername,
+        admissionNo: cleanUsername,
+        registerNo: cleanUsername,
+      });
     }
 
     return {
       success: true,
       sessionId: tkmSessionId,
-      profile: profileResult.profile,
+      profile,
     };
   } catch (error) {
+    const classified = classifyEtlabError(error);
     return {
       success: false,
-      error: error instanceof Error ? `Connection error: ${error.message}` : 'Failed to connect to ETLAB portal.',
+      error: classified.error,
+      errorCategory: classified.errorCategory,
+      statusCode: classified.statusCode,
     };
   }
 }
@@ -172,6 +400,10 @@ export async function etlabFetchProfile(sessionId: string): Promise<{ success: b
       return { success: false, error: 'Session expired or invalid. Please sign in again.' };
     }
 
+    if (!res.ok || res.status >= 500) {
+      return { success: false, error: 'ETLAB profile service is temporarily unavailable.' };
+    }
+
     const html = await res.text();
     const $ = cheerio.load(html);
 
@@ -179,80 +411,13 @@ export async function etlabFetchProfile(sessionId: string): Promise<{ success: b
       return { success: false, error: 'Session expired. Please sign in again.' };
     }
 
-    // Helper to find table cell value after a header
-    const findField = (labelRegex: RegExp): string => {
-      let value = '';
-      $('th, td.label, .control-label').each((_, el) => {
-        const text = $(el).text().trim();
-        if (labelRegex.test(text)) {
-          const nextTd = $(el).next('td');
-          if (nextTd.length) {
-            value = nextTd.text().trim();
-            return false;
-          }
-          const parentRow = $(el).closest('tr');
-          const td = parentRow.find('td').not(el);
-          if (td.length) {
-            value = td.first().text().trim();
-            return false;
-          }
-        }
-      });
-      return value;
-    };
-
-    const name = findField(/^Name$/i) || $('.student-name, .profile-name, h3, h4').first().text().trim() || 'Student';
-    const admissionNo = findField(/^Admission\s*No$/i) || findField(/^Admission\s*Number$/i);
-    const registerNo = findField(/^(University\s*)?Reg(\.|istration)?\s*No/i) || admissionNo;
-    const rollNo = findField(/^Roll\s*No/i);
-    const dob = findField(/^Date\s*of\s*Birth$/i) || findField(/^DOB$/i);
-    const gender = findField(/^Gender$/i);
-    const department = findField(/^Department$/i) || findField(/^Branch$/i) || 'Computer Science & Engineering';
-    const programme = findField(/^Programme$/i) || findField(/^Course$/i) || 'B.Tech';
-    const semesterStr = findField(/^Semester$/i);
-    const batch = findField(/^Batch$/i) || '2023 - 2027';
-    const academicYear = findField(/^Academic\s*Year$/i) || '2025 - 2026';
-    const email = findField(/^Email/i);
-    const mobile = findField(/^(Mobile|Phone)/i);
-
-    // Extract photo URL if available
-    let photoUrl: string | undefined = undefined;
-    const photoEl = $('img.img-polaroid, img[src*="student"], .profile-image img, .avatar img').first();
-    if (photoEl.length) {
-      const src = photoEl.attr('src');
-      if (src) {
-        photoUrl = src.startsWith('http') ? src : `${BASE_URL}${src.startsWith('/') ? '' : '/'}${src}`;
-      }
-    }
-
-    const parsedSemester = parseInt(semesterStr.replace(/\D/g, ''), 10);
-    const semester = !isNaN(parsedSemester) && parsedSemester > 0 ? parsedSemester : 3;
-
-    const rawProfile: Partial<StudentProfile> = {
-      name,
-      admissionNo: admissionNo || '25CTA12',
-      registerNo: registerNo || admissionNo || 'TKM25CSAI012',
-      rollNo: rollNo || 'B25CTA12',
-      dob,
-      gender,
-      department: department || 'Computer Science (AI)',
-      programme: programme || 'B.Tech in Computer Science and Engineering (Artificial Intelligence)',
-      semester,
-      batch: batch || '2025–2029',
-      academicYear: academicYear || '2025 - 2026',
-      institution: 'TKM College of Engineering, Kollam',
-      photoUrl,
-      email,
-      mobile,
-    };
-
-    const profile = normalizeStudentProfile(rawProfile);
-
+    const profile = parseStudentProfileFromCheerio($, 'Student');
     return { success: true, profile };
   } catch (error) {
+    const classified = classifyEtlabError(error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to retrieve student profile.',
+      error: classified.error,
     };
   }
 }
@@ -325,9 +490,10 @@ export async function etlabFetchAttendance(
 
     return { success: true, subjects };
   } catch (error) {
+    const classified = classifyEtlabError(error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to fetch attendance records.',
+      error: classified.error,
     };
   }
 }
@@ -493,9 +659,10 @@ export async function etlabFetchTimetable(sessionId: string): Promise<{
 
     return { success: false, error: 'Timetable export unavailable' };
   } catch (error) {
+    const classified = classifyEtlabError(error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to fetch timetable.',
+      error: classified.error,
     };
   }
 }
@@ -696,9 +863,10 @@ export async function etlabFetchTeachers(
 
     return { success: true, teachers };
   } catch (error) {
+    const classified = classifyEtlabError(error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to fetch teacher information from ETLAB.',
+      error: classified.error,
     };
   }
 }

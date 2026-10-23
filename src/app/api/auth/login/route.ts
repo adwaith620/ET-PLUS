@@ -53,19 +53,28 @@ export async function POST(request: Request) {
     if (!username || !password) {
       return NextResponse.json(
         { success: false, error: 'Please enter your username and password.' },
-        { status: 400 }
+        { status: 400, headers: PRIVATE_CACHE_HEADERS }
       );
     }
 
     const result = await etlabLogin(username, password);
 
     if (!result.success || !result.sessionId) {
+      const statusCode =
+        result.statusCode ||
+        (result.errorCategory === 'TIMEOUT'
+          ? 504
+          : result.errorCategory === 'INVALID_CREDENTIALS'
+          ? 401
+          : 503);
+
       return NextResponse.json(
         {
           success: false,
           error: result.error || 'Authentication failed against TKMCE ETLAB. Please check credentials.',
+          category: result.errorCategory,
         },
-        { status: 401 }
+        { status: statusCode, headers: PRIVATE_CACHE_HEADERS }
       );
     }
 
@@ -84,19 +93,31 @@ export async function POST(request: Request) {
       profile: result.profile,
     });
 
-    return NextResponse.json({
-      success: true,
-      mode: 'live',
-      profile: result.profile,
-      message: 'Authenticated successfully with TKMCE ETLAB.',
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        mode: 'live',
+        profile: result.profile,
+        message: 'Authenticated successfully with TKMCE ETLAB.',
+      },
+      { headers: PRIVATE_CACHE_HEADERS }
+    );
   } catch (error) {
+    const isTimeout =
+      error instanceof Error &&
+      (error.name === 'TimeoutError' ||
+        error.name === 'AbortError' ||
+        error.message.toLowerCase().includes('timeout') ||
+        error.message.toLowerCase().includes('aborted'));
+
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'An unexpected error occurred during authentication.',
+        error: isTimeout
+          ? 'ETLAB is taking too long to respond. Please try again.'
+          : 'Unable to connect to authentication server. Please try again.',
       },
-      { status: 500 }
+      { status: isTimeout ? 504 : 500, headers: PRIVATE_CACHE_HEADERS }
     );
   }
 }

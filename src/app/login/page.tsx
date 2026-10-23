@@ -39,6 +39,9 @@ export default function LoginPage() {
     setErrorMessage('');
     setLoading(true);
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 25000); // 25s client-side safety timeout
+
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
@@ -48,12 +51,22 @@ export default function LoginPage() {
           username: username.trim(),
           password,
         }),
+        signal: controller.signal,
       });
 
-      const data = await res.json();
+      clearTimeout(timeoutId);
 
-      if (!res.ok || !data.success) {
-        setErrorMessage(data.error || 'Authentication failed. Please verify credentials.');
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok || !data?.success) {
+        const fallbackMsg =
+          res.status === 504
+            ? 'ETLAB is taking too long to respond. Please try again.'
+            : res.status === 401
+            ? 'Invalid ETLAB username or password.'
+            : 'ETLAB is temporarily unavailable. Please try again later.';
+
+        setErrorMessage(data?.error || fallbackMsg);
         setLoading(false);
         return;
       }
@@ -63,8 +76,18 @@ export default function LoginPage() {
       // eslint-disable-next-line @next/next/no-location-assign-relative-destination
       window.location.href = '/dashboard';
     } catch (err) {
+      clearTimeout(timeoutId);
+      const isTimeout =
+        err instanceof Error &&
+        (err.name === 'AbortError' ||
+          err.name === 'TimeoutError' ||
+          err.message.toLowerCase().includes('timeout') ||
+          err.message.toLowerCase().includes('aborted'));
+
       setErrorMessage(
-        err instanceof Error ? err.message : 'Unable to connect to authentication server.'
+        isTimeout
+          ? 'ETLAB is taking too long to respond. Please try again.'
+          : 'Unable to connect to authentication server. Please try again.'
       );
       setLoading(false);
     }
