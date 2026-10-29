@@ -14,11 +14,77 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://et-plus.vercel.app'),
   title: {
-    default: 'ETPlus',
-    template: '%s | ETPlus',
+    default: 'ET-PLUS — TKMCE Student Portal',
+    template: '%s | ET-PLUS',
   },
-  description: 'Academic intelligence, attendance analytics, timetable and student dashboard for TKMCE',
+  description:
+    'ET-PLUS is a student companion for TKM College of Engineering, featuring attendance tracking, timetable access, assignment deadlines, study materials, and academic results.',
+  applicationName: 'ET-PLUS',
+  keywords: [
+    'ET-PLUS',
+    'TKMCE student portal',
+    'TKMCE ETLAB',
+    'ETLAB TKMCE',
+    'TKM College of Engineering',
+    'ETPlus',
+    'attendance forecasting',
+    'student timetable',
+    'study materials',
+    'KTU TKMCE',
+  ],
+  authors: [{ name: 'Adwaith Krishna M H' }],
+  creator: 'Adwaith Krishna M H',
+  publisher: 'ET-PLUS',
+  formatDetection: {
+    email: false,
+    address: false,
+    telephone: false,
+  },
+  alternates: {
+    canonical: '/',
+  },
+  icons: {
+    icon: '/favicon.ico',
+    shortcut: '/favicon.ico',
+    apple: '/logo.png',
+  },
+  openGraph: {
+    type: 'website',
+    locale: 'en_IN',
+    url: 'https://et-plus.vercel.app',
+    siteName: 'ET-PLUS',
+    title: 'ET-PLUS — TKMCE Student Portal',
+    description:
+      'ET-PLUS is a student companion for TKM College of Engineering, featuring attendance tracking, timetable access, assignment deadlines, study materials, and academic results.',
+    images: [
+      {
+        url: '/logo.png',
+        width: 512,
+        height: 512,
+        alt: 'ET-PLUS — TKMCE Student Portal Logo',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary',
+    title: 'ET-PLUS — TKMCE Student Portal',
+    description:
+      'ET-PLUS is a student companion for TKM College of Engineering, featuring attendance tracking, timetable access, assignment deadlines, study materials, and academic results.',
+    images: ['/logo.png'],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
+  },
 };
 
 export default function RootLayout({

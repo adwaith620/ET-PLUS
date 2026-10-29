@@ -203,14 +203,22 @@ test('Attendance Alert Badge & Target Logic', () => {
   assert.equal(computeAlert(undefined, 75), false);
 });
 
-test('Metadata Suite - Browser Tab Title Uses ETPlus Brand', async () => {
+test('Metadata Suite - Browser Tab Title Uses ET-PLUS Brand', async () => {
   const fs = await import('node:fs/promises');
   const path = await import('node:path');
   const rootLayoutPath = path.resolve('src/app/layout.tsx');
   const rootLayoutSrc = await fs.readFile(rootLayoutPath, 'utf-8');
 
-  assert.ok(rootLayoutSrc.includes("default: 'ETPlus'"), 'Root metadata default title must be ETPlus');
-  assert.ok(rootLayoutSrc.includes("template: '%s | ETPlus'"), 'Root metadata title template must be %s | ETPlus');
+  assert.ok(
+    rootLayoutSrc.includes("default: 'ET-PLUS — TKMCE Student Portal'") ||
+    rootLayoutSrc.includes("default: 'ETPlus'"),
+    'Root metadata default title must use ET-PLUS branding'
+  );
+  assert.ok(
+    rootLayoutSrc.includes("template: '%s | ET-PLUS'") ||
+    rootLayoutSrc.includes("template: '%s | ETPlus'"),
+    'Root metadata title template must use ET-PLUS branding'
+  );
   assert.ok(!rootLayoutSrc.includes("title: 'ETLAB"), 'Old ETLAB title must be eliminated from root layout');
 });
 

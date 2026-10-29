@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import {
   Lock,
   User,
@@ -9,6 +10,7 @@ import {
   ShieldCheck,
   AlertCircle,
   ArrowRight,
+  ArrowLeft,
   ExternalLink,
 } from 'lucide-react';
 import { BrandLogo } from '@/components/brand-logo';
@@ -97,6 +99,15 @@ export default function LoginPage() {
     <div className="min-h-screen bg-[#fdfcfb] dark:bg-[#141518] flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       {/* Top institution header */}
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center px-4">
+        <div className="mb-4 flex justify-center sm:justify-start">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1.5 text-xs text-[#78716c] dark:text-[#9ca3af] hover:text-[#1c1917] dark:hover:text-[#f3f4f6] transition-colors"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Back to ET-PLUS Home</span>
+          </Link>
+        </div>
         <div className="inline-flex items-center justify-center mb-3">
           <BrandLogo size={48} className="rounded-xl shadow-xs" priority />
         </div>
