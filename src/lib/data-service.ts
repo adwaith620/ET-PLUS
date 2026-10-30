@@ -23,6 +23,7 @@ import {
   applyTeachersToSubjects,
   applyTeachersToTimetable,
   classifyAssessmentRecord,
+  isLabCourse,
 } from './course-catalog';
 import { generateDynamicNotifications } from './notifications-service';
 import { getCombinedAnnouncements, getCohortAnnouncements } from './announcements-service';
@@ -798,10 +799,13 @@ export const getResultsPageData = cache(async function getResultsPageData(
   setCachedStudentData(session.username, 'resultsSourceHealth', sourceHealth);
   setCachedStudentData(session.username, 'resultsLastSynced', now);
 
+  const internalRecords = assessmentRecords.filter((r) => r.category === 'Internal Marks');
   const categorizedRecords = {
     seriesExam1: assessmentRecords.filter((r) => !r.isLab && r.category === 'Series Exam 1'),
     seriesExam2: assessmentRecords.filter((r) => !r.isLab && r.category === 'Series Exam 2'),
-    internalMarks: assessmentRecords.filter((r) => !r.isLab && r.category === 'Internal Marks'),
+    internalMarks: internalRecords,
+    theoryInternalMarks: internalRecords.filter((r) => !r.isLab && !isLabCourse(r.subjectCode, r.subjectName)),
+    practicalInternalMarks: internalRecords.filter((r) => r.isLab === true || isLabCourse(r.subjectCode, r.subjectName)),
     assignmentResults: assessmentRecords.filter((r) => !r.isLab && r.category === 'Assignments'),
     labResults: assessmentRecords.filter((r) => r.isLab || r.category === 'Lab'),
   };

@@ -388,18 +388,26 @@ export function isLabCourse(courseCode?: string, courseName?: string): boolean {
   const rawCode = (courseCode || '').trim();
   const rawName = (courseName || '').trim();
 
-  // 1. Detect standalone trailing (B) or [B] suffix in code or name
-  if (LAB_COURSE_SUFFIX_REGEX.test(rawCode) || LAB_COURSE_SUFFIX_REGEX.test(rawName)) {
+  // 1. Detect standalone (B) or [B] suffix in code or name
+  if (
+    LAB_COURSE_SUFFIX_REGEX.test(rawCode) ||
+    LAB_COURSE_SUFFIX_REGEX.test(rawName) ||
+    /[\(\[]\s*b\s*[\)\]]/i.test(rawCode) ||
+    /[\(\[]\s*b\s*[\)\]]/i.test(rawName)
+  ) {
     return true;
   }
 
-  // 2. Check for explicit lab / laboratory / practical / workshop in name
+  // 2. Check for explicit lab / laboratory / practical / workshop in name or code
   const nameLower = rawName.toLowerCase();
+  const codeLower = rawCode.toLowerCase();
   if (
     nameLower.includes('lab') ||
     nameLower.includes('laboratory') ||
     nameLower.includes('practical') ||
-    nameLower.includes('workshop')
+    nameLower.includes('workshop') ||
+    codeLower.includes('practical') ||
+    codeLower.includes('lab')
   ) {
     return true;
   }
@@ -464,26 +472,40 @@ export function classifyAssessmentRecord(
   rawExamName: string = '',
   rawCategory?: string
 ): ClassifiedAssessment {
-  const canonical = matchApprovedCourse(rawCode) || matchApprovedCourse(rawSubjectName);
-  const canonicalCode = canonical ? canonical.courseCode : rawCode.trim().toUpperCase();
-  const canonicalName = canonical ? canonical.courseName : (rawSubjectName.trim() || canonicalCode);
+  const isLab = isLabCourse(rawCode, rawSubjectName);
 
-  // Check if course is a lab course:
-  // 1. Detect standalone trailing (B) or [B] suffix in code or name
-  // 2. Check for explicit lab / laboratory / practical / workshop in name
-  // 3. Check for KTU lab code patterns (e.g. CYL100, 24CYL100, ESL102)
-  // 4. Strictly avoid false positives like 24CST302, 24EST382, 24EST102, 24HUT101
-  const isLab = isLabCourse(canonicalCode, canonicalName) || isLabCourse(rawCode, rawSubjectName);
+  const strippedCode = stripLabSuffix(rawCode.trim().toUpperCase());
+  const strippedName = stripLabSuffix(rawSubjectName.trim());
+  const canonical = matchApprovedCourse(strippedCode) || matchApprovedCourse(strippedName);
 
-  const examLower = rawExamName.toLowerCase().trim();
-  const catLower = (rawCategory || '').toLowerCase().trim();
+  let canonicalCode = rawCode.trim().toUpperCase();
+  let canonicalName = rawSubjectName.trim() || canonicalCode;
 
-  // RULE 1: All lab course records ((B) suffix or lab practicals) route EXCLUSIVELY to Lab Results.
   if (isLab) {
+    // Preserve (B) in course code for all lab/practical courses
+    if (LAB_COURSE_SUFFIX_REGEX.test(rawCode) || /[\(\[]\s*b\s*[\)\]]/i.test(rawCode)) {
+      canonicalCode = `${strippedCode}(B)`;
+    } else if (rawSubjectName.toLowerCase().includes('practical') && canonical) {
+      canonicalCode = `${canonical.courseCode}(B)`;
+    }
+
+    // Ensure (Practical) is present in canonicalName for practical subjects
+    if (rawSubjectName.toLowerCase().includes('practical')) {
+      canonicalName = rawSubjectName.trim();
+    } else if (canonical && (LAB_COURSE_SUFFIX_REGEX.test(rawCode) || LAB_COURSE_SUFFIX_REGEX.test(rawSubjectName))) {
+      canonicalName = `${canonical.courseName} (Practical)`;
+    } else if (canonical && !canonicalName.toLowerCase().includes('lab') && !canonicalName.toLowerCase().includes('practical')) {
+      canonicalName = `${canonical.courseName} (Practical)`;
+    }
+
     let normalizedExam = rawExamName.trim();
     if (!normalizedExam) {
       normalizedExam = 'Lab Evaluation';
+    } else if (rawExamName.toLowerCase().includes('practical') && !normalizedExam.toLowerCase().includes('practical')) {
+      normalizedExam = `${normalizedExam} (Practical)`;
     }
+
+    // Never classify (B) or practical courses as Series Exam 1 or Series Exam 2
     return {
       canonicalCode,
       canonicalName,
@@ -493,7 +515,12 @@ export function classifyAssessmentRecord(
     };
   }
 
-  // RULE 2: Theory Courses (not lab)
+  // Non-lab (Theory) course
+  canonicalCode = canonical ? canonical.courseCode : strippedCode;
+  canonicalName = canonical ? canonical.courseName : (strippedName || canonicalCode);
+
+  const examLower = rawExamName.toLowerCase().trim();
+  const catLower = (rawCategory || '').toLowerCase().trim();
 
   // Strict Series Exam 1 check
   const isSeries1 =
@@ -567,9 +594,9 @@ export function classifyAssessmentRecord(
  * Validates whether an assessment record matches the specified tab category.
  * Enforces strict exclusive partition:
  * - Lab Results: All records with course codes ending in (B) or lab practicals
- * - Series Exam 1: Classic ETLAB Series Exam 1 theory records only
- * - Series Exam 2: Classic ETLAB Series Exam 2 theory records only
- * - Internal Marks: Classic ETLAB genuine internal assessments only (excludes series & assignments)
+ * - Series Exam 1: Classic ETLAB Series Exam 1 theory records only (never (B) or practicals)
+ * - Series Exam 2: Classic ETLAB Series Exam 2 theory records only (never (B) or practicals)
+ * - Internal Marks: Classic ETLAB genuine internal assessments (both theory and practical internal marks, displayed separately)
  * - Assignment Results: Genuine assignment records only (excludes series & internal assessments)
  */
 export function recordMatchesCategory(
@@ -584,20 +611,15 @@ export function recordMatchesCategory(
 ): boolean {
   const isLab = rec.isLab === true || isLabCourse(rec.subjectCode, rec.subjectName);
 
-  // RULE 1: All lab course records ((B) suffix or practical courses) route EXCLUSIVELY to Lab Results
-  if (isLab) {
-    return category === 'Lab';
-  }
-
-  // Theory courses can NEVER appear in Lab Results
-  if (category === 'Lab') {
-    return false;
+  // RULE 1: All lab course records ((B) suffix or practical courses) can NEVER appear in Series 1 or Series 2
+  if (category === 'Series Exam 1' || category === 'Series Exam 2') {
+    if (isLab) return false;
   }
 
   const exam = (rec.examName || '').toLowerCase().trim();
   const cat = (rec.category || '').toLowerCase().trim();
 
-  // Strict Assignment check: never allow assignments into series exam or internal marks sections
+  // Strict Assignment check: never allow assignments into series exam sections
   const isAssignment =
     cat === 'assignments' ||
     cat.includes('assignment') ||
@@ -621,33 +643,39 @@ export function recordMatchesCategory(
       !/\b(?:1|first)\b/i.test(exam) &&
       !exam.includes('series 1'));
 
+  const isInternal =
+    cat === 'internal marks' ||
+    cat.includes('internal') ||
+    exam.includes('internal') ||
+    exam.includes('continuous assessment') ||
+    exam.includes('cia') ||
+    cat.includes('module') ||
+    exam.includes('module') ||
+    cat.includes('tutorial') ||
+    cat.includes('seminar') ||
+    cat.includes('project');
+
   switch (category) {
     case 'Series Exam 1':
-      return isSeries1 && !isSeries2 && !isAssignment;
+      return !isLab && isSeries1 && !isSeries2 && !isAssignment;
 
     case 'Series Exam 2':
-      return isSeries2 && !isSeries1 && !isAssignment;
+      return !isLab && isSeries2 && !isSeries1 && !isAssignment;
 
     case 'Assignments':
-      return isAssignment && !isSeries1 && !isSeries2;
+      if (isSeries1 || isSeries2) return false;
+      return isAssignment;
 
     case 'Internal Marks':
       // Internal marks must strictly exclude Series 1, Series 2, and Assignments
       if (isSeries1 || isSeries2 || isAssignment) {
         return false;
       }
-      return (
-        cat === 'internal marks' ||
-        cat.includes('internal') ||
-        exam.includes('internal') ||
-        exam.includes('continuous assessment') ||
-        exam.includes('cia') ||
-        cat.includes('module') ||
-        exam.includes('module') ||
-        cat.includes('tutorial') ||
-        cat.includes('seminar') ||
-        cat.includes('project')
-      );
+      return isInternal || cat.includes('internal') || (!isSeries1 && !isSeries2 && !isAssignment && cat !== 'lab' && cat !== 'lab evaluation');
+
+    case 'Lab':
+      // Lab Results includes all lab/practical assessments, (B) courses, and practical internal assessments
+      return isLab;
 
     default:
       return false;

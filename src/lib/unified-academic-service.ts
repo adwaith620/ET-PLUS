@@ -22,6 +22,8 @@ import {
   normalizeSubjectAttendance,
   matchApprovedCourse,
   isLabCourse,
+  stripLabSuffix,
+  LAB_COURSE_SUFFIX_REGEX,
   classifyAssessmentRecord,
   type AssessmentCategory,
   type ClassifiedAssessment,
@@ -39,6 +41,8 @@ export interface CategorizedAssessmentRecords {
   seriesExam1: EtlabAssessmentRecord[];
   seriesExam2: EtlabAssessmentRecord[];
   internalMarks: EtlabAssessmentRecord[];
+  theoryInternalMarks?: EtlabAssessmentRecord[];
+  practicalInternalMarks?: EtlabAssessmentRecord[];
   assignmentResults: EtlabAssessmentRecord[];
   labResults: EtlabAssessmentRecord[];
 }
@@ -220,11 +224,16 @@ export async function getUnifiedResults(
     sourceHealth.etlabClassic.error = 'Connection to Classic ETLAB failed.';
   }
 
-  // Process Assignments (Authoritative assignment source for Assignment Results)
+  // Process Assignments (Display only assignments with published marks on Classic ETLAB student results page)
   if (assignmentsResult.status === 'fulfilled' && assignmentsResult.value) {
     const asgData = assignmentsResult.value;
     if (asgData.assignments && asgData.assignments.length > 0) {
       for (const asg of asgData.assignments) {
+        // Strict requirement: Only display assignments whose marks are published
+        if (asg.obtainedMarks === undefined || asg.obtainedMarks === null) {
+          continue;
+        }
+
         const title = (asg.title || 'Assignment').trim();
         const titleLower = title.toLowerCase();
         // Strict guard: Series exams and internal exams must NEVER be converted into assignments!
@@ -232,10 +241,38 @@ export async function getUnifiedResults(
           continue;
         }
 
-        const canonical = matchApprovedCourse(asg.subjectCode) || matchApprovedCourse(asg.subject);
-        const code = canonical ? canonical.courseCode : (asg.subjectCode || '').trim().toUpperCase();
-        const name = canonical ? canonical.courseName : (asg.subject || code);
-        const isLab = isLabCourse(code, name) || isLabCourse(asg.subjectCode, asg.subject);
+        const codeRaw = (asg.subjectCode || '').trim();
+        const nameRaw = (asg.subject || codeRaw).trim();
+        const isLab = isLabCourse(codeRaw, nameRaw);
+
+        // Include Practical in the displayed assessment name whenever source identifies it as practical
+        let examName = title;
+        if (isLab && !examName.toLowerCase().includes('practical') && !examName.toLowerCase().includes('lab')) {
+          examName = `${examName} (Practical)`;
+        }
+
+        const strippedCode = stripLabSuffix(codeRaw.toUpperCase());
+        const strippedName = stripLabSuffix(nameRaw);
+        const canonical = matchApprovedCourse(strippedCode) || matchApprovedCourse(strippedName);
+
+        let code = codeRaw.toUpperCase();
+        let name = nameRaw;
+
+        if (isLab) {
+          if (LAB_COURSE_SUFFIX_REGEX.test(codeRaw) || /[\(\[]\s*b\s*[\)\]]/i.test(codeRaw)) {
+            code = `${strippedCode}(B)`;
+          } else if (canonical) {
+            code = `${canonical.courseCode}(B)`;
+          }
+          if (nameRaw.toLowerCase().includes('practical')) {
+            name = nameRaw;
+          } else if (canonical) {
+            name = `${canonical.courseName} (Practical)`;
+          }
+        } else if (canonical) {
+          code = canonical.courseCode;
+          name = canonical.courseName;
+        }
 
         const semStr = formatSemesterName(asg.semester || session.semester || 3);
         const maxMarks = typeof asg.maxMarks === 'number' && asg.maxMarks > 0 ? asg.maxMarks : undefined;
@@ -247,11 +284,11 @@ export async function getUnifiedResults(
             subjectName: name,
             semester: semStr,
             category: isLab ? 'Lab' : 'Assignments',
-            examName: title,
+            examName,
             maxMarks,
             obtainedMarks: asg.obtainedMarks,
             isLab,
-            status: asg.obtainedMarks !== undefined ? 'Published' : 'Awaiting marks',
+            status: 'Published',
             submissionStatus: asg.submissionStatus,
             deadline: asg.dueDate,
             viewResponseUrl: asg.externalUrl,
@@ -338,10 +375,13 @@ export async function getUnifiedResults(
   const assessmentRecords = Array.from(recordsMap.values());
 
   // Build categorized records buckets for consumers requiring pre-separated lists
+  const internalRecords = assessmentRecords.filter((r) => r.category === 'Internal Marks');
   const categorizedRecords: CategorizedAssessmentRecords = {
     seriesExam1: assessmentRecords.filter((r) => !r.isLab && r.category === 'Series Exam 1'),
     seriesExam2: assessmentRecords.filter((r) => !r.isLab && r.category === 'Series Exam 2'),
-    internalMarks: assessmentRecords.filter((r) => !r.isLab && r.category === 'Internal Marks'),
+    internalMarks: internalRecords,
+    theoryInternalMarks: internalRecords.filter((r) => !r.isLab && !isLabCourse(r.subjectCode, r.subjectName)),
+    practicalInternalMarks: internalRecords.filter((r) => r.isLab === true || isLabCourse(r.subjectCode, r.subjectName)),
     assignmentResults: assessmentRecords.filter((r) => !r.isLab && r.category === 'Assignments'),
     labResults: assessmentRecords.filter((r) => r.isLab || r.category === 'Lab'),
   };

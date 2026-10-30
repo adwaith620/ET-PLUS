@@ -546,3 +546,132 @@ test('Test L: Results Table Columns - Explicitly separates OBTAINED MARKS and MA
   // Verify colSpan=5 for full width loading and empty state rows
   assert.ok(resultsClientCode.includes('colSpan={5}'), 'colSpan={5} must be used');
 });
+
+// Test M: Correct Lab Result Classification for (B) courses and practical subjects
+test('Test M: Correct Lab Result Classification - (B) courses and Practical subjects route to Lab, never Series Exam 1 or 2', () => {
+  // Course codes ending in (B)
+  assert.equal(isLabCourse('24MAP300(B)'), true, '24MAP300(B) must be classified as lab');
+  assert.equal(isLabCourse('24MAP300 (B)'), true, '24MAP300 (B) must be classified as lab');
+  assert.equal(isLabCourse('24AIP305(B)'), true, '24AIP305(B) must be classified as lab');
+  assert.equal(isLabCourse('24AIP305 [b]'), true, '24AIP305 [b] must be classified as lab');
+
+  // Subjects named Practical
+  assert.equal(
+    isLabCourse(undefined, 'Advanced Linear Algebra and Transforms (Practical)'),
+    true,
+    'Practical named course must be classified as lab'
+  );
+  assert.equal(
+    isLabCourse('24MAP300', 'Advanced Linear Algebra and Transforms (Practical)'),
+    true,
+    'Course with Practical in name must be classified as lab even if base code is provided'
+  );
+
+  // Classification assertions
+  const classifiedB = classifyAssessmentRecord(
+    '24MAP300(B)',
+    'Advanced Linear Algebra and Transforms',
+    'Series Exam 1',
+    'Sessional Exams'
+  );
+  assert.equal(classifiedB.isLab, true, 'isLab must be true');
+  assert.equal(classifiedB.category, 'Lab', 'category must be Lab, never Series Exam 1');
+  assert.equal(classifiedB.canonicalCode, '24MAP300(B)', 'canonicalCode must preserve (B)');
+  assert.equal(classifiedB.canonicalName, 'Advanced Linear Algebra and Transforms (Practical)', 'canonicalName must preserve (Practical)');
+
+  // Ensure recordMatchesCategory strictly excludes (B) courses from Series 1 and 2
+  const labRec = {
+    subjectCode: '24MAP300(B)',
+    subjectName: 'Advanced Linear Algebra and Transforms (Practical)',
+    examName: 'Lab Exam 1',
+    category: 'Lab Evaluation',
+    isLab: true,
+  };
+  assert.equal(recordMatchesCategory(labRec, 'Series Exam 1'), false, '(B) course must not match Series Exam 1');
+  assert.equal(recordMatchesCategory(labRec, 'Series Exam 2'), false, '(B) course must not match Series Exam 2');
+  assert.equal(recordMatchesCategory(labRec, 'Lab'), true, '(B) course must match Lab');
+});
+
+// Test N: Separate Theory and Practical Internal Marks
+test('Test N: Separate Theory and Practical Internal Marks - Correct routing without record duplication', () => {
+  const theoryInternal = {
+    id: 'rec-int-s3-01',
+    subjectCode: '24CSP304',
+    subjectName: 'Data Structures and Algorithms',
+    examName: 'Continuous Assessment (CIA)',
+    category: 'Internal Marks',
+    obtainedMarks: 46,
+    maxMarks: 50,
+    isLab: false,
+  };
+
+  const practicalInternal = {
+    id: 'rec-int-s3-04',
+    subjectCode: '24MAP300(B)',
+    subjectName: 'Advanced Linear Algebra and Transforms (Practical)',
+    examName: 'Practical Continuous Assessment (CIA)',
+    category: 'Internal Marks',
+    obtainedMarks: 48,
+    maxMarks: 50,
+    isLab: true,
+  };
+
+  // Both match Internal Marks category
+  assert.equal(recordMatchesCategory(theoryInternal, 'Internal Marks'), true, 'Theory internal must match Internal Marks');
+  assert.equal(recordMatchesCategory(practicalInternal, 'Internal Marks'), true, 'Practical internal must match Internal Marks');
+
+  // Practical internal also matches Lab; theory internal does NOT match Lab
+  assert.equal(recordMatchesCategory(theoryInternal, 'Lab'), false, 'Theory internal must NOT match Lab');
+  assert.equal(recordMatchesCategory(practicalInternal, 'Lab'), true, 'Practical internal matches Lab');
+
+  // Neither matches Series 1 or 2
+  assert.equal(recordMatchesCategory(theoryInternal, 'Series Exam 1'), false);
+  assert.equal(recordMatchesCategory(theoryInternal, 'Series Exam 2'), false);
+  assert.equal(recordMatchesCategory(practicalInternal, 'Series Exam 1'), false);
+  assert.equal(recordMatchesCategory(practicalInternal, 'Series Exam 2'), false);
+
+  // Verify Results UI splits Internal Marks into Theory and Practical sections
+  const resultsClientPath = path.resolve('src/app/dashboard/results/results-client.tsx');
+  const resultsClientCode = fs.readFileSync(resultsClientPath, 'utf8');
+
+  assert.ok(
+    resultsClientCode.includes('Theory Internal Assessments'),
+    'Results client must render Theory Internal Assessments section'
+  );
+  assert.ok(
+    resultsClientCode.includes('Practical / Lab Internal Assessments'),
+    'Results client must render Practical / Lab Internal Assessments section'
+  );
+  assert.ok(
+    resultsClientCode.includes('theoryInternalRecords'),
+    'Results client must compute theoryInternalRecords'
+  );
+  assert.ok(
+    resultsClientCode.includes('practicalInternalRecords'),
+    'Results client must compute practicalInternalRecords'
+  );
+});
+
+// Test O: Published-only Assignment Results on Results Page
+test('Test O: Assignment Results - Only published assignments appear in results and practical names retain Practical', () => {
+  const unifiedAcademicPath = path.resolve('src/lib/unified-academic-service.ts');
+  const unifiedCode = fs.readFileSync(unifiedAcademicPath, 'utf8');
+
+  // Verify unified-academic-service filters assignments for results page to published marks only
+  assert.ok(
+    unifiedCode.includes('if (asg.obtainedMarks === undefined || asg.obtainedMarks === null)'),
+    'Must filter out assignments without published marks from Results page'
+  );
+
+  // Verify (Practical) is appended to practical assignment names
+  assert.ok(
+    unifiedCode.includes("examName = `${examName} (Practical)`"),
+    'Must append (Practical) to practical assignment assessment name'
+  );
+
+  // Verify (B) is preserved in subject code for practical assignments
+  assert.ok(
+    unifiedCode.includes("code = `${strippedCode}(B)`"),
+    'Must preserve (B) in course code for practical assignments'
+  );
+});

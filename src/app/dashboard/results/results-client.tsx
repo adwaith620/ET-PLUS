@@ -9,7 +9,7 @@ import {
   AcademicStanding,
   AcademicSourceHealth,
 } from '@/types';
-import { recordMatchesCategory } from '@/lib/course-catalog';
+import { recordMatchesCategory, isLabCourse } from '@/lib/course-catalog';
 export { recordMatchesCategory };
 import {
   FileText,
@@ -148,8 +148,196 @@ export function ResultsClient({
     return deduped;
   }, [records, selectedSem, selectedCategory]);
 
+  // Separate Theory and Practical internal assessments for Internal Marks view
+  const { theoryInternalRecords, practicalInternalRecords } = React.useMemo(() => {
+    if (selectedCategory !== 'Internal Marks') {
+      return { theoryInternalRecords: [], practicalInternalRecords: [] };
+    }
+    const theory: EtlabAssessmentRecord[] = [];
+    const practical: EtlabAssessmentRecord[] = [];
+    for (const rec of filteredRecords) {
+      if (rec.isLab === true || isLabCourse(rec.subjectCode, rec.subjectName)) {
+        practical.push(rec);
+      } else {
+        theory.push(rec);
+      }
+    }
+    return { theoryInternalRecords: theory, practicalInternalRecords: practical };
+  }, [filteredRecords, selectedCategory]);
+
   const selectedCategoryObj = RESULTS_CATEGORIES.find((c) => c.id === selectedCategory);
   const selectedCategoryLabel = selectedCategoryObj ? selectedCategoryObj.label : selectedCategory;
+
+  const renderTable = (
+    recordsToRender: EtlabAssessmentRecord[],
+    emptyTitle: string,
+    emptySubtitle: string,
+    ariaLabel: string
+  ) => (
+    <div
+      className="overflow-x-auto rounded-xl border border-[#e7e4de] dark:border-[#2a2d35] bg-white dark:bg-[#1b1d22] shadow-xs focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:outline-hidden"
+      tabIndex={0}
+      role="region"
+      aria-label={ariaLabel}
+    >
+      <table className="w-full text-xs text-left border-collapse min-w-[550px]">
+        <thead>
+          <tr className="bg-[#f9f8f5] dark:bg-[#181a1f] border-b border-[#e7e4de] dark:border-[#2a2d35]">
+            <th className="p-3.5 font-semibold text-[#78716c] dark:text-[#9ca3af] uppercase tracking-wider text-[11px]">
+              SUBJECT
+              </th>
+            <th className="p-3.5 font-semibold text-[#78716c] dark:text-[#9ca3af] uppercase tracking-wider text-[11px] whitespace-nowrap">
+              EXAMINATION / ASSESSMENT
+              </th>
+            <th className="p-3.5 font-semibold text-[#78716c] dark:text-[#9ca3af] uppercase tracking-wider text-right text-[11px] whitespace-nowrap">
+              OBTAINED MARKS
+              </th>
+            <th className="p-3.5 font-semibold text-[#78716c] dark:text-[#9ca3af] uppercase tracking-wider text-right text-[11px] whitespace-nowrap">
+              MAXIMUM MARKS
+              </th>
+            <th className="p-3.5 font-semibold text-[#78716c] dark:text-[#9ca3af] uppercase tracking-wider text-center text-[11px] whitespace-nowrap">
+              STATUS
+              </th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-[#efece6] dark:divide-[#262831]">
+          {isSyncing ? (
+            <tr>
+              <td colSpan={5} className="p-12 sm:p-16 text-center text-xs text-[#78716c] dark:text-[#9ca3af]">
+                <div className="flex flex-col items-center justify-center space-y-3 py-4">
+                  <div className="relative w-10 h-10" role="status" aria-label="Connecting to ETLAB">
+                    <div className="w-10 h-10 rounded-full border-2 border-stone-200 dark:border-stone-800" />
+                    <div className="w-10 h-10 rounded-full border-2 border-stone-800 dark:border-stone-200 border-t-transparent animate-spin absolute inset-0" />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="font-semibold text-stone-900 dark:text-stone-100 text-sm">
+                      Connecting to ETLAB...
+                    </p>
+                    <p className="text-xs text-stone-500 dark:text-stone-400">
+                      Synchronizing examination records, internal assessments, and official university results...
+                    </p>
+                  </div>
+                </div>
+              </td>
+            </tr>
+          ) : recordsToRender.length === 0 ? (
+            <tr>
+              <td colSpan={5} className="p-10 text-center text-xs text-[#78716c] dark:text-[#9ca3af]">
+                <div className="space-y-2 max-w-md mx-auto">
+                  <p className="font-semibold text-[#1c1917] dark:text-[#f3f4f6] text-sm">
+                    {emptyTitle}
+                  </p>
+                  <p className="text-[11px] leading-relaxed">
+                    {emptySubtitle}
+                  </p>
+                  <div className="pt-2">
+                    <button
+                      onClick={handleSync}
+                      disabled={isSyncing}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#1c1917] hover:bg-[#292524] text-white dark:bg-[#f3f4f6] dark:hover:bg-white dark:text-[#141518] transition-colors shadow-xs cursor-pointer disabled:opacity-50"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+                      <span>Sync with ETLAB</span>
+                    </button>
+                  </div>
+                </div>
+              </td>
+            </tr>
+          ) : (
+            recordsToRender.map((rec) => {
+              const hasScore = rec.obtainedMarks !== undefined && rec.obtainedMarks !== null && !isNaN(rec.obtainedMarks);
+              const hasMax = typeof rec.maxMarks === 'number' && rec.maxMarks > 0;
+              const percentage = hasMax && hasScore ? (rec.obtainedMarks! / rec.maxMarks!) * 100 : 0;
+              const isPassing = hasMax ? percentage >= 40 : (hasScore ? rec.obtainedMarks! > 0 : false);
+
+              return (
+                <tr
+                  key={rec.id}
+                  className="hover:bg-[#fbfaf8] dark:hover:bg-[#202228] transition-colors"
+                >
+                  {/* 1. SUBJECT */}
+                  <td className="p-3.5">
+                    <div className="font-semibold text-stone-900 dark:text-stone-100">
+                      {rec.subjectName}
+                    </div>
+                    <div className="font-mono text-[10px] text-stone-500 dark:text-stone-400 mt-0.5">
+                      {rec.subjectCode}
+                    </div>
+                  </td>
+
+                  {/* 2. EXAMINATION / ASSESSMENT */}
+                  <td className="p-3.5 whitespace-nowrap">
+                    <span className="font-medium text-stone-800 dark:text-stone-200">
+                      {rec.examName}
+                    </span>
+                  </td>
+
+                  {/* 3. OBTAINED MARKS */}
+                  <td className="p-3.5 text-right font-mono font-bold text-stone-900 dark:text-stone-100 whitespace-nowrap">
+                    {hasScore ? (
+                      rec.obtainedMarks
+                    ) : (
+                      <span className="text-[11px] font-medium text-amber-600 dark:text-amber-400 font-sans">
+                        Awaiting marks
+                      </span>
+                    )}
+                  </td>
+
+                  {/* 4. MAXIMUM MARKS */}
+                  <td className="p-3.5 text-right font-mono font-bold text-stone-900 dark:text-stone-100 whitespace-nowrap">
+                    {hasMax ? (
+                      rec.maxMarks
+                    ) : (
+                      <span className="font-normal text-stone-400 dark:text-stone-500">—</span>
+                    )}
+                  </td>
+
+                  {/* 5. STATUS */}
+                  <td className="p-3.5 text-center whitespace-nowrap">
+                    <div className="flex items-center justify-center gap-2">
+                      {hasScore ? (
+                        <>
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${
+                              isPassing
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/60'
+                                : 'bg-red-50 text-red-700 border-red-200/80 dark:bg-red-950/40 dark:text-red-400 dark:border-red-800/60'
+                            }`}
+                          >
+                            Published
+                          </span>
+                          {hasMax && percentage > 0 && (
+                            <span className="text-[10px] font-mono text-stone-500 dark:text-stone-400 hidden sm:inline">
+                              {percentage.toFixed(0)}%
+                            </span>
+                          )}
+                        </>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 border border-amber-200 dark:border-amber-800/60">
+                          Awaiting marks
+                        </span>
+                      )}
+
+                      {rec.viewResponseUrl && (
+                        <button
+                          onClick={() => setSelectedRecord(rec)}
+                          aria-label={`View answer sheet for ${rec.subjectCode}`}
+                          className="p-1 rounded text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors"
+                          title="View official answer sheet"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
 
   return (
     <div className="space-y-6">
@@ -402,6 +590,12 @@ export function ResultsClient({
             </span>
           ) : syncError ? (
             <span>Synchronization paused.</span>
+          ) : selectedCategory === 'Internal Marks' ? (
+            <>
+              Total <strong className="text-[#1c1917] dark:text-[#f3f4f6]">{filteredRecords.length}</strong> internal evaluations in {selectedSem} (
+              <strong className="text-[#1c1917] dark:text-[#f3f4f6]">{theoryInternalRecords.length}</strong> theory,{' '}
+              <strong className="text-[#1c1917] dark:text-[#f3f4f6]">{practicalInternalRecords.length}</strong> practical).
+            </>
           ) : (
             <>
               Total <strong className="text-[#1c1917] dark:text-[#f3f4f6]">{filteredRecords.length}</strong> results in {selectedCategoryLabel}.
@@ -411,169 +605,62 @@ export function ResultsClient({
       </div>
 
       {/* 5. Simplified Results Table (Subject | Examination | Marks | Status) */}
-      <div
-        className="overflow-x-auto rounded-xl border border-[#e7e4de] dark:border-[#2a2d35] bg-white dark:bg-[#1b1d22] shadow-xs focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:outline-hidden"
-        tabIndex={0}
-        role="region"
-        aria-label="Student examination evaluation records"
-      >
-        <table className="w-full text-xs text-left border-collapse min-w-[550px]">
-          <thead>
-            <tr className="bg-[#f9f8f5] dark:bg-[#181a1f] border-b border-[#e7e4de] dark:border-[#2a2d35]">
-              <th className="p-3.5 font-semibold text-[#78716c] dark:text-[#9ca3af] uppercase tracking-wider text-[11px]">
-                SUBJECT
-              </th>
-              <th className="p-3.5 font-semibold text-[#78716c] dark:text-[#9ca3af] uppercase tracking-wider text-[11px] whitespace-nowrap">
-                EXAMINATION / ASSESSMENT
-              </th>
-              <th className="p-3.5 font-semibold text-[#78716c] dark:text-[#9ca3af] uppercase tracking-wider text-right text-[11px] whitespace-nowrap">
-                OBTAINED MARKS
-              </th>
-              <th className="p-3.5 font-semibold text-[#78716c] dark:text-[#9ca3af] uppercase tracking-wider text-right text-[11px] whitespace-nowrap">
-                MAXIMUM MARKS
-              </th>
-              <th className="p-3.5 font-semibold text-[#78716c] dark:text-[#9ca3af] uppercase tracking-wider text-center text-[11px] whitespace-nowrap">
-                STATUS
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-[#efece6] dark:divide-[#262831]">
-            {isSyncing ? (
-              <tr>
-                <td colSpan={5} className="p-12 sm:p-16 text-center text-xs text-[#78716c] dark:text-[#9ca3af]">
-                  <div className="flex flex-col items-center justify-center space-y-3 py-4">
-                    <div className="relative w-10 h-10" role="status" aria-label="Connecting to ETLAB">
-                      <div className="w-10 h-10 rounded-full border-2 border-stone-200 dark:border-stone-800" />
-                      <div className="w-10 h-10 rounded-full border-2 border-stone-800 dark:border-stone-200 border-t-transparent animate-spin absolute inset-0" />
-                    </div>
-                    <div className="space-y-1">
-                      <p className="font-semibold text-stone-900 dark:text-stone-100 text-sm">
-                        Connecting to ETLAB...
-                      </p>
-                      <p className="text-xs text-stone-500 dark:text-stone-400">
-                        Synchronizing examination records, internal assessments, and official university results...
-                      </p>
-                    </div>
-                  </div>
-                </td>
-              </tr>
-            ) : filteredRecords.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="p-12 text-center text-xs text-[#78716c] dark:text-[#9ca3af]">
-                  <div className="space-y-2 max-w-md mx-auto">
-                    <p className="font-semibold text-[#1c1917] dark:text-[#f3f4f6] text-sm">
-                      No records available
-                    </p>
-                    <p className="text-[11px] leading-relaxed">
-                      No evaluation records available for {selectedCategoryLabel} in {selectedSem}. Evaluations will appear here once published by the academic department.
-                    </p>
-                    <div className="pt-2">
-                      <button
-                        onClick={handleSync}
-                        disabled={isSyncing}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#1c1917] hover:bg-[#292524] text-white dark:bg-[#f3f4f6] dark:hover:bg-white dark:text-[#141518] transition-colors shadow-xs cursor-pointer disabled:opacity-50"
-                      >
-                        <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
-                        <span>Sync with ETLAB</span>
-                      </button>
-                    </div>
-                  </div>
-                </td>
-              </tr>
-            ) : (
-              filteredRecords.map((rec) => {
-                const hasScore = rec.obtainedMarks !== undefined && rec.obtainedMarks !== null && !isNaN(rec.obtainedMarks);
-                const hasMax = typeof rec.maxMarks === 'number' && rec.maxMarks > 0;
-                const percentage = hasMax && hasScore ? (rec.obtainedMarks! / rec.maxMarks!) * 100 : 0;
-                const isPassing = hasMax ? percentage >= 40 : (hasScore ? rec.obtainedMarks! > 0 : false);
-
-                return (
-                  <tr
-                    key={rec.id}
-                    className="hover:bg-[#fbfaf8] dark:hover:bg-[#202228] transition-colors"
-                  >
-                    {/* 1. SUBJECT */}
-                    <td className="p-3.5">
-                      <div className="font-semibold text-stone-900 dark:text-stone-100">
-                        {rec.subjectName}
-                      </div>
-                      <div className="font-mono text-[10px] text-stone-500 dark:text-stone-400 mt-0.5">
-                        {rec.subjectCode}
-                      </div>
-                    </td>
-
-                    {/* 2. EXAMINATION / ASSESSMENT */}
-                    <td className="p-3.5 whitespace-nowrap">
-                      <span className="font-medium text-stone-800 dark:text-stone-200">
-                        {rec.examName}
-                      </span>
-                    </td>
-
-                    {/* 3. OBTAINED MARKS */}
-                    <td className="p-3.5 text-right font-mono font-bold text-stone-900 dark:text-stone-100 whitespace-nowrap">
-                      {hasScore ? (
-                        rec.obtainedMarks
-                      ) : (
-                        <span className="text-[11px] font-medium text-amber-600 dark:text-amber-400 font-sans">
-                          Awaiting marks
-                        </span>
-                      )}
-                    </td>
-
-                    {/* 4. MAXIMUM MARKS */}
-                    <td className="p-3.5 text-right font-mono font-bold text-stone-900 dark:text-stone-100 whitespace-nowrap">
-                      {hasMax ? (
-                        rec.maxMarks
-                      ) : (
-                        <span className="font-normal text-stone-400 dark:text-stone-500">—</span>
-                      )}
-                    </td>
-
-                    {/* 5. STATUS */}
-                    <td className="p-3.5 text-center whitespace-nowrap">
-                      <div className="flex items-center justify-center gap-2">
-                        {hasScore ? (
-                          <>
-                            <span
-                              className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${
-                                isPassing
-                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/60'
-                                  : 'bg-red-50 text-red-700 border-red-200/80 dark:bg-red-950/40 dark:text-red-400 dark:border-red-800/60'
-                              }`}
-                            >
-                              Published
-                            </span>
-                            {hasMax && percentage > 0 && (
-                              <span className="text-[10px] font-mono text-stone-500 dark:text-stone-400 hidden sm:inline">
-                                {percentage.toFixed(0)}%
-                              </span>
-                            )}
-                          </>
-                        ) : (
-                          <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 border border-amber-200 dark:border-amber-800/60">
-                            Awaiting marks
-                          </span>
-                        )}
-
-                        {rec.viewResponseUrl && (
-                          <button
-                            onClick={() => setSelectedRecord(rec)}
-                            aria-label={`View answer sheet for ${rec.subjectCode}`}
-                            className="p-1 rounded text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors"
-                            title="View official answer sheet"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })
+      {selectedCategory === 'Internal Marks' ? (
+        <div className="space-y-6">
+          {/* Theory Internal Assessments Section */}
+          <div className="space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-bold text-stone-900 dark:text-stone-100">
+                  Theory Internal Assessments
+                </h2>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-300 border border-stone-200 dark:border-stone-700">
+                  {theoryInternalRecords.length}
+                </span>
+              </div>
+              <span className="text-[11px] text-stone-500 dark:text-stone-400">
+                Continuous internal evaluation for theory coursework
+              </span>
+            </div>
+            {renderTable(
+              theoryInternalRecords,
+              'No theory internal records',
+              `No theory continuous assessment records published for ${selectedSem} yet.`,
+              'Theory internal assessment evaluation records'
             )}
-          </tbody>
-        </table>
-      </div>
+          </div>
+
+          {/* Practical Internal Assessments Section */}
+          <div className="space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-bold text-stone-900 dark:text-stone-100">
+                  Practical / Lab Internal Assessments
+                </h2>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-300 border border-stone-200 dark:border-stone-700">
+                  {practicalInternalRecords.length}
+                </span>
+              </div>
+              <span className="text-[11px] text-stone-500 dark:text-stone-400">
+                Continuous internal evaluation for laboratory and practical coursework
+              </span>
+            </div>
+            {renderTable(
+              practicalInternalRecords,
+              'No practical internal records',
+              `No practical or laboratory continuous assessment records published for ${selectedSem} yet.`,
+              'Practical and laboratory internal assessment evaluation records'
+            )}
+          </div>
+        </div>
+      ) : (
+        renderTable(
+          filteredRecords,
+          'No records available',
+          `No evaluation records available for ${selectedCategoryLabel} in ${selectedSem}. Evaluations will appear here once published by the academic department.`,
+          'Student examination evaluation records'
+        )
+      )}
 
       {/* Answer Sheet Modal */}
       {selectedRecord && (
