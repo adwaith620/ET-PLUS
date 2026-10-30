@@ -993,116 +993,235 @@ export async function etlabFetchResults(
     }
 
     const records: EtlabAssessmentRecord[] = [];
-    const tables = $('table.items, .grid-view table, table.table, table');
 
-    tables.each((tableIdx, tblEl) => {
-      // Skip nested tables to prevent duplicate entries
-      if ($(tblEl).parents('table').length > 0) return;
+    const parseTablesFromCheerio = (
+      $root: cheerio.CheerioAPI,
+      sourcePrefix: string,
+      explicitTab?: string
+    ) => {
+      const parsed: EtlabAssessmentRecord[] = [];
+      const tables = $root('table.items, .grid-view table, table.table, table');
 
-      const table = $(tblEl);
-      let subjectCol = -1;
-      let semCol = -1;
-      let examCol = -1;
-      let maxCol = -1;
-      let marksCol = -1;
-      let viewCol = -1;
+      tables.each((tableIdx, tblEl) => {
+        // Skip nested tables to prevent duplicate entries
+        if ($root(tblEl).parents('table').length > 0) return;
 
-      const headers = table.find('th').map((_, el) => $(el).text().trim().toLowerCase()).get();
-      if (headers.length > 0) {
-        headers.forEach((h, idx) => {
-          if (h.includes('subject') || h.includes('course') || h.includes('paper')) subjectCol = idx;
-          else if (h.includes('sem')) semCol = idx;
-          else if (h.includes('exam') || h.includes('assessment') || h.includes('test') || h.includes('evaluation') || h.includes('name')) examCol = idx;
-          else if (h.includes('max') || h.includes('maximum') || h.includes('total mark')) maxCol = idx;
-          else if (h.includes('mark') || h.includes('obtained') || h.includes('score') || h.includes('internal')) marksCol = idx;
-          else if (h.includes('action') || h.includes('view') || h.includes('response') || h.includes('status')) viewCol = idx;
-        });
-      }
+        const table = $root(tblEl);
+        let subjectCol = -1;
+        let semCol = -1;
+        let examCol = -1;
+        let maxCol = -1;
+        let marksCol = -1;
+        let viewCol = -1;
 
-      // If headers did not match standard columns, default based on typical 4-6 column table layouts
-      if (subjectCol === -1) subjectCol = 0;
-      if (examCol === -1 && maxCol === -1 && marksCol === -1) {
-        semCol = 1;
-        examCol = 2;
-        maxCol = 3;
-        marksCol = 4;
-        viewCol = 5;
-      }
-
-      // Check for preceding section title if table does not have an exam column
-      const sectionHeading = table.prevAll('h1, h2, h3, h4, h5, .panel-heading, .box-title, legend, caption').first().text().trim();
-
-      table.find('tbody tr, tr').each((rowIdx, tr) => {
-        if ($(tr).find('th').length > 0) return; // Skip table header rows
-        const tds = $(tr).find('td');
-        if (tds.length >= 2) {
-          const subjectRaw = subjectCol >= 0 && subjectCol < tds.length ? $(tds[subjectCol]).text().trim() : '';
-          if (!subjectRaw || subjectRaw.toLowerCase().includes('no results found')) return;
-
-          let semester = semCol >= 0 && semCol < tds.length ? $(tds[semCol]).text().trim() : 'IIIrd Semester';
-          if (!semester) semester = 'IIIrd Semester';
-
-          // Normalize common semester formats so filter matches
-          if (/\b(?:iii|3|s3|semester\s*3)\b/i.test(semester) || /iiird/i.test(semester)) {
-            semester = 'IIIrd Semester';
-          } else if (/\b(?:ii|2|s2|semester\s*2)\b/i.test(semester) || /iind/i.test(semester)) {
-            semester = 'IInd Semester';
-          } else if (/\b(?:i|1|s1|semester\s*1)\b/i.test(semester) || /ist/i.test(semester)) {
-            semester = 'Ist Semester';
-          } else if (/\b(?:iv|4|s4|semester\s*4)\b/i.test(semester) || /ivth/i.test(semester)) {
-            semester = 'IVth Semester';
-          } else if (/\b(?:v|5|s5|semester\s*5)\b/i.test(semester) || /vth/i.test(semester)) {
-            semester = 'Vth Semester';
-          } else if (/\b(?:vi|6|s6|semester\s*6)\b/i.test(semester) || /vith/i.test(semester)) {
-            semester = 'VIth Semester';
-          } else if (/\b(?:vii|7|s7|semester\s*7)\b/i.test(semester) || /viith/i.test(semester)) {
-            semester = 'VIIth Semester';
-          } else if (/\b(?:viii|8|s8|semester\s*8)\b/i.test(semester) || /viiith/i.test(semester)) {
-            semester = 'VIIIth Semester';
-          }
-
-          let examName = examCol >= 0 && examCol < tds.length ? $(tds[examCol]).text().trim() : '';
-          if (!examName && sectionHeading) {
-            examName = sectionHeading;
-          }
-          if (!examName) {
-            examName = 'Continuous Evaluation';
-          }
-
-          const maxMarksStr = maxCol >= 0 && maxCol < tds.length ? $(tds[maxCol]).text().trim() : '';
-          const marksStr = marksCol >= 0 && marksCol < tds.length ? $(tds[marksCol]).text().trim() : '';
-          const viewResponseLink = viewCol >= 0 && viewCol < tds.length ? $(tds[viewCol]).find('a').attr('href') : undefined;
-
-          const parts = subjectRaw.split(/[-–:]/);
-          const subjectCode = parts[0]?.trim() || `SUB${tableIdx}-${rowIdx}`;
-          const rawName = parts.slice(1).join('-').trim() || subjectRaw;
-          const subjectName = getCourseFullName(subjectCode, rawName);
-
-          const { obtainedMarks, maxMarks } = parseScorePair(marksStr, maxMarksStr);
-
-          // Strictly categorize using centralized classification
-          const classified = classifyAssessmentRecord(subjectCode, subjectName, examName);
-
-          records.push({
-            id: `etlab-res-${tableIdx}-${rowIdx}`,
-            subjectCode: classified.canonicalCode,
-            subjectName: classified.canonicalName,
-            semester,
-            category: classified.category,
-            examName: classified.normalizedExamName,
-            maxMarks, // undefined if not specified upstream; NEVER defaulted to 40
-            obtainedMarks,
-            isLab: classified.isLab,
-            status: obtainedMarks !== undefined ? 'Published' : 'Awaiting marks',
-            viewResponseUrl: viewResponseLink
-              ? (viewResponseLink.startsWith('http')
-                  ? viewResponseLink
-                  : `${BASE_URL}${viewResponseLink.startsWith('/') ? '' : '/'}${viewResponseLink}`)
-              : undefined,
+        const headers = table.find('th').map((_, el) => $root(el).text().trim().toLowerCase()).get();
+        if (headers.length > 0) {
+          headers.forEach((h, idx) => {
+            if (h.includes('subject') || h.includes('course') || h.includes('paper')) subjectCol = idx;
+            else if (h.includes('sem')) semCol = idx;
+            else if (h.includes('exam') || h.includes('assessment') || h.includes('test') || h.includes('evaluation') || h.includes('assignment') || h.includes('name') || h.includes('topic') || h.includes('title')) examCol = idx;
+            else if (h.includes('max') || h.includes('maximum') || h.includes('total mark') || h.includes('out of')) maxCol = idx;
+            else if (h.includes('mark') || h.includes('obtained') || h.includes('score') || h.includes('internal')) marksCol = idx;
+            else if (h.includes('action') || h.includes('view') || h.includes('response') || h.includes('status')) viewCol = idx;
           });
         }
+
+        // If headers did not match standard columns, default based on typical 4-6 column table layouts
+        if (subjectCol === -1) subjectCol = 0;
+        if (examCol === -1 && maxCol === -1 && marksCol === -1) {
+          semCol = 1;
+          examCol = 2;
+          maxCol = 3;
+          marksCol = 4;
+          viewCol = 5;
+        }
+
+        // Detect tab category: from explicit parameter, parent tab pane, or preceding heading
+        let tabCategory = explicitTab;
+        if (!tabCategory) {
+          const parentPane = table.closest('.tab-pane, [role="tabpanel"], div[id*="tab"], div[id*="yw"], div[class*="tab"]');
+          if (parentPane.length) {
+            const paneId = parentPane.attr('id');
+            if (paneId) {
+              const tabLink = $root(`a[href="#${paneId}"], a[data-target="#${paneId}"]`).first();
+              if (tabLink.length && tabLink.text().trim()) {
+                tabCategory = tabLink.text().trim();
+              }
+            }
+            if (!tabCategory) {
+              const paneClass = ((parentPane.attr('class') || '') + ' ' + (paneId || '')).toLowerCase();
+              if (paneClass.includes('assign')) tabCategory = 'Assignments';
+              else if (paneClass.includes('sessional') || paneClass.includes('series')) tabCategory = 'Sessional Exams';
+              else if (paneClass.includes('module')) tabCategory = 'Module Test';
+              else if (paneClass.includes('internal')) tabCategory = 'Internal Marks';
+              else if (paneClass.includes('lab')) tabCategory = 'Lab Evaluation';
+            }
+          }
+        }
+
+        if (!tabCategory) {
+          const sectionHeading = table
+            .prevAll('h1, h2, h3, h4, h5, .panel-heading, .box-title, legend, caption, .nav-tabs .active a, .tabs .active a, li.active a')
+            .first()
+            .text()
+            .trim();
+          if (sectionHeading) {
+            tabCategory = sectionHeading;
+          }
+        }
+
+        table.find('tbody tr, tr').each((rowIdx, tr) => {
+          if ($root(tr).find('th').length > 0) return; // Skip table header rows
+          const tds = $root(tr).find('td');
+          if (tds.length >= 2) {
+            const subjectRaw = subjectCol >= 0 && subjectCol < tds.length ? $root(tds[subjectCol]).text().trim() : '';
+            if (!subjectRaw || subjectRaw.toLowerCase().includes('no results found')) return;
+
+            let semester = semCol >= 0 && semCol < tds.length ? $root(tds[semCol]).text().trim() : 'IIIrd Semester';
+            if (!semester) semester = 'IIIrd Semester';
+
+            // Normalize common semester formats so filter matches
+            if (/\b(?:iii|3|s3|semester\s*3)\b/i.test(semester) || /iiird/i.test(semester)) {
+              semester = 'IIIrd Semester';
+            } else if (/\b(?:ii|2|s2|semester\s*2)\b/i.test(semester) || /iind/i.test(semester)) {
+              semester = 'IInd Semester';
+            } else if (/\b(?:i|1|s1|semester\s*1)\b/i.test(semester) || /ist/i.test(semester)) {
+              semester = 'Ist Semester';
+            } else if (/\b(?:iv|4|s4|semester\s*4)\b/i.test(semester) || /ivth/i.test(semester)) {
+              semester = 'IVth Semester';
+            } else if (/\b(?:v|5|s5|semester\s*5)\b/i.test(semester) || /vth/i.test(semester)) {
+              semester = 'Vth Semester';
+            } else if (/\b(?:vi|6|s6|semester\s*6)\b/i.test(semester) || /vith/i.test(semester)) {
+              semester = 'VIth Semester';
+            } else if (/\b(?:vii|7|s7|semester\s*7)\b/i.test(semester) || /viith/i.test(semester)) {
+              semester = 'VIIth Semester';
+            } else if (/\b(?:viii|8|s8|semester\s*8)\b/i.test(semester) || /viiith/i.test(semester)) {
+              semester = 'VIIIth Semester';
+            }
+
+            let examName = examCol >= 0 && examCol < tds.length ? $root(tds[examCol]).text().trim() : '';
+            if (!examName && tabCategory) {
+              examName = tabCategory;
+            }
+            if (!examName) {
+              examName = 'Continuous Evaluation';
+            }
+
+            const maxMarksStr = maxCol >= 0 && maxCol < tds.length ? $root(tds[maxCol]).text().trim() : '';
+            const marksStr = marksCol >= 0 && marksCol < tds.length ? $root(tds[marksCol]).text().trim() : '';
+            const viewResponseLink = viewCol >= 0 && viewCol < tds.length ? $root(tds[viewCol]).find('a').attr('href') : undefined;
+
+            const parts = subjectRaw.split(/[-–:]/);
+            const subjectCode = parts[0]?.trim() || `SUB${tableIdx}-${rowIdx}`;
+            const rawName = parts.slice(1).join('-').trim() || subjectRaw;
+            const subjectName = getCourseFullName(subjectCode, rawName);
+
+            const { obtainedMarks, maxMarks } = parseScorePair(marksStr, maxMarksStr);
+
+            // Strictly categorize using centralized classification with tabCategory context
+            const classified = classifyAssessmentRecord(subjectCode, subjectName, examName, tabCategory);
+
+            parsed.push({
+              id: `${sourcePrefix}-${tableIdx}-${rowIdx}`,
+              subjectCode: classified.canonicalCode,
+              subjectName: classified.canonicalName,
+              semester,
+              category: classified.category,
+              examName: classified.normalizedExamName,
+              maxMarks, // Authoritative maximum marks extracted from Classic ETLAB MAXIMUM MARKS column!
+              obtainedMarks,
+              isLab: classified.isLab,
+              status: obtainedMarks !== undefined ? 'Published' : 'Awaiting marks',
+              viewResponseUrl: viewResponseLink
+                ? (viewResponseLink.startsWith('http')
+                    ? viewResponseLink
+                    : `${BASE_URL}${viewResponseLink.startsWith('/') ? '' : '/'}${viewResponseLink}`)
+                : undefined,
+            });
+          }
+        });
       });
-    });
+
+      return parsed;
+    };
+
+    // 1. Parse tables present in the initial results HTML
+    const initialRecords = parseTablesFromCheerio($, 'etlab-res');
+    records.push(...initialRecords);
+
+    // 2. Fetch maximum marks from the Assignments tab on Classic ETLAB results page if not already in DOM
+    const hasAssignmentRecords = records.some(
+      (r) => r.category === 'Assignments' || (r.isLab && r.examName.toLowerCase().includes('assignment'))
+    );
+
+    if (!hasAssignmentRecords) {
+      let assignmentsTabUrl: string | undefined = undefined;
+      $('a, button').each((_, el) => {
+        const text = $(el).text().trim().toLowerCase();
+        if (text === 'assignments' || text === 'assignment' || text.includes('assignment')) {
+          const href = $(el).attr('href') || $(el).attr('data-url') || $(el).attr('data-href');
+          if (href && !href.startsWith('#') && !href.startsWith('javascript:')) {
+            assignmentsTabUrl = href.startsWith('http') ? href : `${BASE_URL}${href.startsWith('/') ? '' : '/'}${href}`;
+          }
+        }
+      });
+
+      const candidateAssignmentUrls = [
+        ...(assignmentsTabUrl ? [assignmentsTabUrl] : []),
+        `${cachedWorkingResultsUrl || authoritativeUrl}?tab=assignments`,
+        `${cachedWorkingResultsUrl || authoritativeUrl}?tab=Assignments`,
+        `${cachedWorkingResultsUrl || authoritativeUrl}?type=assignments`,
+        `${cachedWorkingResultsUrl || authoritativeUrl}?type=Assignments`,
+        `${cachedWorkingResultsUrl || authoritativeUrl}?category=assignments`,
+        `${cachedWorkingResultsUrl || authoritativeUrl}?eval_type=assignments`,
+        `${BASE_URL}/ktuacademics/student/results?tab=assignments`,
+        `${BASE_URL}/ktuacademics/student/results?type=assignments`,
+        `${BASE_URL}/student/results?tab=assignments`,
+        `${BASE_URL}/student/results?type=assignments`,
+        `${BASE_URL}/student/assignments`,
+        `${BASE_URL}/ktuacademics/student/viewassignments`,
+      ];
+
+      for (const asgUrl of candidateAssignmentUrls) {
+        try {
+          const asgRes = await fetch(asgUrl, {
+            method: 'GET',
+            headers: {
+              'User-Agent': USER_AGENT,
+              'Cookie': `TKMSESSIONID=${sessionId}`,
+            },
+            redirect: 'manual',
+            cache: 'no-store',
+            signal: AbortSignal.timeout(RESULTS_TIMEOUT_MS),
+          });
+
+          if (asgRes.ok) {
+            const asgBody = await asgRes.text();
+            if (asgBody.includes('<table') || asgBody.includes('grid-view')) {
+              const $asg = cheerio.load(asgBody);
+              const asgRecords = parseTablesFromCheerio($asg, 'etlab-asg', 'Assignments');
+              if (asgRecords.length > 0) {
+                for (const asgRec of asgRecords) {
+                  const existingIdx = records.findIndex(
+                    (r) =>
+                      r.subjectCode === asgRec.subjectCode &&
+                      r.examName.toLowerCase() === asgRec.examName.toLowerCase()
+                  );
+                  if (existingIdx === -1) {
+                    records.push(asgRec);
+                  } else if (asgRec.maxMarks !== undefined && records[existingIdx].maxMarks === undefined) {
+                    records[existingIdx].maxMarks = asgRec.maxMarks;
+                  }
+                }
+                break;
+              }
+            }
+          }
+        } catch {
+          // Continue to next candidate URL
+        }
+      }
+    }
 
     return { success: true, records };
   } catch (error) {
@@ -1122,7 +1241,28 @@ export async function etlabFetchResults(
 }
 
 /**
- * Fetch assignments from ETLAB /student/assignments
+ * Specifically fetches assignment results and their maximum marks from the Assignments tab
+ * in the Classic ETLAB results page (https://tkmce.etlab.in/ktuacademics/student/results)
+ */
+export async function etlabFetchAssignmentsTabResults(
+  sessionId: string
+): Promise<{ success: boolean; records?: EtlabAssessmentRecord[]; error?: string }> {
+  try {
+    const res = await etlabFetchResults(sessionId);
+    if (!res.success || !res.records) {
+      return { success: false, error: res.error || 'Failed to fetch results from Classic ETLAB' };
+    }
+    const assignmentRecords = res.records.filter(
+      (r) => r.category === 'Assignments' || (r.isLab && r.examName.toLowerCase().includes('assignment'))
+    );
+    return { success: true, records: assignmentRecords };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to fetch assignment results' };
+  }
+}
+
+/**
+ * Fetch assignments from ETLAB /student/assignments or results page assignments tab
  */
 export async function etlabFetchAssignments(
   sessionId: string,
@@ -1131,6 +1271,10 @@ export async function etlabFetchAssignments(
   void _semester;
   try {
     const candidateUrls = [
+      `${BASE_URL}/ktuacademics/student/results?tab=assignments`,
+      `${BASE_URL}/student/results?tab=assignments`,
+      `${BASE_URL}/ktuacademics/student/results?type=assignments`,
+      `${BASE_URL}/student/results?type=assignments`,
       `${BASE_URL}/student/assignments`,
       `${BASE_URL}/student/assignment`,
       `${BASE_URL}/ktu/student/assignments`,

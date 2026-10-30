@@ -675,3 +675,49 @@ test('Test O: Assignment Results - Only published assignments appear in results 
     'Must preserve (B) in course code for practical assignments'
   );
 });
+
+// Test P: Fetch maximum marks from the Assignments tab in Classic ETLAB results page
+test('Test P: Maximum Marks from Classic ETLAB Results Page Assignments Tab', () => {
+  const etlabClientPath = path.resolve('src/lib/etlab-client.ts');
+  const etlabClientCode = fs.readFileSync(etlabClientPath, 'utf8');
+  const unifiedAcademicPath = path.resolve('src/lib/unified-academic-service.ts');
+  const unifiedCode = fs.readFileSync(unifiedAcademicPath, 'utf8');
+  const assignmentServicePath = path.resolve('src/lib/assignment-service.ts');
+  const asgServiceCode = fs.readFileSync(assignmentServicePath, 'utf8');
+
+  // 1. Verify etlabFetchAssignmentsTabResults is exported and implemented
+  assert.ok(
+    etlabClientCode.includes('export async function etlabFetchAssignmentsTabResults'),
+    'etlab-client.ts must export etlabFetchAssignmentsTabResults'
+  );
+
+  // 2. Verify candidate URLs for Classic ETLAB results page assignments tab
+  assert.ok(
+    etlabClientCode.includes('results?tab=assignments'),
+    'etlab-client.ts must probe results page assignments tab (results?tab=assignments)'
+  );
+  assert.ok(
+    etlabClientCode.includes('results?type=assignments'),
+    'etlab-client.ts must probe results?type=assignments'
+  );
+
+  // 3. Verify unified-academic-service links classicAsgMatch to fetch authoritative maximum marks
+  assert.ok(
+    unifiedCode.includes('classicAsgMatch'),
+    'unified-academic-service.ts must resolve classicAsgMatch for authoritative maximum marks'
+  );
+  assert.ok(
+    unifiedCode.includes('classicAsgMatch.maxMarks'),
+    'unified-academic-service.ts must retrieve maxMarks from classicAsgMatch'
+  );
+
+  // 4. Verify assignment-service enriches assignments with maximum marks from Classic ETLAB
+  assert.ok(
+    asgServiceCode.includes('etlabFetchResults(session.sessionId)'),
+    'assignment-service.ts must synchronize maximum marks from Classic ETLAB when session is active'
+  );
+  assert.ok(
+    asgServiceCode.includes('match.maxMarks = cRec.maxMarks'),
+    'assignment-service.ts must assign cRec.maxMarks to matching assignment'
+  );
+});

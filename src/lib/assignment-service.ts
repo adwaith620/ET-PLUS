@@ -2,11 +2,12 @@ import fs from 'fs/promises';
 import fsSync from 'fs';
 import path from 'path';
 import type { Assignment, AuthSession } from '../types/index.ts';
-import { getCourseFullName } from './course-catalog.ts';
+import { getCourseFullName, stripLabSuffix } from './course-catalog.ts';
 import { getAssignmentEffectiveStatus, isUpcomingAssignment } from './assignment-utils.ts';
 import { DEMO_ASSIGNMENTS } from './demo-data.ts';
 import { getCohortAnnouncements } from './announcements-service.ts';
 import { fetchStudentsEtlabEvaluations } from './students-etlab-client.ts';
+import { etlabFetchResults } from './etlab-client.ts';
 import {
   isSupabaseConfigured,
   getSupabaseClient,
@@ -447,10 +448,42 @@ export async function getSynchronizedAssignments(
     }
   }
 
-  // 2. Load saved assignments
+  // 2. Fetch maximum marks from Classic ETLAB results page assignments tab if sessionId is available
+  if (session && session.sessionId) {
+    try {
+      const classicRes = await etlabFetchResults(session.sessionId);
+      if (classicRes.success && classicRes.records && classicRes.records.length > 0) {
+        const classicAsgRecords = classicRes.records.filter(
+          (r) => r.category === 'Assignments' || r.examName.toLowerCase().includes('assignment')
+        );
+        for (const cRec of classicAsgRecords) {
+          const cCode = stripLabSuffix(cRec.subjectCode).toUpperCase();
+          const match = liveEtlabAssignments.find((a) => {
+            const aCode = stripLabSuffix(a.subjectCode || '').toUpperCase();
+            if (aCode !== cCode) return false;
+            const aTitle = a.title.toLowerCase();
+            const cTitle = cRec.examName.toLowerCase();
+            return aTitle.includes(cTitle) || cTitle.includes(aTitle);
+          });
+          if (match) {
+            if (typeof cRec.maxMarks === 'number' && cRec.maxMarks > 0) {
+              match.maxMarks = cRec.maxMarks;
+            }
+            if (typeof cRec.obtainedMarks === 'number' && match.obtainedMarks === undefined) {
+              match.obtainedMarks = cRec.obtainedMarks;
+            }
+          }
+        }
+      }
+    } catch {
+      // Gracefully continue
+    }
+  }
+
+  // 3. Load saved assignments
   const saved = await getSavedAssignments();
 
-  // 3. Load cohort announcements and check for any marked as assignment
+  // 4. Load cohort announcements and check for any marked as assignment
   const cohortAnnouncements = await getCohortAnnouncements();
   const announcementAssignments: Assignment[] = [];
   for (const ann of cohortAnnouncements) {

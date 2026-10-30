@@ -275,7 +275,24 @@ export async function getUnifiedResults(
         }
 
         const semStr = formatSemesterName(asg.semester || session.semester || 3);
-        const maxMarks = typeof asg.maxMarks === 'number' && asg.maxMarks > 0 ? asg.maxMarks : undefined;
+
+        // Authoritative maximum marks: fetch from Classic ETLAB results page assignments tab
+        const classicAsgMatch = classicResult.status === 'fulfilled' && classicResult.value?.records
+          ? classicResult.value.records.find((r) => {
+              if (r.category !== 'Assignments' && !(isLab && r.category === 'Lab')) return false;
+              const rCode = stripLabSuffix(r.subjectCode).toUpperCase();
+              const aCode = strippedCode;
+              if (rCode !== aCode) return false;
+              const rTitle = r.examName.toLowerCase();
+              return rTitle.includes(titleLower) || titleLower.includes(rTitle);
+            })
+          : undefined;
+
+        const maxMarks = typeof asg.maxMarks === 'number' && asg.maxMarks > 0
+          ? asg.maxMarks
+          : (classicAsgMatch && typeof classicAsgMatch.maxMarks === 'number' && classicAsgMatch.maxMarks > 0
+              ? classicAsgMatch.maxMarks
+              : undefined);
 
         upsertRecord(
           {
