@@ -59,6 +59,34 @@ export function parseMarksValue(rawVal: unknown): number | undefined {
   return isNaN(num) ? undefined : num;
 }
 
+/**
+ * Parses an assessment score pair (obtained and maximum marks), handling
+ * either separate column values or embedded fractional formats (e.g., "18 / 40", "14/20", "36 (out of 40)").
+ * Never fabricates or defaults max marks when unavailable.
+ */
+export function parseScorePair(
+  obtainedRaw: unknown,
+  maxRaw?: unknown
+): { obtainedMarks?: number; maxMarks?: number } {
+  if (typeof obtainedRaw === 'string') {
+    const fractionMatch = obtainedRaw.match(/(\d+(?:\.\d+)?)\s*(?:\/|out of|\()\s*(\d+(?:\.\d+)?)\)?/i);
+    if (fractionMatch) {
+      const parsedObt = parseFloat(fractionMatch[1]);
+      const parsedMx = parseFloat(fractionMatch[2]);
+      return {
+        obtainedMarks: !isNaN(parsedObt) ? parsedObt : undefined,
+        maxMarks: !isNaN(parsedMx) && parsedMx > 0 ? parsedMx : parseMarksValue(maxRaw),
+      };
+    }
+  }
+
+  const obtainedMarks = parseMarksValue(obtainedRaw);
+  const parsedMax = parseMarksValue(maxRaw);
+  const maxMarks = parsedMax !== undefined && parsedMax > 0 ? parsedMax : undefined;
+
+  return { obtainedMarks, maxMarks };
+}
+
 interface RawInternalMarkItem {
   subject_code?: string;
   code?: string;

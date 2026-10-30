@@ -194,7 +194,7 @@ export function ResultsClient({
 
           <div className="flex items-center gap-1">
             <a
-              href="https://tkmce.etlab.in/student/results"
+              href="https://tkmce.etlab.in/ktuacademics/student/results"
               target="_blank"
               rel="noopener noreferrer"
               title="Open Classic ETLAB Portal"
@@ -424,10 +424,13 @@ export function ResultsClient({
                 SUBJECT
               </th>
               <th className="p-3.5 font-semibold text-[#78716c] dark:text-[#9ca3af] uppercase tracking-wider text-[11px] whitespace-nowrap">
-                EXAMINATION
+                EXAMINATION / ASSESSMENT
               </th>
               <th className="p-3.5 font-semibold text-[#78716c] dark:text-[#9ca3af] uppercase tracking-wider text-right text-[11px] whitespace-nowrap">
-                MARKS
+                OBTAINED MARKS
+              </th>
+              <th className="p-3.5 font-semibold text-[#78716c] dark:text-[#9ca3af] uppercase tracking-wider text-right text-[11px] whitespace-nowrap">
+                MAXIMUM MARKS
               </th>
               <th className="p-3.5 font-semibold text-[#78716c] dark:text-[#9ca3af] uppercase tracking-wider text-center text-[11px] whitespace-nowrap">
                 STATUS
@@ -437,7 +440,7 @@ export function ResultsClient({
           <tbody className="divide-y divide-[#efece6] dark:divide-[#262831]">
             {isSyncing ? (
               <tr>
-                <td colSpan={4} className="p-12 sm:p-16 text-center text-xs text-[#78716c] dark:text-[#9ca3af]">
+                <td colSpan={5} className="p-12 sm:p-16 text-center text-xs text-[#78716c] dark:text-[#9ca3af]">
                   <div className="flex flex-col items-center justify-center space-y-3 py-4">
                     <div className="relative w-10 h-10" role="status" aria-label="Connecting to ETLAB">
                       <div className="w-10 h-10 rounded-full border-2 border-stone-200 dark:border-stone-800" />
@@ -456,7 +459,7 @@ export function ResultsClient({
               </tr>
             ) : filteredRecords.length === 0 ? (
               <tr>
-                <td colSpan={4} className="p-12 text-center text-xs text-[#78716c] dark:text-[#9ca3af]">
+                <td colSpan={5} className="p-12 text-center text-xs text-[#78716c] dark:text-[#9ca3af]">
                   <div className="space-y-2 max-w-md mx-auto">
                     <p className="font-semibold text-[#1c1917] dark:text-[#f3f4f6] text-sm">
                       No records available
@@ -480,9 +483,9 @@ export function ResultsClient({
             ) : (
               filteredRecords.map((rec) => {
                 const hasScore = rec.obtainedMarks !== undefined && rec.obtainedMarks !== null && !isNaN(rec.obtainedMarks);
-                const percentage =
-                  rec.maxMarks > 0 && hasScore ? (rec.obtainedMarks! / rec.maxMarks) * 100 : 0;
-                const isPassing = percentage >= 40;
+                const hasMax = typeof rec.maxMarks === 'number' && rec.maxMarks > 0;
+                const percentage = hasMax && hasScore ? (rec.obtainedMarks! / rec.maxMarks!) * 100 : 0;
+                const isPassing = hasMax ? percentage >= 40 : (hasScore ? rec.obtainedMarks! > 0 : false);
 
                 return (
                   <tr
@@ -499,31 +502,34 @@ export function ResultsClient({
                       </div>
                     </td>
 
-                    {/* 2. EXAMINATION */}
+                    {/* 2. EXAMINATION / ASSESSMENT */}
                     <td className="p-3.5 whitespace-nowrap">
                       <span className="font-medium text-stone-800 dark:text-stone-200">
                         {rec.examName}
                       </span>
                     </td>
 
-                    {/* 3. MARKS: obtained/maximum */}
+                    {/* 3. OBTAINED MARKS */}
                     <td className="p-3.5 text-right font-mono font-bold text-stone-900 dark:text-stone-100 whitespace-nowrap">
                       {hasScore ? (
-                        rec.maxMarks > 0 ? (
-                          <span>
-                            {rec.obtainedMarks} <span className="font-normal text-stone-400 dark:text-stone-500 text-xs">/ {rec.maxMarks}</span>
-                          </span>
-                        ) : (
-                          rec.obtainedMarks
-                        )
+                        rec.obtainedMarks
                       ) : (
-                        <span className="text-[11px] font-medium text-amber-600 dark:text-amber-400">
+                        <span className="text-[11px] font-medium text-amber-600 dark:text-amber-400 font-sans">
                           Awaiting marks
                         </span>
                       )}
                     </td>
 
-                    {/* 4. STATUS */}
+                    {/* 4. MAXIMUM MARKS */}
+                    <td className="p-3.5 text-right font-mono font-bold text-stone-900 dark:text-stone-100 whitespace-nowrap">
+                      {hasMax ? (
+                        rec.maxMarks
+                      ) : (
+                        <span className="font-normal text-stone-400 dark:text-stone-500">—</span>
+                      )}
+                    </td>
+
+                    {/* 5. STATUS */}
                     <td className="p-3.5 text-center whitespace-nowrap">
                       <div className="flex items-center justify-center gap-2">
                         {hasScore ? (
@@ -537,7 +543,7 @@ export function ResultsClient({
                             >
                               Published
                             </span>
-                            {percentage > 0 && (
+                            {hasMax && percentage > 0 && (
                               <span className="text-[10px] font-mono text-stone-500 dark:text-stone-400 hidden sm:inline">
                                 {percentage.toFixed(0)}%
                               </span>
@@ -602,14 +608,18 @@ export function ResultsClient({
               <div className="flex justify-between">
                 <span className="text-stone-500">Maximum Marks:</span>
                 <span className="font-mono font-bold text-stone-900 dark:text-stone-100">
-                  {selectedRecord.maxMarks > 0 ? selectedRecord.maxMarks : 'Not specified'}
+                  {typeof selectedRecord.maxMarks === 'number' && selectedRecord.maxMarks > 0
+                    ? selectedRecord.maxMarks
+                    : 'Not specified'}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-stone-500">Obtained Score:</span>
                 <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
                   {selectedRecord.obtainedMarks !== undefined && selectedRecord.obtainedMarks !== null
-                    ? `${selectedRecord.obtainedMarks} / ${selectedRecord.maxMarks || '--'}`
+                    ? (typeof selectedRecord.maxMarks === 'number' && selectedRecord.maxMarks > 0
+                        ? `${selectedRecord.obtainedMarks} / ${selectedRecord.maxMarks}`
+                        : `${selectedRecord.obtainedMarks}`)
                     : 'Awaiting marks'}
                 </span>
               </div>

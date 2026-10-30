@@ -134,7 +134,13 @@ export async function getUnifiedResults(
       ? rec.obtainedMarks
       : (hasOldMarks ? existing!.obtainedMarks : undefined);
 
-    const maxMarks = Math.max(rec.maxMarks || 0, existing?.maxMarks || 0) || 40;
+    // Authoritative maximum marks: strictly preserve genuine maxMarks from upstream assessment record
+    // Never default to 40 or 20 when maxMarks is not specified
+    const maxMarks = typeof rec.maxMarks === 'number' && rec.maxMarks > 0
+      ? rec.maxMarks
+      : (existing && typeof existing.maxMarks === 'number' && existing.maxMarks > 0
+          ? existing.maxMarks
+          : undefined);
     const status = obtainedMarks !== undefined ? 'Published' : 'Awaiting marks';
 
     if (!existing) {
@@ -232,7 +238,7 @@ export async function getUnifiedResults(
         const isLab = isLabCourse(code, name) || isLabCourse(asg.subjectCode, asg.subject);
 
         const semStr = formatSemesterName(asg.semester || session.semester || 3);
-        const maxMarks = typeof asg.maxMarks === 'number' && asg.maxMarks > 0 ? asg.maxMarks : 20;
+        const maxMarks = typeof asg.maxMarks === 'number' && asg.maxMarks > 0 ? asg.maxMarks : undefined;
 
         upsertRecord(
           {

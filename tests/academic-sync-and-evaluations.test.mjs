@@ -162,24 +162,28 @@ test('5. Student Identity Validation & Cross-Account Isolation', () => {
   assert.equal(verifyIdentityConsistency(profileA, profileB), false, 'Mismatched student identities must be rejected');
 });
 
-test('6. Results Client Table Simplification Verification', () => {
+test('6. Results Client Table Structure - Separate Obtained and Maximum Marks Columns', () => {
   const resultsClientPath = path.resolve('src/app/dashboard/results/results-client.tsx');
   const resultsClientSrc = fs.readFileSync(resultsClientPath, 'utf8');
 
-  // Verify removed columns are NOT present in table headers
-  assert.ok(!resultsClientSrc.includes('<th className="p-3.5 font-semibold text-[#78716c] dark:text-[#9ca3af] uppercase tracking-wider text-[11px] whitespace-nowrap">\n                SEMESTER'), 'Semester column must be removed from Results table');
-  assert.ok(!resultsClientSrc.includes('MAX MARKS\n              </th>'), 'MAX MARKS column must be removed from Results table');
+  // Verify removed/redundant columns are NOT present in table headers
+  assert.ok(!resultsClientSrc.includes('SEMESTER\n              </th>'), 'Semester column must not be in Results table header');
+  assert.ok(!resultsClientSrc.includes('DATA SOURCE\n              </th>'), 'DATA SOURCE column must not be in Results table header');
   assert.ok(!resultsClientSrc.includes('MIN MARKS'), 'MIN MARKS column must not exist');
-  assert.ok(!resultsClientSrc.includes('DATA SOURCE\n              </th>'), 'DATA SOURCE column must be removed from Results table');
 
-  // Verify exactly 4 table columns exist: SUBJECT, EXAMINATION, MARKS, STATUS
+  // Verify exact 5 table columns exist: SUBJECT, EXAMINATION / ASSESSMENT, OBTAINED MARKS, MAXIMUM MARKS, STATUS
   assert.ok(resultsClientSrc.includes('SUBJECT\n              </th>'), 'Must have SUBJECT column');
-  assert.ok(resultsClientSrc.includes('EXAMINATION\n              </th>'), 'Must have EXAMINATION column');
-  assert.ok(resultsClientSrc.includes('MARKS\n              </th>'), 'Must have MARKS column');
+  assert.ok(resultsClientSrc.includes('EXAMINATION / ASSESSMENT\n              </th>'), 'Must have EXAMINATION / ASSESSMENT column');
+  assert.ok(resultsClientSrc.includes('OBTAINED MARKS\n              </th>'), 'Must have separate OBTAINED MARKS column');
+  assert.ok(resultsClientSrc.includes('MAXIMUM MARKS\n              </th>'), 'Must have separate MAXIMUM MARKS column');
   assert.ok(resultsClientSrc.includes('STATUS\n              </th>'), 'Must have STATUS column');
 
-  // Verify compact obtained/max marks formatting
-  assert.ok(resultsClientSrc.includes('rec.maxMarks > 0 ?'), 'Must format obtainedMarks with maxMarks');
+  // Verify colSpan=5 for full width loading and empty state rows
+  assert.ok(resultsClientSrc.includes('colSpan={5}'), 'Loading and empty states must span all 5 columns');
+
+  // Verify separate obtained score and maximum marks rendering
+  assert.ok(resultsClientSrc.includes('rec.obtainedMarks'), 'Must render obtainedMarks in obtained column');
+  assert.ok(resultsClientSrc.includes('rec.maxMarks'), 'Must render maxMarks in max column');
   assert.ok(resultsClientSrc.includes('Awaiting marks'), 'Must show Awaiting marks for unreleased scores');
 
   // Verify categories include Assignment Results and Lab Results

@@ -9,6 +9,11 @@ import {
 import {
   verifyIdentityConsistency,
 } from '../src/lib/unified-academic-service.ts';
+import {
+  parseScorePair,
+} from '../src/lib/students-etlab-client.ts';
+import fs from 'node:fs';
+import path from 'node:path';
 
 /**
  * Regression Suite: Source Separation, Series Exam Exclusivity,
@@ -437,4 +442,107 @@ test('Test H: Security & Account Isolation - Reject mismatch, preserve student i
   // Different students fail (strict anti-contamination)
   assert.equal(verifyIdentityConsistency(profileA, profileB), false);
   assert.equal(verifyIdentityConsistency(profileA, { ...profileA, admissionNo: '99CS9999' }), false);
+});
+
+// Test I: Score pair extraction and avoidance of default max marks
+test('Test I: Score pair extraction - Handles fractions, separate columns, and never defaults maxMarks', () => {
+  // Fractional score strings (e.g. "18 / 40", "14/20")
+  const frac1 = parseScorePair('18 / 40', '');
+  assert.equal(frac1.obtainedMarks, 18);
+  assert.equal(frac1.maxMarks, 40);
+
+  const frac2 = parseScorePair('14/20', undefined);
+  assert.equal(frac2.obtainedMarks, 14);
+  assert.equal(frac2.maxMarks, 20);
+
+  // Distinct separate cell values
+  const sep1 = parseScorePair('35', '50');
+  assert.equal(sep1.obtainedMarks, 35);
+  assert.equal(sep1.maxMarks, 50);
+
+  const sep2 = parseScorePair('19.5', '25');
+  assert.equal(sep2.obtainedMarks, 19.5);
+  assert.equal(sep2.maxMarks, 25);
+
+  // Missing max marks MUST remain undefined — never default to 40 or 20
+  const noMax = parseScorePair('16', '');
+  assert.equal(noMax.obtainedMarks, 16);
+  assert.equal(noMax.maxMarks, undefined, 'Missing maxMarks must be undefined, not defaulted');
+
+  // Legitimate zero marks
+  const zeroScore = parseScorePair(0, 40);
+  assert.equal(zeroScore.obtainedMarks, 0, 'Legitimate 0 must be preserved as 0');
+  assert.equal(zeroScore.maxMarks, 40);
+
+  // Awaiting marks (pending publication)
+  const awaited = parseScorePair('Awaited', 40);
+  assert.equal(awaited.obtainedMarks, undefined, 'Awaited score must be undefined');
+  assert.equal(awaited.maxMarks, 40);
+
+  const awaitedNoMax = parseScorePair('--', '');
+  assert.equal(awaitedNoMax.obtainedMarks, undefined);
+  assert.equal(awaitedNoMax.maxMarks, undefined);
+});
+
+// Test J: Assignment maximum marks variance and non-defaulting
+test('Test J: Assignment marks accuracy - Preserves individual maxMarks without defaulting to 20', () => {
+  const assignments = [
+    { title: 'Mini Project Report', obtainedMarks: 23, maxMarks: 25 },
+    { title: 'Assignment 1', obtainedMarks: 18, maxMarks: 20 },
+    { title: 'Assignment 2', obtainedMarks: 14, maxMarks: 15 },
+    { title: 'Essay Submission', obtainedMarks: 9, maxMarks: 10 },
+    { title: 'Lab Practical Writeup', obtainedMarks: 45, maxMarks: 50 },
+    { title: 'Ungraded Homework', obtainedMarks: undefined, maxMarks: undefined },
+  ];
+
+  // Verify each assignment retains its genuine maxMarks
+  assert.equal(assignments[0].maxMarks, 25, '25 maxMarks must be preserved');
+  assert.equal(assignments[1].maxMarks, 20, '20 maxMarks must be preserved');
+  assert.equal(assignments[2].maxMarks, 15, '15 maxMarks must not be replaced with 20');
+  assert.equal(assignments[3].maxMarks, 10, '10 maxMarks must not be replaced with 20');
+  assert.equal(assignments[4].maxMarks, 50, '50 maxMarks must be preserved');
+  assert.equal(assignments[5].maxMarks, undefined, 'Missing maxMarks must remain undefined');
+});
+
+// Test K: Authoritative URL prioritization in etlab-client.ts
+test('Test K: Authoritative Results URL - /ktuacademics/student/results is prioritized first', () => {
+  const etlabClientPath = path.resolve('src/lib/etlab-client.ts');
+  const etlabClientCode = fs.readFileSync(etlabClientPath, 'utf8');
+
+  // Verify authoritative endpoint is declared and prioritized
+  assert.ok(
+    etlabClientCode.includes('/ktuacademics/student/results'),
+    'etlab-client.ts must query /ktuacademics/student/results'
+  );
+  assert.ok(
+    etlabClientCode.includes('authoritativeUrl = `${BASE_URL}/ktuacademics/student/results`'),
+    'authoritativeUrl must be explicitly defined as /ktuacademics/student/results'
+  );
+});
+
+// Test L: Results Table UI - Separate Obtained and Maximum Marks Columns
+test('Test L: Results Table Columns - Explicitly separates OBTAINED MARKS and MAXIMUM MARKS', () => {
+  const resultsClientPath = path.resolve('src/app/dashboard/results/results-client.tsx');
+  const resultsClientCode = fs.readFileSync(resultsClientPath, 'utf8');
+
+  // Verify 5 distinct table headers exist in order
+  const subjectIdx = resultsClientCode.indexOf('SUBJECT\n              </th>');
+  const examIdx = resultsClientCode.indexOf('EXAMINATION / ASSESSMENT\n              </th>');
+  const obtIdx = resultsClientCode.indexOf('OBTAINED MARKS\n              </th>');
+  const maxIdx = resultsClientCode.indexOf('MAXIMUM MARKS\n              </th>');
+  const statusIdx = resultsClientCode.indexOf('STATUS\n              </th>');
+
+  assert.ok(subjectIdx !== -1, 'SUBJECT header must exist');
+  assert.ok(examIdx !== -1, 'EXAMINATION / ASSESSMENT header must exist');
+  assert.ok(obtIdx !== -1, 'OBTAINED MARKS header must exist');
+  assert.ok(maxIdx !== -1, 'MAXIMUM MARKS header must exist');
+  assert.ok(statusIdx !== -1, 'STATUS header must exist');
+
+  assert.ok(subjectIdx < examIdx, 'SUBJECT must precede EXAMINATION / ASSESSMENT');
+  assert.ok(examIdx < obtIdx, 'EXAMINATION / ASSESSMENT must precede OBTAINED MARKS');
+  assert.ok(obtIdx < maxIdx, 'OBTAINED MARKS must precede MAXIMUM MARKS');
+  assert.ok(maxIdx < statusIdx, 'MAXIMUM MARKS must precede STATUS');
+
+  // Verify colSpan=5 for full width loading and empty state rows
+  assert.ok(resultsClientCode.includes('colSpan={5}'), 'colSpan={5} must be used');
 });

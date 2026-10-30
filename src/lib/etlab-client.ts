@@ -8,7 +8,7 @@ import {
   normalizeTimetableSlot,
   classifyAssessmentRecord,
 } from './course-catalog.ts';
-import { parseMarksValue } from './students-etlab-client.ts';
+import { parseScorePair } from './students-etlab-client.ts';
 
 const BASE_URL = process.env.ETLAB_BASE_URL || 'https://tkmce.etlab.in';
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
@@ -895,18 +895,22 @@ export async function etlabFetchResults(
   sessionId: string
 ): Promise<{ success: boolean; records?: EtlabAssessmentRecord[]; error?: string }> {
   try {
+    const authoritativeUrl = `${BASE_URL}/ktuacademics/student/results`;
     const candidateUrls = [
+      authoritativeUrl,
       `${BASE_URL}/student/results`,
       `${BASE_URL}/ktuacademics/student/viewresults`,
-      `${BASE_URL}/ktuacademics/student/results`,
       `${BASE_URL}/student/viewresults`,
       `${BASE_URL}/student/seriesexam`,
       `${BASE_URL}/ktuacademics/student/internalmarks`,
     ];
 
-    const urlsToTry = cachedWorkingResultsUrl
-      ? [cachedWorkingResultsUrl, ...candidateUrls.filter((u) => u !== cachedWorkingResultsUrl)]
-      : candidateUrls;
+    // Authoritative KTU results page always takes absolute priority
+    const urlsToTry = [
+      authoritativeUrl,
+      ...(cachedWorkingResultsUrl && cachedWorkingResultsUrl !== authoritativeUrl ? [cachedWorkingResultsUrl] : []),
+      ...candidateUrls.filter((u) => u !== authoritativeUrl && u !== cachedWorkingResultsUrl),
+    ];
 
     let html = '';
 
@@ -920,7 +924,7 @@ export async function etlabFetchResults(
           },
           redirect: 'manual',
           cache: 'no-store',
-          signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+          signal: AbortSignal.timeout(RESULTS_TIMEOUT_MS),
         });
 
         let redirectCount = 0;
@@ -958,7 +962,7 @@ export async function etlabFetchResults(
             },
             redirect: 'manual',
             cache: 'no-store',
-            signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+            signal: AbortSignal.timeout(RESULTS_TIMEOUT_MS),
           });
         }
 
@@ -989,34 +993,53 @@ export async function etlabFetchResults(
     }
 
     const records: EtlabAssessmentRecord[] = [];
-    const table = $('table.items, .grid-view table, table.table, table').first();
+    const tables = $('table.items, .grid-view table, table.table, table');
 
-    if (table.length) {
-      let subjectCol = 0;
-      let semCol = 1;
-      let examCol = 2;
-      let maxCol = 3;
-      let marksCol = 4;
-      let viewCol = 5;
+    tables.each((tableIdx, tblEl) => {
+      // Skip nested tables to prevent duplicate entries
+      if ($(tblEl).parents('table').length > 0) return;
+
+      const table = $(tblEl);
+      let subjectCol = -1;
+      let semCol = -1;
+      let examCol = -1;
+      let maxCol = -1;
+      let marksCol = -1;
+      let viewCol = -1;
 
       const headers = table.find('th').map((_, el) => $(el).text().trim().toLowerCase()).get();
       if (headers.length > 0) {
         headers.forEach((h, idx) => {
           if (h.includes('subject') || h.includes('course') || h.includes('paper')) subjectCol = idx;
           else if (h.includes('sem')) semCol = idx;
-          else if (h.includes('exam') || h.includes('assessment') || h.includes('test') || h.includes('name')) examCol = idx;
-          else if (h.includes('max') || h.includes('total')) maxCol = idx;
-          else if (h.includes('mark') || h.includes('obtained') || h.includes('score')) marksCol = idx;
+          else if (h.includes('exam') || h.includes('assessment') || h.includes('test') || h.includes('evaluation') || h.includes('name')) examCol = idx;
+          else if (h.includes('max') || h.includes('maximum') || h.includes('total mark')) maxCol = idx;
+          else if (h.includes('mark') || h.includes('obtained') || h.includes('score') || h.includes('internal')) marksCol = idx;
           else if (h.includes('action') || h.includes('view') || h.includes('response') || h.includes('status')) viewCol = idx;
         });
       }
 
-      table.find('tbody tr, tr').each((idx, tr) => {
+      // If headers did not match standard columns, default based on typical 4-6 column table layouts
+      if (subjectCol === -1) subjectCol = 0;
+      if (examCol === -1 && maxCol === -1 && marksCol === -1) {
+        semCol = 1;
+        examCol = 2;
+        maxCol = 3;
+        marksCol = 4;
+        viewCol = 5;
+      }
+
+      // Check for preceding section title if table does not have an exam column
+      const sectionHeading = table.prevAll('h1, h2, h3, h4, h5, .panel-heading, .box-title, legend, caption').first().text().trim();
+
+      table.find('tbody tr, tr').each((rowIdx, tr) => {
         if ($(tr).find('th').length > 0) return; // Skip table header rows
         const tds = $(tr).find('td');
-        if (tds.length >= 3) {
-          const subjectRaw = subjectCol < tds.length ? $(tds[subjectCol]).text().trim() : '';
-          let semester = semCol < tds.length ? $(tds[semCol]).text().trim() : 'IIIrd Semester';
+        if (tds.length >= 2) {
+          const subjectRaw = subjectCol >= 0 && subjectCol < tds.length ? $(tds[subjectCol]).text().trim() : '';
+          if (!subjectRaw || subjectRaw.toLowerCase().includes('no results found')) return;
+
+          let semester = semCol >= 0 && semCol < tds.length ? $(tds[semCol]).text().trim() : 'IIIrd Semester';
           if (!semester) semester = 'IIIrd Semester';
 
           // Normalize common semester formats so filter matches
@@ -1038,31 +1061,36 @@ export async function etlabFetchResults(
             semester = 'VIIIth Semester';
           }
 
-          const examName = examCol < tds.length ? $(tds[examCol]).text().trim() : 'Continuous Evaluation';
-          const maxMarksStr = maxCol < tds.length ? $(tds[maxCol]).text().trim() : '40';
-          const obtainedMarksStr = marksCol < tds.length ? $(tds[marksCol]).text().trim() : '';
-          const viewResponseLink = viewCol < tds.length ? $(tds[viewCol]).find('a').attr('href') : undefined;
+          let examName = examCol >= 0 && examCol < tds.length ? $(tds[examCol]).text().trim() : '';
+          if (!examName && sectionHeading) {
+            examName = sectionHeading;
+          }
+          if (!examName) {
+            examName = 'Continuous Evaluation';
+          }
+
+          const maxMarksStr = maxCol >= 0 && maxCol < tds.length ? $(tds[maxCol]).text().trim() : '';
+          const marksStr = marksCol >= 0 && marksCol < tds.length ? $(tds[marksCol]).text().trim() : '';
+          const viewResponseLink = viewCol >= 0 && viewCol < tds.length ? $(tds[viewCol]).find('a').attr('href') : undefined;
 
           const parts = subjectRaw.split(/[-–:]/);
-          const subjectCode = parts[0]?.trim() || `SUB${idx}`;
+          const subjectCode = parts[0]?.trim() || `SUB${tableIdx}-${rowIdx}`;
           const rawName = parts.slice(1).join('-').trim() || subjectRaw;
           const subjectName = getCourseFullName(subjectCode, rawName);
 
-          const parsedMax = parseMarksValue(maxMarksStr);
-          const maxMarks = parsedMax !== undefined && parsedMax > 0 ? parsedMax : 40;
-          const obtainedMarks = parseMarksValue(obtainedMarksStr);
+          const { obtainedMarks, maxMarks } = parseScorePair(marksStr, maxMarksStr);
 
           // Strictly categorize using centralized classification
           const classified = classifyAssessmentRecord(subjectCode, subjectName, examName);
 
           records.push({
-            id: `etlab-res-${idx}`,
+            id: `etlab-res-${tableIdx}-${rowIdx}`,
             subjectCode: classified.canonicalCode,
             subjectName: classified.canonicalName,
             semester,
             category: classified.category,
             examName: classified.normalizedExamName,
-            maxMarks,
+            maxMarks, // undefined if not specified upstream; NEVER defaulted to 40
             obtainedMarks,
             isLab: classified.isLab,
             status: obtainedMarks !== undefined ? 'Published' : 'Awaiting marks',
@@ -1074,7 +1102,7 @@ export async function etlabFetchResults(
           });
         }
       });
-    }
+    });
 
     return { success: true, records };
   } catch (error) {
@@ -1159,14 +1187,36 @@ export async function etlabFetchAssignments(
     const table = $('table.items, .grid-view table, table.table, table');
 
     if (table.length) {
-      table.first().find('tbody tr').each((idx, tr) => {
+      let subjectCol = 0;
+      let titleCol = 1;
+      let pubCol = 2;
+      let dueCol = 3;
+      let statusCol = 4;
+      let maxCol = -1;
+      let marksCol = -1;
+
+      const headers = table.first().find('th').map((_, el) => $(el).text().trim().toLowerCase()).get();
+      if (headers.length > 0) {
+        headers.forEach((h, idx) => {
+          if (h.includes('course') || h.includes('subject') || h.includes('paper')) subjectCol = idx;
+          else if (h.includes('title') || h.includes('name') || h.includes('topic') || h.includes('assignment')) titleCol = idx;
+          else if (h.includes('publish') || h.includes('start') || h.includes('given')) pubCol = idx;
+          else if (h.includes('due') || h.includes('submission') || h.includes('deadline')) dueCol = idx;
+          else if (h.includes('status')) statusCol = idx;
+          else if (h.includes('max') || h.includes('maximum') || h.includes('total mark')) maxCol = idx;
+          else if (h.includes('mark') || h.includes('obtained') || h.includes('score')) marksCol = idx;
+        });
+      }
+
+      table.first().find('tbody tr, tr').each((idx, tr) => {
+        if ($(tr).find('th').length > 0) return;
         const tds = $(tr).find('td');
-        if (tds.length >= 3) {
-          const subjectRaw = $(tds[0]).text().trim();
-          const title = $(tds[1]).text().trim();
-          const publishDate = tds.length >= 4 ? $(tds[2]).text().trim() : '';
-          const dueDate = tds.length >= 4 ? $(tds[3]).text().trim() : $(tds[2]).text().trim();
-          const statusRaw = tds.length >= 5 ? $(tds[4]).text().trim().toLowerCase() : '';
+        if (tds.length >= 2) {
+          const subjectRaw = subjectCol < tds.length ? $(tds[subjectCol]).text().trim() : '';
+          const title = titleCol < tds.length ? $(tds[titleCol]).text().trim() : '';
+          const publishDate = pubCol >= 0 && pubCol < tds.length ? $(tds[pubCol]).text().trim() : (tds.length >= 4 ? $(tds[2]).text().trim() : '');
+          const dueDate = dueCol >= 0 && dueCol < tds.length ? $(tds[dueCol]).text().trim() : (tds.length >= 4 ? $(tds[3]).text().trim() : (tds.length >= 3 ? $(tds[2]).text().trim() : ''));
+          const statusRaw = statusCol >= 0 && statusCol < tds.length ? $(tds[statusCol]).text().trim().toLowerCase() : (tds.length >= 5 ? $(tds[4]).text().trim().toLowerCase() : '');
           const rowText = $(tr).text().toLowerCase();
 
           // Skip header or empty rows
@@ -1204,13 +1254,25 @@ export async function etlabFetchAssignments(
           const attachmentUrl = fileLink ? (fileLink.startsWith('http') ? fileLink : `${BASE_URL}${fileLink.startsWith('/') ? '' : '/'}${fileLink}`) : undefined;
           const attachmentName = $(tr).find('a[href*="download"], a[href*="file"], a[href*="assignment"]').text().trim() || undefined;
 
-          // Marks extraction if present
+          // Marks extraction: check dedicated columns first, fallback to regex fraction in row
           let maxMarks: number | undefined;
           let obtainedMarks: number | undefined;
-          const marksMatch = $(tr).text().match(/(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)/);
-          if (marksMatch) {
-            obtainedMarks = parseFloat(marksMatch[1]);
-            maxMarks = parseFloat(marksMatch[2]);
+
+          const maxRaw = maxCol >= 0 && maxCol < tds.length ? $(tds[maxCol]).text().trim() : '';
+          const obtRaw = marksCol >= 0 && marksCol < tds.length ? $(tds[marksCol]).text().trim() : '';
+
+          if (maxRaw || obtRaw) {
+            const parsed = parseScorePair(obtRaw, maxRaw);
+            obtainedMarks = parsed.obtainedMarks;
+            maxMarks = parsed.maxMarks;
+          }
+
+          if (obtainedMarks === undefined || maxMarks === undefined) {
+            const marksMatch = $(tr).text().match(/(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)/);
+            if (marksMatch) {
+              if (obtainedMarks === undefined) obtainedMarks = parseFloat(marksMatch[1]);
+              if (maxMarks === undefined) maxMarks = parseFloat(marksMatch[2]);
+            }
           }
 
           assignments.push({

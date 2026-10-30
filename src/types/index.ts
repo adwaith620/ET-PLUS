@@ -92,7 +92,7 @@ export interface EtlabAssessmentRecord {
   semester: string; // 'IIIrd Semester' | 'IInd Semester' | 'Ist Semester'
   category: string; // 'Sessional Exams' | 'Module Test' | 'Class Projects' | 'Assignments' | 'Tutorials' | 'Seminars' | 'Internal Marks' | 'Lab Evaluation' | 'Lab Internal Test'
   examName: string; // e.g. 'Series Exam 1', 'Series Exam 2'
-  maxMarks: number;
+  maxMarks?: number;
   obtainedMarks?: number;
   viewResponseUrl?: string;
   source?: AcademicSourceType;
