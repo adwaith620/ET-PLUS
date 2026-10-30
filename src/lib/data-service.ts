@@ -22,6 +22,7 @@ import {
   DEMO_TEACHERS_B,
   applyTeachersToSubjects,
   applyTeachersToTimetable,
+  classifyAssessmentRecord,
 } from './course-catalog';
 import { generateDynamicNotifications } from './notifications-service';
 import { getCombinedAnnouncements, getCohortAnnouncements } from './announcements-service';
@@ -736,6 +737,7 @@ export const getResultsPageData = cache(async function getResultsPageData(
     return {
       results: unified.semesterResults,
       assessmentRecords: unified.assessmentRecords,
+      categorizedRecords: unified.categorizedRecords,
       academicStanding: unified.academicStanding,
       sourceHealth: unified.sourceHealth,
       resultsError: unified.resultsError,
@@ -747,7 +749,19 @@ export const getResultsPageData = cache(async function getResultsPageData(
   // Demo mode
   const isStudentB = session.username === '25CTA99' || session.username === 'demo-b';
   const results = isStudentB ? [] : DEMO_RESULTS;
-  const assessmentRecords = isStudentB ? [] : DEMO_ASSESSMENT_RECORDS;
+  const rawRecords = isStudentB ? [] : DEMO_ASSESSMENT_RECORDS;
+  const assessmentRecords = rawRecords.map((rec) => {
+    const classified = classifyAssessmentRecord(rec.subjectCode, rec.subjectName, rec.examName, rec.category);
+    return {
+      ...rec,
+      subjectCode: classified.canonicalCode,
+      subjectName: classified.canonicalName,
+      category: classified.category,
+      examName: classified.normalizedExamName,
+      isLab: classified.isLab,
+      status: rec.obtainedMarks !== undefined ? 'Published' : 'Awaiting marks',
+    };
+  });
   const academicStanding: AcademicStanding | undefined = isStudentB ? undefined : {
     cgpa: 8.78,
     sgpa: 8.85,
@@ -757,7 +771,7 @@ export const getResultsPageData = cache(async function getResultsPageData(
     totalFailed: 0,
     semester: 3,
     status: 'In Good Standing',
-    source: 'unified',
+    source: 'students_etlab',
     lastUpdated: now,
     publishedResults: DEMO_RESULTS.map((r) => ({
       semester: r.semester,
@@ -784,9 +798,18 @@ export const getResultsPageData = cache(async function getResultsPageData(
   setCachedStudentData(session.username, 'resultsSourceHealth', sourceHealth);
   setCachedStudentData(session.username, 'resultsLastSynced', now);
 
+  const categorizedRecords = {
+    seriesExam1: assessmentRecords.filter((r) => !r.isLab && r.category === 'Series Exam 1'),
+    seriesExam2: assessmentRecords.filter((r) => !r.isLab && r.category === 'Series Exam 2'),
+    internalMarks: assessmentRecords.filter((r) => !r.isLab && r.category === 'Internal Marks'),
+    assignmentResults: assessmentRecords.filter((r) => !r.isLab && r.category === 'Assignments'),
+    labResults: assessmentRecords.filter((r) => r.isLab || r.category === 'Lab'),
+  };
+
   return {
     results,
     assessmentRecords,
+    categorizedRecords,
     academicStanding,
     sourceHealth,
     resultsError: undefined,

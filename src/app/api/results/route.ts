@@ -31,6 +31,7 @@ export async function GET(req: NextRequest) {
       {
         success: !data.resultsError,
         records: data.assessmentRecords || [],
+        categorizedRecords: data.categorizedRecords,
         results: data.results || [],
         academicStanding: data.academicStanding,
         sourceHealth: data.sourceHealth,

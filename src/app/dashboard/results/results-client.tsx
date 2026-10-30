@@ -9,7 +9,8 @@ import {
   AcademicStanding,
   AcademicSourceHealth,
 } from '@/types';
-import { isLabCourse } from '@/lib/course-catalog';
+import { recordMatchesCategory } from '@/lib/course-catalog';
+export { recordMatchesCategory };
 import {
   FileText,
   FileCheck2,
@@ -45,77 +46,6 @@ const RESULTS_CATEGORIES: { id: string; label: string; icon: React.ComponentType
   { id: 'Assignments', label: 'Assignment Results', icon: FileCheck2 },
   { id: 'Lab', label: 'Lab Results', icon: FlaskConical },
 ];
-
-function recordMatchesCategory(rec: EtlabAssessmentRecord, category: string): boolean {
-  const exam = (rec.examName || '').toLowerCase();
-  const cat = (rec.category || '').toLowerCase();
-  const sub = (rec.subjectName || '').toLowerCase();
-  const code = (rec.subjectCode || '').toLowerCase();
-
-  const isLab = rec.isLab === true || isLabCourse(rec.subjectCode, rec.subjectName);
-
-  switch (category) {
-    case 'Series Exam 1':
-      if (isLab) return false;
-      return (
-        exam.includes('series 1') ||
-        exam.includes('series exam 1') ||
-        exam.includes('series test 1') ||
-        exam.includes('first series') ||
-        exam.includes('sessional 1') ||
-        exam.includes('series-1') ||
-        (cat.includes('sessional') && (exam.includes('1') || !exam.includes('2')))
-      );
-
-    case 'Series Exam 2':
-      if (isLab) return false;
-      return (
-        exam.includes('series 2') ||
-        exam.includes('series exam 2') ||
-        exam.includes('series test 2') ||
-        exam.includes('second series') ||
-        exam.includes('sessional 2') ||
-        exam.includes('series-2') ||
-        (cat.includes('sessional') && exam.includes('2'))
-      );
-
-    case 'Internal Marks':
-      if (isLab) return false;
-      if (cat.includes('assignment') || exam.includes('assignment')) return false;
-      if (exam.includes('series 1') || exam.includes('series 2') || exam.includes('series exam')) return false;
-      return (
-        cat.includes('internal marks') ||
-        cat.includes('internal mark') ||
-        exam.includes('internal marks') ||
-        exam.includes('continuous assessment') ||
-        cat.includes('module') ||
-        cat.includes('tutorial') ||
-        cat.includes('seminar') ||
-        cat.includes('project')
-      );
-
-    case 'Assignments':
-      // Regular courses route to Assignment Results; Lab courses ((B) suffix) MUST NOT appear here
-      if (isLab) return false;
-      return cat.includes('assignment') || exam.includes('assignment');
-
-    case 'Lab':
-      // Lab courses (ending in (B) or known lab codes/keywords) route to Lab Results
-      return (
-        isLab ||
-        cat.includes('lab') ||
-        cat.includes('practical') ||
-        exam.includes('lab') ||
-        exam.includes('practical') ||
-        sub.includes('practical') ||
-        sub.includes('lab') ||
-        code.includes('(b)')
-      );
-
-    default:
-      return false;
-  }
-}
 
 export function ResultsClient({
   assessmentRecords = [],
@@ -200,14 +130,23 @@ export function ResultsClient({
     }
   };
 
-  // Filter records by selected semester and category
-  const filteredRecords = React.useMemo(
-    () =>
-      records.filter(
-        (rec) => rec.semester === selectedSem && recordMatchesCategory(rec, selectedCategory)
-      ),
-    [records, selectedSem, selectedCategory]
-  );
+  // Filter records by selected semester and category, with deterministic deduplication safety
+  const filteredRecords = React.useMemo(() => {
+    const matching = records.filter(
+      (rec) => rec.semester === selectedSem && recordMatchesCategory(rec, selectedCategory)
+    );
+
+    const seen = new Set<string>();
+    const deduped: EtlabAssessmentRecord[] = [];
+    for (const rec of matching) {
+      const key = `${(rec.subjectCode || '').trim().toUpperCase()}::${(rec.examName || '').trim().toLowerCase()}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        deduped.push(rec);
+      }
+    }
+    return deduped;
+  }, [records, selectedSem, selectedCategory]);
 
   const selectedCategoryObj = RESULTS_CATEGORIES.find((c) => c.id === selectedCategory);
   const selectedCategoryLabel = selectedCategoryObj ? selectedCategoryObj.label : selectedCategory;

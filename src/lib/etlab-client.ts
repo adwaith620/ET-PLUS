@@ -6,7 +6,9 @@ import {
   getCourseFullName,
   matchApprovedCourse,
   normalizeTimetableSlot,
+  classifyAssessmentRecord,
 } from './course-catalog.ts';
+import { parseMarksValue } from './students-etlab-client.ts';
 
 const BASE_URL = process.env.ETLAB_BASE_URL || 'https://tkmce.etlab.in';
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
@@ -1038,7 +1040,7 @@ export async function etlabFetchResults(
 
           const examName = examCol < tds.length ? $(tds[examCol]).text().trim() : 'Continuous Evaluation';
           const maxMarksStr = maxCol < tds.length ? $(tds[maxCol]).text().trim() : '40';
-          const obtainedMarksStr = marksCol < tds.length ? $(tds[marksCol]).text().trim() : '0';
+          const obtainedMarksStr = marksCol < tds.length ? $(tds[marksCol]).text().trim() : '';
           const viewResponseLink = viewCol < tds.length ? $(tds[viewCol]).find('a').attr('href') : undefined;
 
           const parts = subjectRaw.split(/[-–:]/);
@@ -1046,40 +1048,24 @@ export async function etlabFetchResults(
           const rawName = parts.slice(1).join('-').trim() || subjectRaw;
           const subjectName = getCourseFullName(subjectCode, rawName);
 
-          const maxMarks = parseFloat(maxMarksStr) || 40;
-          const obtainedMarks = parseFloat(obtainedMarksStr) || 0;
+          const parsedMax = parseMarksValue(maxMarksStr);
+          const maxMarks = parsedMax !== undefined && parsedMax > 0 ? parsedMax : 40;
+          const obtainedMarks = parseMarksValue(obtainedMarksStr);
 
-          let category = 'Sessional Exams';
-          const examLower = examName.toLowerCase();
-          if (examLower.includes('series') || examLower.includes('sessional')) {
-            category = 'Sessional Exams';
-          } else if (examLower.includes('module')) {
-            category = 'Module Test';
-          } else if (examLower.includes('project')) {
-            category = 'Class Projects';
-          } else if (examLower.includes('assignment')) {
-            category = 'Assignments';
-          } else if (examLower.includes('tutorial')) {
-            category = 'Tutorials';
-          } else if (examLower.includes('seminar')) {
-            category = 'Seminars';
-          } else if (examLower.includes('internal marks')) {
-            category = 'Internal Marks';
-          } else if (examLower.includes('lab evaluation') || examLower.includes('day-to-day')) {
-            category = 'Lab Evaluation';
-          } else if (examLower.includes('lab') || examLower.includes('practical')) {
-            category = 'Lab Internal Test';
-          }
+          // Strictly categorize using centralized classification
+          const classified = classifyAssessmentRecord(subjectCode, subjectName, examName);
 
           records.push({
             id: `etlab-res-${idx}`,
-            subjectCode,
-            subjectName,
+            subjectCode: classified.canonicalCode,
+            subjectName: classified.canonicalName,
             semester,
-            category,
-            examName,
+            category: classified.category,
+            examName: classified.normalizedExamName,
             maxMarks,
             obtainedMarks,
+            isLab: classified.isLab,
+            status: obtainedMarks !== undefined ? 'Published' : 'Awaiting marks',
             viewResponseUrl: viewResponseLink
               ? (viewResponseLink.startsWith('http')
                   ? viewResponseLink

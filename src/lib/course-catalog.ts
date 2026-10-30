@@ -419,6 +419,241 @@ export function isLabCourse(courseCode?: string, courseName?: string): boolean {
   return false;
 }
 
+export type AssessmentCategory =
+  | 'Series Exam 1'
+  | 'Series Exam 2'
+  | 'Internal Marks'
+  | 'Assignments'
+  | 'Lab';
+
+export interface ClassifiedAssessment {
+  canonicalCode: string;
+  canonicalName: string;
+  isLab: boolean;
+  category: AssessmentCategory;
+  normalizedExamName: string;
+}
+
+/**
+ * Classifies an examination or assessment record strictly and exclusively into exactly ONE category:
+ *
+ * 1. Lab Results ('Lab'):
+ *    - All records belonging to courses ending in `(B)` or `[B]`, KTU lab courses, or practical keywords.
+ *    - Series Exam 1, Series Exam 2, or Lab Internal tests for `(B)` courses route EXCLUSIVELY to Lab Results.
+ *    - Never appears in regular Series Exam 1, Series Exam 2, Internal Marks, or Assignment Results.
+ *
+ * 2. Series Exam 1 ('Series Exam 1'):
+ *    - Strictly theory Series Exam 1 records from Classic ETLAB.
+ *    - Excludes Series Exam 2, assignments, internal assessments, and lab courses.
+ *
+ * 3. Series Exam 2 ('Series Exam 2'):
+ *    - Strictly theory Series Exam 2 records from Classic ETLAB.
+ *    - Excludes Series Exam 1, assignments, internal assessments, and lab courses.
+ *
+ * 4. Assignments ('Assignments'):
+ *    - Strictly genuine assignment records from the authoritative assignment source.
+ *    - Never includes series examinations or internal assessment records.
+ *
+ * 5. Internal Marks ('Internal Marks'):
+ *    - Genuine continuous assessment records from Classic ETLAB (CIA, Module Tests, Tutorials, Class Projects, Seminars).
+ *    - Strictly excludes Series Exam 1, Series Exam 2, and assignments.
+ */
+export function classifyAssessmentRecord(
+  rawCode: string = '',
+  rawSubjectName: string = '',
+  rawExamName: string = '',
+  rawCategory?: string
+): ClassifiedAssessment {
+  const canonical = matchApprovedCourse(rawCode) || matchApprovedCourse(rawSubjectName);
+  const canonicalCode = canonical ? canonical.courseCode : rawCode.trim().toUpperCase();
+  const canonicalName = canonical ? canonical.courseName : (rawSubjectName.trim() || canonicalCode);
+
+  // Check if course is a lab course:
+  // 1. Detect standalone trailing (B) or [B] suffix in code or name
+  // 2. Check for explicit lab / laboratory / practical / workshop in name
+  // 3. Check for KTU lab code patterns (e.g. CYL100, 24CYL100, ESL102)
+  // 4. Strictly avoid false positives like 24CST302, 24EST382, 24EST102, 24HUT101
+  const isLab = isLabCourse(canonicalCode, canonicalName) || isLabCourse(rawCode, rawSubjectName);
+
+  const examLower = rawExamName.toLowerCase().trim();
+  const catLower = (rawCategory || '').toLowerCase().trim();
+
+  // RULE 1: All lab course records ((B) suffix or lab practicals) route EXCLUSIVELY to Lab Results.
+  if (isLab) {
+    let normalizedExam = rawExamName.trim();
+    if (!normalizedExam) {
+      normalizedExam = 'Lab Evaluation';
+    }
+    return {
+      canonicalCode,
+      canonicalName,
+      isLab: true,
+      category: 'Lab',
+      normalizedExamName: normalizedExam,
+    };
+  }
+
+  // RULE 2: Theory Courses (not lab)
+
+  // Strict Series Exam 1 check
+  const isSeries1 =
+    /\b(?:series\s*(?:exam\s*)?1|first\s*series|series\s*test\s*1|sessional\s*(?:exam\s*)?1|series-1)\b/i.test(examLower) ||
+    ((catLower.includes('series') || catLower.includes('sessional')) &&
+      (/\b(?:1|first|i)\b/i.test(examLower) || examLower.includes('series 1')) &&
+      !/\b(?:2|second|ii)\b/i.test(examLower) &&
+      !examLower.includes('series 2'));
+
+  // Strict Series Exam 2 check
+  const isSeries2 =
+    /\b(?:series\s*(?:exam\s*)?2|second\s*series|series\s*test\s*2|sessional\s*(?:exam\s*)?2|series-2)\b/i.test(examLower) ||
+    ((catLower.includes('series') || catLower.includes('sessional')) &&
+      (/\b(?:2|second|ii)\b/i.test(examLower) || examLower.includes('series 2')) &&
+      !/\b(?:1|first|i)\b/i.test(examLower) &&
+      !examLower.includes('series 1'));
+
+  // Strict Assignment check: genuine assignment keyword, strictly excluding series exams
+  const isAssignment =
+    (catLower.includes('assignment') ||
+      examLower.includes('assignment') ||
+      catLower.includes('homework') ||
+      examLower.includes('homework') ||
+      catLower.includes('self-study') ||
+      examLower.includes('self-study')) &&
+    !isSeries1 &&
+    !isSeries2;
+
+  if (isSeries1 && !isSeries2 && !isAssignment) {
+    return {
+      canonicalCode,
+      canonicalName,
+      isLab: false,
+      category: 'Series Exam 1',
+      normalizedExamName: 'Series Exam 1',
+    };
+  }
+
+  if (isSeries2 && !isSeries1 && !isAssignment) {
+    return {
+      canonicalCode,
+      canonicalName,
+      isLab: false,
+      category: 'Series Exam 2',
+      normalizedExamName: 'Series Exam 2',
+    };
+  }
+
+  if (isAssignment) {
+    return {
+      canonicalCode,
+      canonicalName,
+      isLab: false,
+      category: 'Assignments',
+      normalizedExamName: rawExamName.trim() || 'Assignment',
+    };
+  }
+
+  // Otherwise: Genuine internal assessment from Classic ETLAB (CIA, Module Test, Tutorial, Seminar, etc.)
+  // Strictly excludes Series 1, Series 2, and Assignments
+  return {
+    canonicalCode,
+    canonicalName,
+    isLab: false,
+    category: 'Internal Marks',
+    normalizedExamName: rawExamName.trim() || 'Continuous Assessment (CIA)',
+  };
+}
+
+/**
+ * Validates whether an assessment record matches the specified tab category.
+ * Enforces strict exclusive partition:
+ * - Lab Results: All records with course codes ending in (B) or lab practicals
+ * - Series Exam 1: Classic ETLAB Series Exam 1 theory records only
+ * - Series Exam 2: Classic ETLAB Series Exam 2 theory records only
+ * - Internal Marks: Classic ETLAB genuine internal assessments only (excludes series & assignments)
+ * - Assignment Results: Genuine assignment records only (excludes series & internal assessments)
+ */
+export function recordMatchesCategory(
+  rec: {
+    subjectCode?: string;
+    subjectName?: string;
+    examName?: string;
+    category?: string;
+    isLab?: boolean;
+  },
+  category: string
+): boolean {
+  const isLab = rec.isLab === true || isLabCourse(rec.subjectCode, rec.subjectName);
+
+  // RULE 1: All lab course records ((B) suffix or practical courses) route EXCLUSIVELY to Lab Results
+  if (isLab) {
+    return category === 'Lab';
+  }
+
+  // Theory courses can NEVER appear in Lab Results
+  if (category === 'Lab') {
+    return false;
+  }
+
+  const exam = (rec.examName || '').toLowerCase().trim();
+  const cat = (rec.category || '').toLowerCase().trim();
+
+  // Strict Assignment check: never allow assignments into series exam or internal marks sections
+  const isAssignment =
+    cat === 'assignments' ||
+    cat.includes('assignment') ||
+    exam.includes('assignment') ||
+    cat.includes('homework') ||
+    exam.includes('homework') ||
+    cat.includes('self-study') ||
+    exam.includes('self-study');
+
+  // Strict Series 1 check
+  const isSeries1 =
+    cat === 'series exam 1' ||
+    (/\b(?:series\s*(?:exam\s*)?1|first\s*series|series\s*test\s*1|sessional\s*(?:exam\s*)?1|series-1)\b/i.test(exam) &&
+      !/\b(?:2|second)\b/i.test(exam) &&
+      !exam.includes('series 2'));
+
+  // Strict Series 2 check
+  const isSeries2 =
+    cat === 'series exam 2' ||
+    (/\b(?:series\s*(?:exam\s*)?2|second\s*series|series\s*test\s*2|sessional\s*(?:exam\s*)?2|series-2)\b/i.test(exam) &&
+      !/\b(?:1|first)\b/i.test(exam) &&
+      !exam.includes('series 1'));
+
+  switch (category) {
+    case 'Series Exam 1':
+      return isSeries1 && !isSeries2 && !isAssignment;
+
+    case 'Series Exam 2':
+      return isSeries2 && !isSeries1 && !isAssignment;
+
+    case 'Assignments':
+      return isAssignment && !isSeries1 && !isSeries2;
+
+    case 'Internal Marks':
+      // Internal marks must strictly exclude Series 1, Series 2, and Assignments
+      if (isSeries1 || isSeries2 || isAssignment) {
+        return false;
+      }
+      return (
+        cat === 'internal marks' ||
+        cat.includes('internal') ||
+        exam.includes('internal') ||
+        exam.includes('continuous assessment') ||
+        exam.includes('cia') ||
+        cat.includes('module') ||
+        exam.includes('module') ||
+        cat.includes('tutorial') ||
+        cat.includes('seminar') ||
+        cat.includes('project')
+      );
+
+    default:
+      return false;
+  }
+}
+
 /**
  * Classifies a course into Theory, Lab, or Elective.
  */
