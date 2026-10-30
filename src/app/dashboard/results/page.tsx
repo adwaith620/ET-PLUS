@@ -17,6 +17,8 @@ export default async function ResultsPage() {
     <ResultsClient
       results={data.results}
       assessmentRecords={data.assessmentRecords || []}
+      academicStanding={data.academicStanding}
+      sourceHealth={data.sourceHealth}
       resultsError={data.resultsError}
       mode={data.mode}
       lastSynced={data.lastSynced}

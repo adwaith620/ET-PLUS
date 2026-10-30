@@ -126,17 +126,26 @@ export default function LoginPage() {
       <div className="mt-6 sm:mx-auto sm:w-full sm:max-w-md px-4">
         <div className="bg-white dark:bg-[#1b1d22] py-7 px-6 sm:px-8 rounded-xl border border-[#e7e4de] dark:border-[#2a2d35] shadow-xs">
           {/* Connection Banner */}
-          <div className="mb-5 p-3 rounded-lg bg-[#f9f8f5] dark:bg-[#202227] border border-[#e7e4de] dark:border-[#2a2d35] text-xs text-[#1c1917] dark:text-[#f3f4f6] space-y-1">
-            <div className="flex items-center gap-1.5 font-semibold text-xs">
-              <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-              <span>Authorized TKMCE ETLAB Connection</span>
+          <div className="mb-5 p-3 rounded-lg bg-[#f9f8f5] dark:bg-[#202227] border border-[#e7e4de] dark:border-[#2a2d35] text-xs text-[#1c1917] dark:text-[#f3f4f6] space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 font-semibold text-xs">
+                <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <span>Authorized Multi-Source ETLAB Integration</span>
+              </div>
+              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/50">
+                tkmce
+              </span>
             </div>
             <p className="text-[11px] leading-relaxed text-[#78716c] dark:text-[#9ca3af]">
-              Sign in with your institutional credentials. Your session is authenticated directly with{' '}
+              Default institution configured for <strong>TKM College of Engineering (tkmce)</strong>. Authenticates securely with both{' '}
               <code className="px-1 py-0.5 rounded bg-[#f4f1eb] dark:bg-[#282b33] font-mono text-[10px] text-[#1c1917] dark:text-[#f3f4f6]">
                 tkmce.etlab.in
-              </code>
-              . Passwords are never stored or logged anywhere.
+              </code>{' '}
+              and{' '}
+              <code className="px-1 py-0.5 rounded bg-[#f4f1eb] dark:bg-[#282b33] font-mono text-[10px] text-[#1c1917] dark:text-[#f3f4f6]">
+                students.etlab.app
+              </code>{' '}
+              to retrieve complete internal assessments and KTU university results. Passwords are never stored.
             </p>
           </div>
 

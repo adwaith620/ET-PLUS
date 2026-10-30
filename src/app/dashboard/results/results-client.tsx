@@ -3,7 +3,12 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { EtlabAssessmentRecord, SemesterResult } from '@/types';
+import {
+  EtlabAssessmentRecord,
+  SemesterResult,
+  AcademicStanding,
+  AcademicSourceHealth,
+} from '@/types';
 import {
   FileText,
   FileCheck2,
@@ -14,11 +19,16 @@ import {
   X,
   AlertCircle,
   RefreshCw,
+  Award,
+  Layers,
+  CheckCircle2,
 } from 'lucide-react';
 
 interface ResultsClientProps {
   assessmentRecords?: EtlabAssessmentRecord[];
   results?: SemesterResult[];
+  academicStanding?: AcademicStanding;
+  sourceHealth?: AcademicSourceHealth;
   resultsError?: string;
   mode?: 'live' | 'demo';
   lastSynced?: string;
@@ -65,6 +75,7 @@ function recordMatchesCategory(rec: EtlabAssessmentRecord, category: string): bo
 
     case 'Internal Marks':
       return (
+        rec.source === 'students-etlab' ||
         cat.includes('internal marks') ||
         exam.includes('internal marks') ||
         exam.includes('continuous assessment') ||
@@ -94,16 +105,22 @@ function recordMatchesCategory(rec: EtlabAssessmentRecord, category: string): bo
 
 export function ResultsClient({
   assessmentRecords = [],
+  academicStanding,
+  sourceHealth,
   resultsError,
   lastSynced = 'Just now',
 }: ResultsClientProps) {
   const router = useRouter();
   const [syncedRecords, setSyncedRecords] = useState<EtlabAssessmentRecord[] | null>(null);
+  const [syncedStanding, setSyncedStanding] = useState<AcademicStanding | undefined | null>(null);
+  const [syncedHealth, setSyncedHealth] = useState<AcademicSourceHealth | null>(null);
   const [clientError, setClientError] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [syncTime, setSyncTime] = useState<string>(lastSynced);
 
   const records = syncedRecords ?? assessmentRecords;
+  const currentStanding = syncedStanding !== null ? syncedStanding : academicStanding;
+  const currentHealth = syncedHealth ?? sourceHealth;
   const syncError = clientError !== null ? (clientError || undefined) : resultsError;
 
   const [selectedSem, setSelectedSem] = useState<SemesterOption>('IIIrd Semester');
@@ -120,6 +137,12 @@ export function ResultsClient({
       const data = await res.json();
       if (data.records) {
         setSyncedRecords(data.records);
+      }
+      if (data.academicStanding !== undefined) {
+        setSyncedStanding(data.academicStanding);
+      }
+      if (data.sourceHealth) {
+        setSyncedHealth(data.sourceHealth);
       }
       if (data.lastSynced) {
         setSyncTime(data.lastSynced);
@@ -165,14 +188,14 @@ export function ResultsClient({
         <div>
           <div className="flex items-center gap-2 mb-1">
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#1c1917] dark:text-[#f3f4f6]">
-              Results
+              Results & Academic Performance
             </h1>
             <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-[#f4f1eb] dark:bg-[#202227] text-stone-600 dark:text-stone-400 border border-[#e7e4de] dark:border-[#2a2d35]">
               Synced {syncTime}
             </span>
           </div>
           <p className="text-xs text-[#78716c] dark:text-[#9ca3af]">
-            Continuous internal evaluations, sessional series tests, lab practicals, and coursework marks
+            Consolidated from TKMCE ETLAB Classic and Students ETLAB API (official KTU SGPA/CGPA, series evaluations, and internal marks)
           </p>
         </div>
 
@@ -180,22 +203,128 @@ export function ResultsClient({
           <button
             onClick={handleSync}
             disabled={isSyncing}
-            title="Synchronize examination results with ETLAB"
+            title="Synchronize examination results with ETLAB portals"
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white dark:bg-[#1b1d22] border border-[#e7e4de] dark:border-[#2a2d35] text-[#1c1917] dark:text-[#f3f4f6] hover:bg-[#f9f8f5] dark:hover:bg-[#202227] transition-colors shadow-xs cursor-pointer disabled:opacity-50"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
             <span>{isSyncing ? 'Syncing...' : 'Sync ETLAB'}</span>
           </button>
 
-          <a
-            href="https://tkmce.etlab.in/student/results"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#1c1917] hover:bg-[#292524] text-white dark:bg-[#f3f4f6] dark:hover:bg-white dark:text-[#141518] transition-colors shadow-xs"
-          >
-            <span>Open ETLAB Portal</span>
-            <ExternalLink className="w-3.5 h-3.5" />
-          </a>
+          <div className="flex items-center gap-1">
+            <a
+              href="https://tkmce.etlab.in/student/results"
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Open Classic ETLAB Portal"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#1c1917] hover:bg-[#292524] text-white dark:bg-[#f3f4f6] dark:hover:bg-white dark:text-[#141518] transition-colors shadow-xs"
+            >
+              <span>ETLAB Classic</span>
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+            <a
+              href="https://students.etlab.app"
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Open Students ETLAB Portal"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-stone-100 hover:bg-stone-200 text-stone-700 dark:bg-[#242730] dark:hover:bg-[#2e323e] dark:text-stone-200 border border-[#e7e4de] dark:border-[#2a2d35] transition-colors"
+            >
+              <span>Students App</span>
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+          </div>
+        </div>
+      </div>
+
+      {/* Multi-Source Health Indicator */}
+      <div className="p-3 rounded-xl bg-stone-50 dark:bg-[#181a1f] border border-[#e7e4de] dark:border-[#2a2d35] flex flex-wrap items-center justify-between gap-2.5 text-xs">
+        <div className="flex items-center gap-2">
+          <Layers className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+          <span className="font-semibold text-stone-900 dark:text-stone-100">
+            Multi-Source Integration Active:
+          </span>
+          <span className="text-stone-600 dark:text-stone-400">
+            Institution: <strong className="text-stone-800 dark:text-stone-200">TKMCE (tkmce)</strong>
+          </span>
+        </div>
+        <div className="flex items-center gap-3 text-[11px]">
+          <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400">
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            <span>Classic ETLAB (tkmce.etlab.in)</span>
+          </span>
+          <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400">
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            <span>Students ETLAB (students.etlab.app)</span>
+          </span>
+          {currentHealth?.primarySource && (
+            <span className="px-1.5 py-0.5 rounded font-mono text-[10px] bg-stone-200 dark:bg-stone-800 text-stone-700 dark:text-stone-300">
+              mode: {currentHealth.primarySource}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Academic Standing Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="p-4 rounded-xl bg-white dark:bg-[#1b1d22] border border-[#e7e4de] dark:border-[#2a2d35] shadow-xs space-y-1">
+          <div className="flex items-center justify-between text-xs text-[#78716c] dark:text-[#9ca3af]">
+            <span className="font-medium">Cumulative GPA (CGPA)</span>
+            <Award className="w-3.5 h-3.5 text-amber-500" />
+          </div>
+          <div className="text-2xl font-bold tracking-tight text-stone-900 dark:text-stone-100">
+            {currentStanding?.cgpa !== undefined && currentStanding.cgpa > 0
+              ? currentStanding.cgpa.toFixed(2)
+              : '--'}
+          </div>
+          <p className="text-[11px] text-[#78716c] dark:text-[#9ca3af]">
+            {currentStanding?.cgpa
+              ? 'Official KTU Cumulative Score'
+              : 'Awaiting KTU Publication'}
+          </p>
+        </div>
+
+        <div className="p-4 rounded-xl bg-white dark:bg-[#1b1d22] border border-[#e7e4de] dark:border-[#2a2d35] shadow-xs space-y-1">
+          <div className="flex items-center justify-between text-xs text-[#78716c] dark:text-[#9ca3af]">
+            <span className="font-medium">Semester GPA (SGPA)</span>
+            <Calculator className="w-3.5 h-3.5 text-blue-500" />
+          </div>
+          <div className="text-2xl font-bold tracking-tight text-stone-900 dark:text-stone-100">
+            {currentStanding?.sgpa !== undefined && currentStanding.sgpa > 0
+              ? currentStanding.sgpa.toFixed(2)
+              : '--'}
+          </div>
+          <p className="text-[11px] text-[#78716c] dark:text-[#9ca3af]">
+            {currentStanding?.semester
+              ? `Semester ${currentStanding.semester} Standing`
+              : 'Latest Semester Score'}
+          </p>
+        </div>
+
+        <div className="p-4 rounded-xl bg-white dark:bg-[#1b1d22] border border-[#e7e4de] dark:border-[#2a2d35] shadow-xs space-y-1">
+          <div className="flex items-center justify-between text-xs text-[#78716c] dark:text-[#9ca3af]">
+            <span className="font-medium">Earned Credits</span>
+            <FileCheck2 className="w-3.5 h-3.5 text-emerald-500" />
+          </div>
+          <div className="text-2xl font-bold tracking-tight text-stone-900 dark:text-stone-100">
+            {currentStanding?.creditsEarned !== undefined && currentStanding.creditsEarned > 0
+              ? `${currentStanding.creditsEarned} / ${currentStanding.totalCredits || '--'}`
+              : '--'}
+          </div>
+          <p className="text-[11px] text-[#78716c] dark:text-[#9ca3af]">
+            Academic Degree Progress
+          </p>
+        </div>
+
+        <div className="p-4 rounded-xl bg-white dark:bg-[#1b1d22] border border-[#e7e4de] dark:border-[#2a2d35] shadow-xs space-y-1">
+          <div className="flex items-center justify-between text-xs text-[#78716c] dark:text-[#9ca3af]">
+            <span className="font-medium">Academic Status</span>
+            <span className="w-2 h-2 rounded-full bg-emerald-500" />
+          </div>
+          <div className="text-lg font-bold tracking-tight text-stone-900 dark:text-stone-100 truncate">
+            {currentStanding?.status || 'In Good Standing'}
+          </div>
+          <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
+            Active Regular Registration
+          </p>
         </div>
       </div>
 
@@ -285,7 +414,7 @@ export function ResultsClient({
           {isSyncing ? (
             <span className="flex items-center gap-1.5 text-stone-600 dark:text-stone-300">
               <RefreshCw className="w-3 h-3 animate-spin text-stone-500" />
-              <span>Connecting and synchronizing with ETLAB...</span>
+              <span>Connecting and synchronizing with ETLAB sources...</span>
             </span>
           ) : syncError ? (
             <span>Synchronization paused.</span>
@@ -314,13 +443,16 @@ export function ResultsClient({
                 SEMESTER
               </th>
               <th className="p-3.5 font-semibold text-[#78716c] dark:text-[#9ca3af] uppercase tracking-wider text-[11px] whitespace-nowrap">
-                EXAM
+                EXAM / EVALUATION
+              </th>
+              <th className="p-3.5 font-semibold text-[#78716c] dark:text-[#9ca3af] uppercase tracking-wider text-[11px] whitespace-nowrap">
+                DATA SOURCE
               </th>
               <th className="p-3.5 font-semibold text-[#78716c] dark:text-[#9ca3af] uppercase tracking-wider text-right text-[11px] whitespace-nowrap">
-                MAXIMUM MARKS
+                MAX MARKS
               </th>
               <th className="p-3.5 font-semibold text-[#78716c] dark:text-[#9ca3af] uppercase tracking-wider text-right text-[11px] whitespace-nowrap">
-                OBTAINED MARKS
+                OBTAINED
               </th>
               <th className="p-3.5 font-semibold text-[#78716c] dark:text-[#9ca3af] uppercase tracking-wider text-center text-[11px] whitespace-nowrap">
                 STATUS / VIEW
@@ -330,7 +462,7 @@ export function ResultsClient({
           <tbody className="divide-y divide-[#efece6] dark:divide-[#262831]">
             {isSyncing ? (
               <tr>
-                <td colSpan={6} className="p-12 sm:p-16 text-center text-xs text-[#78716c] dark:text-[#9ca3af]">
+                <td colSpan={7} className="p-12 sm:p-16 text-center text-xs text-[#78716c] dark:text-[#9ca3af]">
                   <div className="flex flex-col items-center justify-center space-y-3 py-4">
                     <div className="relative w-10 h-10" role="status" aria-label="Connecting to ETLAB">
                       <div className="w-10 h-10 rounded-full border-2 border-stone-200 dark:border-stone-800" />
@@ -341,7 +473,7 @@ export function ResultsClient({
                         Connecting to ETLAB...
                       </p>
                       <p className="text-xs text-stone-500 dark:text-stone-400">
-                        Synchronizing examination records and evaluations. Please wait...
+                        Synchronizing examination records, internal assessments, and official university results...
                       </p>
                     </div>
                   </div>
@@ -349,7 +481,7 @@ export function ResultsClient({
               </tr>
             ) : filteredRecords.length === 0 ? (
               <tr>
-                <td colSpan={6} className="p-12 text-center text-xs text-[#78716c] dark:text-[#9ca3af]">
+                <td colSpan={7} className="p-12 text-center text-xs text-[#78716c] dark:text-[#9ca3af]">
                   <div className="space-y-2 max-w-md mx-auto">
                     <p className="font-semibold text-[#1c1917] dark:text-[#f3f4f6] text-sm">
                       No records available
@@ -372,9 +504,11 @@ export function ResultsClient({
               </tr>
             ) : (
               filteredRecords.map((rec) => {
+                const hasScore = rec.obtainedMarks !== undefined && rec.obtainedMarks >= 0;
                 const percentage =
-                  rec.maxMarks > 0 ? (rec.obtainedMarks / rec.maxMarks) * 100 : 0;
+                  rec.maxMarks > 0 && hasScore ? (rec.obtainedMarks / rec.maxMarks) * 100 : 0;
                 const isPassing = percentage >= 40;
+                const isStudentsApi = rec.source === 'students-etlab';
 
                 return (
                   <tr
@@ -397,23 +531,46 @@ export function ResultsClient({
                         {rec.examName}
                       </span>
                     </td>
+                    <td className="p-3.5 whitespace-nowrap">
+                      <span
+                        className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium border ${
+                          isStudentsApi
+                            ? 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800/50'
+                            : 'bg-stone-100 text-stone-700 border-stone-200 dark:bg-stone-800 dark:text-stone-300 dark:border-stone-700'
+                        }`}
+                      >
+                        {isStudentsApi ? 'Students API' : 'Classic ETLAB'}
+                      </span>
+                    </td>
                     <td className="p-3.5 text-right font-mono font-medium text-stone-600 dark:text-stone-400">
-                      {rec.maxMarks}
+                      {rec.maxMarks > 0 ? rec.maxMarks : '--'}
                     </td>
                     <td className="p-3.5 text-right font-mono font-bold text-stone-900 dark:text-stone-100">
-                      {rec.obtainedMarks}
+                      {hasScore ? (
+                        rec.obtainedMarks
+                      ) : (
+                        <span className="text-[11px] font-normal text-amber-600 dark:text-amber-400">
+                          Awaited
+                        </span>
+                      )}
                     </td>
                     <td className="p-3.5 text-center whitespace-nowrap">
                       <div className="flex items-center justify-center gap-2">
-                        <span
-                          className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${
-                            isPassing
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/60'
-                              : 'bg-red-50 text-red-700 border-red-200/80 dark:bg-red-950/40 dark:text-red-400 dark:border-red-800/60'
-                          }`}
-                        >
-                          {percentage.toFixed(1)}%
-                        </span>
+                        {hasScore ? (
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${
+                              isPassing
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/60'
+                                : 'bg-red-50 text-red-700 border-red-200/80 dark:bg-red-950/40 dark:text-red-400 dark:border-red-800/60'
+                            }`}
+                          >
+                            {percentage.toFixed(1)}%
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-400 border border-stone-200 dark:border-stone-700">
+                            Pending
+                          </span>
+                        )}
 
                         {rec.viewResponseUrl && (
                           <button
@@ -442,7 +599,7 @@ export function ResultsClient({
             <div className="flex items-start justify-between pb-3 border-b border-[#e7e4de] dark:border-[#2a2d35]">
               <div>
                 <h3 className="font-bold text-base text-stone-900 dark:text-stone-100">
-                  {selectedRecord.examName} — Answer Sheet
+                  {selectedRecord.examName} — Evaluation Details
                 </h3>
                 <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
                   {selectedRecord.subjectName} ({selectedRecord.subjectCode})
@@ -458,15 +615,25 @@ export function ResultsClient({
 
             <div className="p-4 rounded-lg bg-[#f9f8f5] dark:bg-[#202227] border border-[#e7e4de] dark:border-[#2a2d35] text-xs space-y-2">
               <div className="flex justify-between">
+                <span className="text-stone-500">Source:</span>
+                <span className="font-medium text-stone-900 dark:text-stone-100">
+                  {selectedRecord.source === 'students-etlab'
+                    ? 'Students ETLAB (students.etlab.app)'
+                    : 'Classic ETLAB (tkmce.etlab.in)'}
+                </span>
+              </div>
+              <div className="flex justify-between">
                 <span className="text-stone-500">Maximum Marks:</span>
                 <span className="font-mono font-bold text-stone-900 dark:text-stone-100">
-                  {selectedRecord.maxMarks}
+                  {selectedRecord.maxMarks > 0 ? selectedRecord.maxMarks : 'Not specified'}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-stone-500">Obtained Score:</span>
                 <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
-                  {selectedRecord.obtainedMarks}
+                  {selectedRecord.obtainedMarks !== undefined && selectedRecord.obtainedMarks >= 0
+                    ? selectedRecord.obtainedMarks
+                    : 'Awaiting Evaluation'}
                 </span>
               </div>
               <div className="flex justify-between">

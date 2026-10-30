@@ -62,6 +62,12 @@ export async function createSession(
     username: string;
     displayName: string;
     sessionId?: string;
+    studentsToken?: string;
+    instituteId?: string;
+    sourcesConnected?: {
+      etlab: boolean;
+      studentsEtlab: boolean;
+    };
     profile?: StudentProfile;
   }
 ): Promise<void> {

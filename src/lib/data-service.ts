@@ -13,7 +13,7 @@ import {
   DEMO_ANNOUNCEMENTS,
 } from './demo-data';
 import { calculateAttendanceSummary } from './attendance-calculator';
-import { etlabFetchProfile, etlabFetchAttendance, etlabFetchResults, etlabFetchTimetable, etlabFetchTeachers } from './etlab-client';
+import { etlabFetchProfile, etlabFetchAttendance, etlabFetchTimetable, etlabFetchTeachers } from './etlab-client';
 import {
   normalizeStudentProfile,
   normalizeSubjectAttendance,
@@ -33,6 +33,10 @@ import {
   deduplicateRequest,
   invalidateStudentCache,
 } from './cache';
+import {
+  getUnifiedResults,
+  getUnifiedAttendance,
+} from './unified-academic-service';
 import type {
   StudentProfile,
   AttendanceSummary,
@@ -46,6 +50,8 @@ import type {
   Announcement,
   NotificationItem,
   TeacherRecord,
+  AcademicStanding,
+  AcademicSourceHealth,
 } from '../types/index.ts';
 
 export { invalidateStudentCache, setCachedStudentData, getCachedStudentData, applyTeachersToSubjects, applyTeachersToTimetable };
@@ -467,44 +473,49 @@ export const getAttendancePageData = cache(async function getAttendancePageData(
     }
   }
 
-  if (session.mode === 'live' && session.sessionId) {
+  if (session.mode === 'live' && (session.sessionId || session.studentsToken)) {
     try {
-      const [attResult, teachersResult] = await Promise.all([
-        etlabFetchAttendance(session.sessionId, session.profile?.semester || 3),
-        etlabFetchTeachers(session.sessionId).catch(() => ({ success: false as const, teachers: undefined, error: 'Teacher synchronization error' })),
-      ]);
-
-      if (!attResult.success && (attResult.error?.toLowerCase().includes('session expired') || attResult.error?.toLowerCase().includes('login'))) {
-        invalidateStudentCache(session.username);
-        await destroySession();
-        return null;
-      }
+      const unified = await getUnifiedAttendance(
+        {
+          sessionId: session.sessionId,
+          studentsToken: session.studentsToken,
+          username: session.username,
+          instituteId: session.instituteId,
+          semester: session.profile?.semester || 3,
+        },
+        effectiveTarget
+      );
 
       let liveTeachers = getCachedStudentData<TeacherRecord[]>(session.username, 'teachers') || [];
-      if (teachersResult && 'teachers' in teachersResult && teachersResult.success && teachersResult.teachers) {
-        liveTeachers = teachersResult.teachers;
-        setCachedStudentData(session.username, 'teachers', liveTeachers);
+      if (session.sessionId && liveTeachers.length === 0) {
+        try {
+          const teachersResult = await etlabFetchTeachers(session.sessionId).catch(() => null);
+          if (teachersResult && 'teachers' in teachersResult && teachersResult.success && teachersResult.teachers) {
+            liveTeachers = teachersResult.teachers;
+            setCachedStudentData(session.username, 'teachers', liveTeachers);
+          }
+        } catch {}
       }
 
-      let subjects: SubjectAttendanceData[] = [];
-      if (attResult.success && attResult.subjects) {
-        subjects = attResult.subjects.map(normalizeSubjectAttendance);
-      }
+      let rawSubjects: SubjectAttendanceData[] = unified.attendance.subjects;
       if (liveTeachers.length > 0) {
-        subjects = applyTeachersToSubjects(subjects, liveTeachers);
+        rawSubjects = applyTeachersToSubjects(rawSubjects, liveTeachers);
       }
-      const summary = calculateAttendanceSummary(subjects, effectiveTarget);
-      if (attResult.success && subjects.length > 0) {
+      const summary = calculateAttendanceSummary(rawSubjects, effectiveTarget);
+
+      if (summary.subjects.length > 0) {
         setCachedStudentData(session.username, `attendance_${effectiveTarget}`, summary);
-        setCachedStudentData(session.username, 'subjects', subjects);
+        setCachedStudentData(session.username, 'subjects', summary.subjects);
       }
+
       return {
         attendance: summary,
         timetable: DEMO_TIMETABLE,
         mode: 'live' as const,
-        attendanceError: attResult.success ? undefined : attResult.error,
-        lastSynced: attResult.success ? now : 'Unavailable',
-        syncSuccess: attResult.success,
+        attendanceError: unified.attendanceError,
+        sourceHealth: unified.sourceHealth,
+        lastSynced: now,
+        syncSuccess: summary.subjects.length > 0,
       };
     } catch {
       return {
@@ -683,10 +694,14 @@ export const getResultsPageData = cache(async function getResultsPageData(forceR
   if (!forceRefresh) {
     const cachedResults = getCachedStudentData<SemesterResult[]>(session.username, 'results');
     const cachedRecords = getCachedStudentData<EtlabAssessmentRecord[]>(session.username, 'assessmentRecords');
+    const cachedStanding = getCachedStudentData<AcademicStanding>(session.username, 'standing');
+    const cachedHealth = getCachedStudentData<AcademicSourceHealth>(session.username, 'resultsSourceHealth');
     if (cachedResults && cachedRecords) {
       return {
         results: cachedResults,
         assessmentRecords: cachedRecords,
+        academicStanding: cachedStanding,
+        sourceHealth: cachedHealth,
         resultsError: undefined,
         mode: session.mode,
         lastSynced: getCachedStudentData<string>(session.username, 'resultsLastSynced') || 'Recently',
@@ -694,24 +709,32 @@ export const getResultsPageData = cache(async function getResultsPageData(forceR
     }
   }
 
-  if (session.mode === 'live' && session.sessionId) {
-    const res = await etlabFetchResults(session.sessionId);
-    const records = res.success && res.records ? res.records : [];
-    const results: SemesterResult[] = [];
-    const error = res.success ? undefined : (res.error || 'Unable to retrieve examination results.');
+  if (session.mode === 'live' && (session.sessionId || session.studentsToken)) {
+    const unified = await getUnifiedResults({
+      sessionId: session.sessionId,
+      studentsToken: session.studentsToken,
+      username: session.username,
+      instituteId: session.instituteId,
+    });
 
-    if (res.success) {
-      setCachedStudentData(session.username, 'results', results);
-      setCachedStudentData(session.username, 'assessmentRecords', records);
+    if (unified.assessmentRecords.length > 0 || unified.semesterResults.length > 0 || unified.academicStanding) {
+      setCachedStudentData(session.username, 'results', unified.semesterResults);
+      setCachedStudentData(session.username, 'assessmentRecords', unified.assessmentRecords);
+      if (unified.academicStanding) {
+        setCachedStudentData(session.username, 'standing', unified.academicStanding);
+      }
+      setCachedStudentData(session.username, 'resultsSourceHealth', unified.sourceHealth);
       setCachedStudentData(session.username, 'resultsLastSynced', now);
     }
 
     return {
-      results,
-      assessmentRecords: records,
-      resultsError: error,
+      results: unified.semesterResults,
+      assessmentRecords: unified.assessmentRecords,
+      academicStanding: unified.academicStanding,
+      sourceHealth: unified.sourceHealth,
+      resultsError: unified.resultsError,
       mode: 'live' as const,
-      lastSynced: res.success ? now : (getCachedStudentData<string>(session.username, 'resultsLastSynced') || undefined),
+      lastSynced: now,
     };
   }
 
@@ -719,14 +742,45 @@ export const getResultsPageData = cache(async function getResultsPageData(forceR
   const isStudentB = session.username === '25CTA99' || session.username === 'demo-b';
   const results = isStudentB ? [] : DEMO_RESULTS;
   const assessmentRecords = isStudentB ? [] : DEMO_ASSESSMENT_RECORDS;
+  const academicStanding: AcademicStanding | undefined = isStudentB ? undefined : {
+    cgpa: 8.78,
+    sgpa: 8.85,
+    creditsEarned: 37,
+    totalCredits: 60,
+    semester: 3,
+    status: 'In Progress',
+    source: 'unified',
+    lastUpdated: now,
+    publishedResults: DEMO_RESULTS.map((r) => ({
+      semester: r.semester,
+      sgpa: r.sgpa,
+      cgpa: r.cgpa,
+      creditsEarned: r.creditsEarned,
+      totalCredits: r.totalCredits,
+      status: r.status,
+      academicYear: r.academicYear,
+      subjects: r.subjects,
+    })),
+  };
+
+  const sourceHealth: AcademicSourceHealth = {
+    etlabClassic: { connected: true, lastSynced: now },
+    studentsEtlab: { connected: true, lastSynced: now },
+    primarySource: 'unified',
+    lastUpdated: now,
+  };
 
   setCachedStudentData(session.username, 'results', results);
   setCachedStudentData(session.username, 'assessmentRecords', assessmentRecords);
+  setCachedStudentData(session.username, 'standing', academicStanding);
+  setCachedStudentData(session.username, 'resultsSourceHealth', sourceHealth);
   setCachedStudentData(session.username, 'resultsLastSynced', now);
 
   return {
     results,
     assessmentRecords,
+    academicStanding,
+    sourceHealth,
     resultsError: undefined,
     mode: 'demo' as const,
     lastSynced: now,

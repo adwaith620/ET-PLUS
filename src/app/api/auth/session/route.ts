@@ -9,13 +9,18 @@ export async function GET() {
     return NextResponse.json({ authenticated: false, session: null }, { status: 401, headers: PRIVATE_CACHE_HEADERS });
   }
 
-  // Safe public session projection (no private session keys)
+  // Safe public session projection (no private session keys or tokens)
   return NextResponse.json({
     authenticated: true,
     session: {
       mode: session.mode,
       username: session.username,
       displayName: session.displayName,
+      instituteId: session.instituteId || 'tkmce',
+      sourcesConnected: session.sourcesConnected || {
+        etlab: Boolean(session.sessionId),
+        studentsEtlab: Boolean(session.studentsToken),
+      },
       profile: session.profile,
     },
   }, { headers: PRIVATE_CACHE_HEADERS });

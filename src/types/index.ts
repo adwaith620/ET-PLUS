@@ -24,6 +24,8 @@ export interface SubjectAttendanceData {
   attendedHours: number;
   totalHours: number;
   category?: 'Theory' | 'Lab' | 'Elective';
+  source?: AcademicSourceType;
+  sourceLabel?: string;
 }
 
 export interface TeacherRecord {
@@ -93,6 +95,8 @@ export interface EtlabAssessmentRecord {
   maxMarks: number;
   obtainedMarks: number;
   viewResponseUrl?: string;
+  source?: AcademicSourceType;
+  sourceLabel?: string;
 }
 
 export interface Assignment {
@@ -164,6 +168,8 @@ export interface SemesterResult {
   totalCredits: number;
   status: 'Passed' | 'Result Published' | 'In Progress' | 'Awaited';
   subjects: AssessmentMarkItem[];
+  source?: AcademicSourceType;
+  sourceLabel?: string;
 }
 
 export interface Announcement {
@@ -201,6 +207,88 @@ export interface AuthSession {
   mode: 'live' | 'demo';
   username: string;
   displayName: string;
-  sessionId?: string; // ETLAB TKMSESSIONID for live session
+  sessionId?: string; // Source 1: ETLAB classic TKMSESSIONID
+  studentsToken?: string; // Source 2: Students ETLAB bearer token
+  instituteId?: string; // Default: 'tkmce'
+  sourcesConnected?: {
+    etlab: boolean;
+    studentsEtlab: boolean;
+  };
   expiresAt: number;
+}
+
+export type AcademicSourceType =
+  | 'etlab_classic'
+  | 'etlab-classic'
+  | 'students_etlab'
+  | 'students-etlab'
+  | 'unified'
+  | 'demo';
+
+export interface InstitutionConfig {
+  id: string; // e.g. 'tkmce'
+  name: string; // e.g. 'TKM College of Engineering, Kollam'
+  shortName: string; // e.g. 'TKMCE'
+  apiBaseUrl?: string; // defaults to 'https://api.students.etlab.app/api/v1'
+  portalDomain?: string; // 'tkmce.etlab.in'
+}
+
+export interface StudentsEtlabLoginResult {
+  success: boolean;
+  token?: string;
+  userData?: {
+    id?: number | string;
+    uname?: string;
+    username?: string;
+    profile_name?: string;
+    user_type?: string;
+    admission_no?: string;
+    batch?: string;
+    semester?: number | string;
+    department?: string;
+    institution?: string;
+    [key: string]: unknown;
+  };
+  error?: string;
+  errorCategory?: 'TIMEOUT' | 'UPSTREAM_UNAVAILABLE' | 'INVALID_CREDENTIALS' | 'MALFORMED_RESPONSE' | 'VALIDATION';
+  statusCode?: number;
+}
+
+export interface AcademicSourceHealth {
+  etlabClassic: {
+    connected: boolean;
+    latencyMs?: number;
+    lastSynced?: string;
+    error?: string;
+  };
+  studentsEtlab: {
+    connected: boolean;
+    latencyMs?: number;
+    lastSynced?: string;
+    error?: string;
+  };
+  primarySource: AcademicSourceType;
+  lastUpdated?: string;
+}
+
+export interface AcademicStanding {
+  cgpa?: number;
+  sgpa?: number;
+  creditsEarned?: number;
+  totalCredits?: number;
+  semester?: number;
+  status?: string;
+  source: AcademicSourceType;
+  lastUpdated?: string;
+  academicYear?: string;
+  publishedResults?: {
+    semester: number;
+    sgpa?: number;
+    cgpa?: number;
+    creditsEarned?: number;
+    totalCredits?: number;
+    status: string;
+    academicYear?: string;
+    subjects?: AssessmentMarkItem[];
+  }[];
 }

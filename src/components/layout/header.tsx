@@ -125,6 +125,12 @@ export function Header({
 
         {/* Right: Sync, Notifications, Theme, User */}
         <div className="flex items-center gap-1 sm:gap-2">
+          {/* Institution & Source badge */}
+          <div className="hidden xl:flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-[#f4f1eb] dark:bg-[#202227] text-stone-600 dark:text-stone-400 border border-[#e7e4de] dark:border-[#2a2d35] mr-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+            <span>TKMCE Dual-Source</span>
+          </div>
+
           {/* Sync status */}
           <div className="hidden lg:flex items-center gap-1.5 text-xs text-stone-500 dark:text-stone-400 mr-2">
             <span>{lastSynced === 'Unavailable' ? 'Sync Unavailable' : `Synced ${lastSynced}`}</span>

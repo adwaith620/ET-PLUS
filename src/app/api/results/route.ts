@@ -31,6 +31,8 @@ export async function GET(req: NextRequest) {
         success: !data.resultsError,
         records: data.assessmentRecords || [],
         results: data.results || [],
+        academicStanding: data.academicStanding,
+        sourceHealth: data.sourceHealth,
         resultsError: data.resultsError,
         mode: data.mode,
         lastSynced: data.lastSynced || 'Just now',
