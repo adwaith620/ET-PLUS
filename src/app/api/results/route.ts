@@ -17,8 +17,9 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const forceRefresh = searchParams.get('refresh') === 'true';
+    const semester = searchParams.get('sem') || undefined;
 
-    const data = await getResultsPageData(forceRefresh);
+    const data = await getResultsPageData(forceRefresh, semester);
     if (!data) {
       return NextResponse.json(
         { success: false, error: 'Unable to retrieve examination records.' },

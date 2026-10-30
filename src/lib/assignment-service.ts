@@ -6,6 +6,7 @@ import { getCourseFullName } from './course-catalog.ts';
 import { getAssignmentEffectiveStatus, isUpcomingAssignment } from './assignment-utils.ts';
 import { DEMO_ASSIGNMENTS } from './demo-data.ts';
 import { getCohortAnnouncements } from './announcements-service.ts';
+import { fetchStudentsEtlabEvaluations } from './students-etlab-client.ts';
 import {
   isSupabaseConfigured,
   getSupabaseClient,
@@ -376,6 +377,20 @@ export function normalizeAssignment(asg: Assignment): Assignment {
     submissionMode = asg.submissionMode;
   }
 
+  // Derive submission status accurately
+  let submissionStatus: Assignment['submissionStatus'] = asg.submissionStatus;
+  if (!submissionStatus) {
+    if (asg.obtainedMarks !== undefined && asg.obtainedMarks !== null) {
+      submissionStatus = 'Evaluated';
+    } else if (asg.status === 'submitted' || asg.status === 'completed') {
+      submissionStatus = 'Submitted';
+    } else if (asg.status === 'overdue') {
+      submissionStatus = 'Overdue';
+    } else {
+      submissionStatus = 'Pending';
+    }
+  }
+
   return {
     ...asg,
     id: asg.id || `asg-${code}-${Math.random().toString(36).substring(2, 7)}`,
@@ -383,6 +398,7 @@ export function normalizeAssignment(asg: Assignment): Assignment {
     subject: canonicalName,
     title: (asg.title || 'Untitled Assignment').trim(),
     status: effectiveStatus,
+    submissionStatus,
     submissionMode,
     publishDate: asg.publishDate || 'Not specified',
     dueDate: asg.dueDate || 'Not specified',
@@ -413,10 +429,28 @@ export async function getSynchronizedAssignments(
     }
   }
 
-  // 1. Load saved assignments
+  // 1. Fetch live assignments from Students ETLAB (/evaluations) if session token is available
+  let liveEtlabAssignments: Assignment[] = [];
+  if (session && session.studentsToken) {
+    try {
+      const evalsResult = await fetchStudentsEtlabEvaluations(
+        session.studentsToken,
+        undefined,
+        undefined,
+        session.instituteId
+      );
+      if (evalsResult.assignments && evalsResult.assignments.length > 0) {
+        liveEtlabAssignments = evalsResult.assignments;
+      }
+    } catch {
+      // Gracefully continue with persistent storage
+    }
+  }
+
+  // 2. Load saved assignments
   const saved = await getSavedAssignments();
 
-  // 2. Load cohort announcements and check for any marked as assignment
+  // 3. Load cohort announcements and check for any marked as assignment
   const cohortAnnouncements = await getCohortAnnouncements();
   const announcementAssignments: Assignment[] = [];
   for (const ann of cohortAnnouncements) {
@@ -439,6 +473,7 @@ export async function getSynchronizedAssignments(
           deadlineDate: ann.deadlineDate,
           deadlineTime: ann.deadlineTime,
           status: 'upcoming',
+          submissionStatus: 'Pending',
           description: ann.content,
           externalUrl: ann.link || 'https://tkmce.etlab.in/student/assignments',
           announcementId: ann.id,
@@ -448,14 +483,15 @@ export async function getSynchronizedAssignments(
   }
 
   // Combine and deduplicate
-  const rawList = [...saved, ...announcementAssignments, ...DEMO_ASSIGNMENTS];
+  const baseDemo = session?.mode === 'live' ? [] : DEMO_ASSIGNMENTS;
+  const rawList = [...liveEtlabAssignments, ...saved, ...announcementAssignments, ...baseDemo];
   const normalized = rawList.map(normalizeAssignment);
   const deduplicated = deduplicateAssignments(normalized);
 
   const upcomingList = deduplicated.filter((a) => isUpcomingAssignment(a));
-  const submittedCount = deduplicated.filter((a) => a.status === 'submitted').length;
-  const completedCount = deduplicated.filter((a) => a.status === 'completed').length;
-  const overdueCount = deduplicated.filter((a) => a.status === 'overdue').length;
+  const submittedCount = deduplicated.filter((a) => a.status === 'submitted' || a.submissionStatus === 'Submitted').length;
+  const completedCount = deduplicated.filter((a) => a.status === 'completed' || a.submissionStatus === 'Evaluated').length;
+  const overdueCount = deduplicated.filter((a) => a.status === 'overdue' || a.submissionStatus === 'Overdue').length;
 
   const result: AssignmentSyncResult = {
     success: true,

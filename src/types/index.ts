@@ -93,10 +93,17 @@ export interface EtlabAssessmentRecord {
   category: string; // 'Sessional Exams' | 'Module Test' | 'Class Projects' | 'Assignments' | 'Tutorials' | 'Seminars' | 'Internal Marks' | 'Lab Evaluation' | 'Lab Internal Test'
   examName: string; // e.g. 'Series Exam 1', 'Series Exam 2'
   maxMarks: number;
-  obtainedMarks: number;
+  obtainedMarks?: number;
   viewResponseUrl?: string;
   source?: AcademicSourceType;
   sourceLabel?: string;
+  isLab?: boolean;
+  evaluationTitle?: string;
+  submissionStatus?: string;
+  evaluationDate?: string;
+  deadline?: string;
+  feedback?: string;
+  status?: string;
 }
 
 export interface Assignment {
@@ -118,6 +125,10 @@ export interface Assignment {
   announcementId?: string;
   deadlineDate?: string;
   deadlineTime?: string;
+  semester?: string | number;
+  evaluationType?: string;
+  feedback?: string;
+  submissionStatus?: 'Pending' | 'Not Submitted' | 'Submitted' | 'Evaluated' | 'Awaiting Marks' | 'Overdue';
 }
 
 export interface StudyMaterial {
@@ -276,6 +287,9 @@ export interface AcademicStanding {
   sgpa?: number;
   creditsEarned?: number;
   totalCredits?: number;
+  totalPassed?: number;
+  totalFailed?: number;
+  academicStatus?: string;
   semester?: number;
   status?: string;
   source: AcademicSourceType;

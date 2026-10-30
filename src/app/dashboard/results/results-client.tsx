@@ -9,6 +9,7 @@ import {
   AcademicStanding,
   AcademicSourceHealth,
 } from '@/types';
+import { isLabCourse } from '@/lib/course-catalog';
 import {
   FileText,
   FileCheck2,
@@ -37,21 +38,25 @@ interface ResultsClientProps {
 const SEMESTERS = ['IIIrd Semester', 'IInd Semester', 'Ist Semester'] as const;
 type SemesterOption = typeof SEMESTERS[number];
 
-const RESULTS_CATEGORIES: { label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-  { label: 'Series Exam 1', icon: FileText },
-  { label: 'Series Exam 2', icon: FileText },
-  { label: 'Internal Marks', icon: Calculator },
-  { label: 'Assignments', icon: FileCheck2 },
-  { label: 'Lab', icon: FlaskConical },
+const RESULTS_CATEGORIES: { id: string; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  { id: 'Series Exam 1', label: 'Series Exam 1', icon: FileText },
+  { id: 'Series Exam 2', label: 'Series Exam 2', icon: FileText },
+  { id: 'Internal Marks', label: 'Internal Marks', icon: Calculator },
+  { id: 'Assignments', label: 'Assignment Results', icon: FileCheck2 },
+  { id: 'Lab', label: 'Lab Results', icon: FlaskConical },
 ];
 
 function recordMatchesCategory(rec: EtlabAssessmentRecord, category: string): boolean {
   const exam = (rec.examName || '').toLowerCase();
   const cat = (rec.category || '').toLowerCase();
   const sub = (rec.subjectName || '').toLowerCase();
+  const code = (rec.subjectCode || '').toLowerCase();
+
+  const isLab = rec.isLab === true || isLabCourse(rec.subjectCode, rec.subjectName);
 
   switch (category) {
     case 'Series Exam 1':
+      if (isLab) return false;
       return (
         exam.includes('series 1') ||
         exam.includes('series exam 1') ||
@@ -63,6 +68,7 @@ function recordMatchesCategory(rec: EtlabAssessmentRecord, category: string): bo
       );
 
     case 'Series Exam 2':
+      if (isLab) return false;
       return (
         exam.includes('series 2') ||
         exam.includes('series exam 2') ||
@@ -74,9 +80,12 @@ function recordMatchesCategory(rec: EtlabAssessmentRecord, category: string): bo
       );
 
     case 'Internal Marks':
+      if (isLab) return false;
+      if (cat.includes('assignment') || exam.includes('assignment')) return false;
+      if (exam.includes('series 1') || exam.includes('series 2') || exam.includes('series exam')) return false;
       return (
-        rec.source === 'students-etlab' ||
         cat.includes('internal marks') ||
+        cat.includes('internal mark') ||
         exam.includes('internal marks') ||
         exam.includes('continuous assessment') ||
         cat.includes('module') ||
@@ -86,16 +95,21 @@ function recordMatchesCategory(rec: EtlabAssessmentRecord, category: string): bo
       );
 
     case 'Assignments':
+      // Regular courses route to Assignment Results; Lab courses ((B) suffix) MUST NOT appear here
+      if (isLab) return false;
       return cat.includes('assignment') || exam.includes('assignment');
 
     case 'Lab':
+      // Lab courses (ending in (B) or known lab codes/keywords) route to Lab Results
       return (
+        isLab ||
         cat.includes('lab') ||
         cat.includes('practical') ||
         exam.includes('lab') ||
         exam.includes('practical') ||
         sub.includes('practical') ||
-        sub.includes('lab')
+        sub.includes('lab') ||
+        code.includes('(b)')
       );
 
     default:
@@ -127,13 +141,39 @@ export function ResultsClient({
   const [selectedCategory, setSelectedCategory] = useState<string>('Series Exam 1');
   const [selectedRecord, setSelectedRecord] = useState<EtlabAssessmentRecord | null>(null);
 
+  const handleSelectSemester = async (sem: SemesterOption) => {
+    setSelectedSem(sem);
+    const semNum = sem === 'IIIrd Semester' ? 3 : sem === 'IInd Semester' ? 2 : 1;
+    const hasRecords = records.some((r) => r.semester === sem);
+
+    if (!hasRecords && !isSyncing) {
+      setIsSyncing(true);
+      try {
+        const res = await fetch(`/api/results?sem=${semNum}`);
+        const data = await res.json();
+        if (data.records && data.records.length > 0) {
+          setSyncedRecords((prev) => {
+            const current = prev ?? assessmentRecords;
+            const filteredOther = current.filter((r) => r.semester !== sem);
+            return [...filteredOther, ...data.records];
+          });
+        }
+      } catch {
+        // Fallback gracefully
+      } finally {
+        setIsSyncing(false);
+      }
+    }
+  };
+
   const handleSync = async () => {
     if (isSyncing) return;
     setIsSyncing(true);
     setClientError(null);
 
     try {
-      const res = await fetch('/api/results?refresh=true');
+      const semNum = selectedSem === 'IIIrd Semester' ? 3 : selectedSem === 'IInd Semester' ? 2 : 1;
+      const res = await fetch(`/api/results?refresh=true&sem=${semNum}`);
       const data = await res.json();
       if (data.records) {
         setSyncedRecords(data.records);
@@ -169,6 +209,9 @@ export function ResultsClient({
     [records, selectedSem, selectedCategory]
   );
 
+  const selectedCategoryObj = RESULTS_CATEGORIES.find((c) => c.id === selectedCategory);
+  const selectedCategoryLabel = selectedCategoryObj ? selectedCategoryObj.label : selectedCategory;
+
   return (
     <div className="space-y-6">
       {/* 1. Breadcrumb navigation: Home > Results */}
@@ -195,7 +238,7 @@ export function ResultsClient({
             </span>
           </div>
           <p className="text-xs text-[#78716c] dark:text-[#9ca3af]">
-            Consolidated from TKMCE ETLAB Classic and Students ETLAB API (official KTU SGPA/CGPA, series evaluations, and internal marks)
+            Consolidated from TKMCE ETLAB Classic and Students ETLAB API (official KTU SGPA/CGPA, series evaluations, lab evaluations, and internal marks)
           </p>
         </div>
 
@@ -306,7 +349,7 @@ export function ResultsClient({
           </div>
           <div className="text-2xl font-bold tracking-tight text-stone-900 dark:text-stone-100">
             {currentStanding?.creditsEarned !== undefined && currentStanding.creditsEarned > 0
-              ? `${currentStanding.creditsEarned} / ${currentStanding.totalCredits || '--'}`
+              ? `${currentStanding.creditsEarned} / ${currentStanding.totalCredits || currentStanding.creditsEarned}`
               : '--'}
           </div>
           <p className="text-[11px] text-[#78716c] dark:text-[#9ca3af]">
@@ -323,7 +366,9 @@ export function ResultsClient({
             {currentStanding?.status || 'In Good Standing'}
           </div>
           <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
-            Active Regular Registration
+            {currentStanding?.totalPassed !== undefined
+              ? `${currentStanding.totalPassed} Passed${currentStanding.totalFailed ? ` · ${currentStanding.totalFailed} Failed` : ''}`
+              : 'Active Regular Registration'}
           </p>
         </div>
       </div>
@@ -373,8 +418,8 @@ export function ResultsClient({
           {SEMESTERS.map((sem) => (
             <button
               key={sem}
-              onClick={() => setSelectedSem(sem)}
-              className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              onClick={() => handleSelectSemester(sem)}
+              className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                 selectedSem === sem
                   ? 'bg-white dark:bg-[#1b1d22] text-[#1c1917] dark:text-[#f3f4f6] shadow-xs'
                   : 'text-[#78716c] dark:text-[#9ca3af] hover:text-[#1c1917] dark:hover:text-[#f3f4f6]'
@@ -390,11 +435,11 @@ export function ResultsClient({
       <div className="flex flex-wrap items-center gap-1.5 p-1.5 rounded-xl bg-white dark:bg-[#1b1d22] border border-[#e7e4de] dark:border-[#2a2d35] shadow-xs">
         {RESULTS_CATEGORIES.map((cat) => {
           const Icon = cat.icon;
-          const isActive = selectedCategory === cat.label;
+          const isActive = selectedCategory === cat.id;
           return (
             <button
-              key={cat.label}
-              onClick={() => setSelectedCategory(cat.label)}
+              key={cat.id}
+              onClick={() => setSelectedCategory(cat.id)}
               className={`flex items-center gap-1.5 px-4 py-2 min-h-[38px] rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
                 isActive
                   ? 'bg-[#1c1917] text-white dark:bg-[#f3f4f6] dark:text-[#141518] shadow-xs'
@@ -420,49 +465,40 @@ export function ResultsClient({
             <span>Synchronization paused.</span>
           ) : (
             <>
-              Total <strong className="text-[#1c1917] dark:text-[#f3f4f6]">{filteredRecords.length}</strong> results in {selectedCategory}.
+              Total <strong className="text-[#1c1917] dark:text-[#f3f4f6]">{filteredRecords.length}</strong> results in {selectedCategoryLabel}.
             </>
           )}
         </p>
       </div>
 
-      {/* 5. Main Results Table */}
+      {/* 5. Simplified Results Table (Subject | Examination | Marks | Status) */}
       <div
         className="overflow-x-auto rounded-xl border border-[#e7e4de] dark:border-[#2a2d35] bg-white dark:bg-[#1b1d22] shadow-xs focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:outline-hidden"
         tabIndex={0}
         role="region"
         aria-label="Student examination evaluation records"
       >
-        <table className="w-full text-xs text-left border-collapse min-w-[700px]">
+        <table className="w-full text-xs text-left border-collapse min-w-[550px]">
           <thead>
             <tr className="bg-[#f9f8f5] dark:bg-[#181a1f] border-b border-[#e7e4de] dark:border-[#2a2d35]">
               <th className="p-3.5 font-semibold text-[#78716c] dark:text-[#9ca3af] uppercase tracking-wider text-[11px]">
                 SUBJECT
               </th>
               <th className="p-3.5 font-semibold text-[#78716c] dark:text-[#9ca3af] uppercase tracking-wider text-[11px] whitespace-nowrap">
-                SEMESTER
-              </th>
-              <th className="p-3.5 font-semibold text-[#78716c] dark:text-[#9ca3af] uppercase tracking-wider text-[11px] whitespace-nowrap">
-                EXAM / EVALUATION
-              </th>
-              <th className="p-3.5 font-semibold text-[#78716c] dark:text-[#9ca3af] uppercase tracking-wider text-[11px] whitespace-nowrap">
-                DATA SOURCE
+                EXAMINATION
               </th>
               <th className="p-3.5 font-semibold text-[#78716c] dark:text-[#9ca3af] uppercase tracking-wider text-right text-[11px] whitespace-nowrap">
-                MAX MARKS
-              </th>
-              <th className="p-3.5 font-semibold text-[#78716c] dark:text-[#9ca3af] uppercase tracking-wider text-right text-[11px] whitespace-nowrap">
-                OBTAINED
+                MARKS
               </th>
               <th className="p-3.5 font-semibold text-[#78716c] dark:text-[#9ca3af] uppercase tracking-wider text-center text-[11px] whitespace-nowrap">
-                STATUS / VIEW
+                STATUS
               </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[#efece6] dark:divide-[#262831]">
             {isSyncing ? (
               <tr>
-                <td colSpan={7} className="p-12 sm:p-16 text-center text-xs text-[#78716c] dark:text-[#9ca3af]">
+                <td colSpan={4} className="p-12 sm:p-16 text-center text-xs text-[#78716c] dark:text-[#9ca3af]">
                   <div className="flex flex-col items-center justify-center space-y-3 py-4">
                     <div className="relative w-10 h-10" role="status" aria-label="Connecting to ETLAB">
                       <div className="w-10 h-10 rounded-full border-2 border-stone-200 dark:border-stone-800" />
@@ -481,13 +517,13 @@ export function ResultsClient({
               </tr>
             ) : filteredRecords.length === 0 ? (
               <tr>
-                <td colSpan={7} className="p-12 text-center text-xs text-[#78716c] dark:text-[#9ca3af]">
+                <td colSpan={4} className="p-12 text-center text-xs text-[#78716c] dark:text-[#9ca3af]">
                   <div className="space-y-2 max-w-md mx-auto">
                     <p className="font-semibold text-[#1c1917] dark:text-[#f3f4f6] text-sm">
                       No records available
                     </p>
                     <p className="text-[11px] leading-relaxed">
-                      No evaluation records available for {selectedCategory} in {selectedSem}. Evaluations will appear here once published by the academic department.
+                      No evaluation records available for {selectedCategoryLabel} in {selectedSem}. Evaluations will appear here once published by the academic department.
                     </p>
                     <div className="pt-2">
                       <button
@@ -504,17 +540,17 @@ export function ResultsClient({
               </tr>
             ) : (
               filteredRecords.map((rec) => {
-                const hasScore = rec.obtainedMarks !== undefined && rec.obtainedMarks >= 0;
+                const hasScore = rec.obtainedMarks !== undefined && rec.obtainedMarks !== null && !isNaN(rec.obtainedMarks);
                 const percentage =
-                  rec.maxMarks > 0 && hasScore ? (rec.obtainedMarks / rec.maxMarks) * 100 : 0;
+                  rec.maxMarks > 0 && hasScore ? (rec.obtainedMarks! / rec.maxMarks) * 100 : 0;
                 const isPassing = percentage >= 40;
-                const isStudentsApi = rec.source === 'students-etlab';
 
                 return (
                   <tr
                     key={rec.id}
                     className="hover:bg-[#fbfaf8] dark:hover:bg-[#202228] transition-colors"
                   >
+                    {/* 1. SUBJECT */}
                     <td className="p-3.5">
                       <div className="font-semibold text-stone-900 dark:text-stone-100">
                         {rec.subjectName}
@@ -523,52 +559,54 @@ export function ResultsClient({
                         {rec.subjectCode}
                       </div>
                     </td>
-                    <td className="p-3.5 whitespace-nowrap text-stone-600 dark:text-stone-400">
-                      {rec.semester}
-                    </td>
+
+                    {/* 2. EXAMINATION */}
                     <td className="p-3.5 whitespace-nowrap">
                       <span className="font-medium text-stone-800 dark:text-stone-200">
                         {rec.examName}
                       </span>
                     </td>
-                    <td className="p-3.5 whitespace-nowrap">
-                      <span
-                        className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium border ${
-                          isStudentsApi
-                            ? 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800/50'
-                            : 'bg-stone-100 text-stone-700 border-stone-200 dark:bg-stone-800 dark:text-stone-300 dark:border-stone-700'
-                        }`}
-                      >
-                        {isStudentsApi ? 'Students API' : 'Classic ETLAB'}
-                      </span>
-                    </td>
-                    <td className="p-3.5 text-right font-mono font-medium text-stone-600 dark:text-stone-400">
-                      {rec.maxMarks > 0 ? rec.maxMarks : '--'}
-                    </td>
-                    <td className="p-3.5 text-right font-mono font-bold text-stone-900 dark:text-stone-100">
+
+                    {/* 3. MARKS: obtained/maximum */}
+                    <td className="p-3.5 text-right font-mono font-bold text-stone-900 dark:text-stone-100 whitespace-nowrap">
                       {hasScore ? (
-                        rec.obtainedMarks
+                        rec.maxMarks > 0 ? (
+                          <span>
+                            {rec.obtainedMarks} <span className="font-normal text-stone-400 dark:text-stone-500 text-xs">/ {rec.maxMarks}</span>
+                          </span>
+                        ) : (
+                          rec.obtainedMarks
+                        )
                       ) : (
-                        <span className="text-[11px] font-normal text-amber-600 dark:text-amber-400">
-                          Awaited
+                        <span className="text-[11px] font-medium text-amber-600 dark:text-amber-400">
+                          Awaiting marks
                         </span>
                       )}
                     </td>
+
+                    {/* 4. STATUS */}
                     <td className="p-3.5 text-center whitespace-nowrap">
                       <div className="flex items-center justify-center gap-2">
                         {hasScore ? (
-                          <span
-                            className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${
-                              isPassing
-                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/60'
-                                : 'bg-red-50 text-red-700 border-red-200/80 dark:bg-red-950/40 dark:text-red-400 dark:border-red-800/60'
-                            }`}
-                          >
-                            {percentage.toFixed(1)}%
-                          </span>
+                          <>
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${
+                                isPassing
+                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/60'
+                                  : 'bg-red-50 text-red-700 border-red-200/80 dark:bg-red-950/40 dark:text-red-400 dark:border-red-800/60'
+                              }`}
+                            >
+                              Published
+                            </span>
+                            {percentage > 0 && (
+                              <span className="text-[10px] font-mono text-stone-500 dark:text-stone-400 hidden sm:inline">
+                                {percentage.toFixed(0)}%
+                              </span>
+                            )}
+                          </>
                         ) : (
-                          <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-400 border border-stone-200 dark:border-stone-700">
-                            Pending
+                          <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 border border-amber-200 dark:border-amber-800/60">
+                            Awaiting marks
                           </span>
                         )}
 
@@ -617,9 +655,9 @@ export function ResultsClient({
               <div className="flex justify-between">
                 <span className="text-stone-500">Source:</span>
                 <span className="font-medium text-stone-900 dark:text-stone-100">
-                  {selectedRecord.source === 'students-etlab'
-                    ? 'Students ETLAB (students.etlab.app)'
-                    : 'Classic ETLAB (tkmce.etlab.in)'}
+                  {selectedRecord.source === 'students_etlab' || selectedRecord.source === 'students-etlab'
+                    ? 'Students API'
+                    : 'Classic ETLAB'}
                 </span>
               </div>
               <div className="flex justify-between">
@@ -631,9 +669,9 @@ export function ResultsClient({
               <div className="flex justify-between">
                 <span className="text-stone-500">Obtained Score:</span>
                 <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
-                  {selectedRecord.obtainedMarks !== undefined && selectedRecord.obtainedMarks >= 0
-                    ? selectedRecord.obtainedMarks
-                    : 'Awaiting Evaluation'}
+                  {selectedRecord.obtainedMarks !== undefined && selectedRecord.obtainedMarks !== null
+                    ? `${selectedRecord.obtainedMarks} / ${selectedRecord.maxMarks || '--'}`
+                    : 'Awaiting marks'}
                 </span>
               </div>
               <div className="flex justify-between">
@@ -642,6 +680,22 @@ export function ResultsClient({
                   {selectedRecord.category}
                 </span>
               </div>
+              {selectedRecord.deadline && (
+                <div className="flex justify-between">
+                  <span className="text-stone-500">Deadline:</span>
+                  <span className="text-stone-700 dark:text-stone-300">
+                    {selectedRecord.deadline}
+                  </span>
+                </div>
+              )}
+              {selectedRecord.feedback && (
+                <div className="pt-2 border-t border-[#e7e4de] dark:border-[#2a2d35]">
+                  <span className="text-stone-500 block mb-1">Feedback:</span>
+                  <p className="text-stone-700 dark:text-stone-300 bg-white dark:bg-[#1b1d22] p-2 rounded border border-[#e7e4de] dark:border-[#2a2d35]">
+                    {selectedRecord.feedback}
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="flex justify-end gap-2 pt-2">

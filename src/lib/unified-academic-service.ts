@@ -14,8 +14,12 @@ import {
   fetchStudentsEtlabAttendance,
   fetchStudentsEtlabInternalMarks,
   fetchStudentsEtlabKtuResults,
+  fetchStudentsEtlabEvaluations,
+  fetchStudentsEtlabAcademicAnalysis,
+  fetchStudentsEtlabLabEvals,
+  fetchStudentsEtlabPreviousResults,
 } from './students-etlab-client.ts';
-import { normalizeSubjectAttendance, matchApprovedCourse } from './course-catalog.ts';
+import { normalizeSubjectAttendance, matchApprovedCourse, isLabCourse } from './course-catalog.ts';
 import { calculateAttendanceSummary } from './attendance-calculator.ts';
 import { DEFAULT_INSTITUTION } from './institution-config.ts';
 
@@ -68,6 +72,7 @@ export async function getUnifiedResults(
     studentsToken?: string;
     username: string;
     instituteId?: string;
+    semester?: number | string;
   }
 ): Promise<UnifiedResultsOutput> {
   const instituteId = session.instituteId || DEFAULT_INSTITUTION.id;
@@ -79,32 +84,80 @@ export async function getUnifiedResults(
   };
 
   const recordsMap = new Map<string, EtlabAssessmentRecord>();
-  let semesterResults: SemesterResult[] = [];
+  const semesterResults: SemesterResult[] = [];
   let academicStanding: AcademicStanding | undefined = undefined;
   const errors: string[] = [];
 
   // Parallel fetch from both sources
-  const [s1Result, s2InternalResult, s2KtuResult] = await Promise.allSettled([
+  const [
+    s1Result,
+    s2EvalsResult,
+    s2InternalResult,
+    s2AnalysisResult,
+    s2KtuResult,
+    s2LabResult,
+    s2PrevResult,
+  ] = await Promise.allSettled([
     session.sessionId ? etlabFetchResults(session.sessionId) : Promise.resolve(null),
-    session.studentsToken ? fetchStudentsEtlabInternalMarks(session.studentsToken, undefined, instituteId) : Promise.resolve([]),
-    session.studentsToken
-      ? fetchStudentsEtlabKtuResults(session.studentsToken, undefined, instituteId)
-      : Promise.resolve<{ standing?: AcademicStanding; semesterResults: SemesterResult[] }>({ semesterResults: [] }),
+    session.studentsToken ? fetchStudentsEtlabEvaluations(session.studentsToken, session.semester, undefined, instituteId) : Promise.resolve({ records: [], assignments: [] }),
+    session.studentsToken ? fetchStudentsEtlabInternalMarks(session.studentsToken, session.semester, instituteId) : Promise.resolve([]),
+    session.studentsToken ? fetchStudentsEtlabAcademicAnalysis(session.studentsToken, instituteId) : Promise.resolve(null),
+    session.studentsToken ? fetchStudentsEtlabKtuResults(session.studentsToken, undefined, instituteId) : Promise.resolve<{ standing?: AcademicStanding; semesterResults: SemesterResult[] }>({ semesterResults: [] }),
+    session.studentsToken ? fetchStudentsEtlabLabEvals(session.studentsToken, session.semester, instituteId) : Promise.resolve([]),
+    session.studentsToken ? fetchStudentsEtlabPreviousResults(session.studentsToken, session.semester, instituteId) : Promise.resolve({ records: [], semesterResults: [] }),
   ]);
 
-  // Process Source 1 (ETLAB Classic)
+  // Helper to upsert a record cleanly
+  const upsertRecord = (rec: EtlabAssessmentRecord) => {
+    const canonical = matchApprovedCourse(rec.subjectCode) || matchApprovedCourse(rec.subjectName);
+    const code = canonical ? canonical.courseCode : rec.subjectCode;
+    const name = canonical ? canonical.courseName : rec.subjectName;
+    const isLab = isLabCourse(code, name) || rec.isLab === true;
+
+    let category = rec.category;
+    if (isLab && (category.toLowerCase().includes('assignment') || category === 'Assignments')) {
+      category = 'Lab Evaluation';
+    }
+
+    const key = `${code}_${rec.semester || 'IIIrd Semester'}_${category}_${rec.examName}`.toLowerCase();
+    const existing = recordsMap.get(key);
+
+    if (!existing) {
+      recordsMap.set(key, {
+        ...rec,
+        subjectCode: code,
+        subjectName: name,
+        category,
+        isLab,
+      });
+    } else {
+      // Merge: prefer one with marks or response URL
+      const hasNewMarks = rec.obtainedMarks !== undefined && rec.obtainedMarks !== null;
+      const hasOldMarks = existing.obtainedMarks !== undefined && existing.obtainedMarks !== null;
+
+      recordsMap.set(key, {
+        ...existing,
+        ...rec,
+        subjectCode: code,
+        subjectName: name,
+        category,
+        isLab,
+        obtainedMarks: hasNewMarks ? rec.obtainedMarks : (hasOldMarks ? existing.obtainedMarks : undefined),
+        viewResponseUrl: rec.viewResponseUrl || existing.viewResponseUrl,
+        source: existing.source === 'etlab_classic' && rec.source === 'students_etlab' ? 'unified' : (rec.source || existing.source),
+        sourceLabel: existing.sourceLabel === 'ETLAB Classic' && rec.sourceLabel === 'Students ETLAB' ? 'Unified (ETLAB Classic + Students ETLAB)' : (rec.sourceLabel || existing.sourceLabel),
+      });
+    }
+  };
+
+  // 1. Process Source 1 (ETLAB Classic)
   if (s1Result.status === 'fulfilled' && s1Result.value) {
     const val = s1Result.value;
     if (val.success && val.records) {
       sourceHealth.etlabClassic.connected = true;
       for (const rec of val.records) {
-        const canonical = matchApprovedCourse(rec.subjectCode) || matchApprovedCourse(rec.subjectName);
-        const code = canonical ? canonical.courseCode : rec.subjectCode;
-        const key = `${code}_${rec.category}_${rec.examName}`.toLowerCase();
-        recordsMap.set(key, {
+        upsertRecord({
           ...rec,
-          subjectCode: code,
-          subjectName: canonical ? canonical.courseName : rec.subjectName,
           source: 'etlab_classic',
           sourceLabel: 'ETLAB Classic',
         });
@@ -117,42 +170,126 @@ export async function getUnifiedResults(
     sourceHealth.etlabClassic.error = 'Connection to ETLAB Classic failed.';
   }
 
-  // Process Source 2 (Students ETLAB - Internal Marks)
-  if (s2InternalResult.status === 'fulfilled') {
-    const internalRecords = s2InternalResult.value || [];
+  // 2. Process Source 2 (Students ETLAB - Evaluations: assignments, series, module tests)
+  if (s2EvalsResult.status === 'fulfilled' && s2EvalsResult.value) {
+    const evalsData = s2EvalsResult.value;
+    if (evalsData.records.length > 0) {
+      sourceHealth.studentsEtlab.connected = true;
+      for (const rec of evalsData.records) {
+        upsertRecord(rec);
+      }
+    }
+  }
+
+  // 3. Process Source 2 (Students ETLAB - Internal Marks)
+  if (s2InternalResult.status === 'fulfilled' && s2InternalResult.value) {
+    const internalRecords = s2InternalResult.value;
     if (internalRecords.length > 0) {
       sourceHealth.studentsEtlab.connected = true;
       for (const rec of internalRecords) {
-        const canonical = matchApprovedCourse(rec.subjectCode) || matchApprovedCourse(rec.subjectName);
-        const code = canonical ? canonical.courseCode : rec.subjectCode;
-        const key = `${code}_${rec.category}_${rec.examName}`.toLowerCase();
-        // Do not overwrite an existing record if already provided with higher fidelity,
-        // but add new internal marks
-        if (!recordsMap.has(key)) {
-          recordsMap.set(key, {
-            ...rec,
-            subjectCode: code,
-            subjectName: canonical ? canonical.courseName : rec.subjectName,
-            source: 'students_etlab',
-            sourceLabel: 'Students ETLAB',
-          });
+        upsertRecord(rec);
+      }
+    }
+  }
+
+  // 4. Process Source 2 (Students ETLAB - Lab Evaluations)
+  if (s2LabResult.status === 'fulfilled' && s2LabResult.value) {
+    const labRecords = s2LabResult.value;
+    if (labRecords.length > 0) {
+      sourceHealth.studentsEtlab.connected = true;
+      for (const rec of labRecords) {
+        upsertRecord(rec);
+      }
+    }
+  }
+
+  // 5. Process Source 2 (Students ETLAB - Previous Results)
+  if (s2PrevResult.status === 'fulfilled' && s2PrevResult.value) {
+    const prevData = s2PrevResult.value;
+    if (prevData.records.length > 0) {
+      sourceHealth.studentsEtlab.connected = true;
+      for (const rec of prevData.records) {
+        upsertRecord(rec);
+      }
+    }
+    if (prevData.semesterResults.length > 0) {
+      sourceHealth.studentsEtlab.connected = true;
+      for (const sr of prevData.semesterResults) {
+        const existingSrIndex = semesterResults.findIndex((s) => s.semester === sr.semester);
+        if (existingSrIndex === -1) {
+          semesterResults.push(sr);
+        } else {
+          semesterResults[existingSrIndex] = {
+            ...semesterResults[existingSrIndex],
+            ...sr,
+            subjects: sr.subjects.length > 0 ? sr.subjects : semesterResults[existingSrIndex].subjects,
+          };
         }
       }
     }
   }
 
-  // Process Source 2 (Students ETLAB - KTU University Results & CGPA)
-  if (s2KtuResult.status === 'fulfilled') {
+  // 6. Process Source 2 (Students ETLAB - KTU University Results)
+  if (s2KtuResult.status === 'fulfilled' && s2KtuResult.value) {
     const ktuData = s2KtuResult.value;
     if (ktuData) {
       sourceHealth.studentsEtlab.connected = true;
-      if ('standing' in ktuData && ktuData.standing) {
+      if (ktuData.standing) {
         academicStanding = ktuData.standing;
       }
-      if ('semesterResults' in ktuData && ktuData.semesterResults && ktuData.semesterResults.length > 0) {
-        semesterResults = ktuData.semesterResults;
+      if (ktuData.semesterResults && ktuData.semesterResults.length > 0) {
+        for (const sr of ktuData.semesterResults) {
+          const existingSrIndex = semesterResults.findIndex((s) => s.semester === sr.semester);
+          if (existingSrIndex === -1) {
+            semesterResults.push(sr);
+          } else {
+            semesterResults[existingSrIndex] = {
+              ...semesterResults[existingSrIndex],
+              ...sr,
+              subjects: sr.subjects.length > 0 ? sr.subjects : semesterResults[existingSrIndex].subjects,
+            };
+          }
+        }
       }
     }
+  }
+
+  // 7. Process Source 2 (Students ETLAB - Academic Analysis: CGPA, SGPA, earned/total credits, passed/failed)
+  if (s2AnalysisResult.status === 'fulfilled' && s2AnalysisResult.value) {
+    const analysis = s2AnalysisResult.value;
+    sourceHealth.studentsEtlab.connected = true;
+    academicStanding = {
+      cgpa: analysis.cgpa ?? academicStanding?.cgpa,
+      sgpa: analysis.sgpa ?? academicStanding?.sgpa,
+      creditsEarned: analysis.earnedCredit ?? academicStanding?.creditsEarned,
+      totalCredits: analysis.totalCredit ?? academicStanding?.totalCredits,
+      totalPassed: analysis.totalPassed ?? academicStanding?.totalPassed,
+      totalFailed: analysis.totalFailed ?? academicStanding?.totalFailed,
+      status: analysis.academicStatus || academicStanding?.status || 'In Good Standing',
+      source: 'students_etlab',
+      lastUpdated: new Date().toLocaleDateString('en-IN'),
+      publishedResults: semesterResults.map((r) => ({
+        semester: r.semester,
+        sgpa: r.sgpa,
+        cgpa: r.cgpa,
+        creditsEarned: r.creditsEarned,
+        totalCredits: r.totalCredits,
+        status: r.status,
+        academicYear: r.academicYear,
+        subjects: r.subjects,
+      })),
+    };
+  } else if (academicStanding && semesterResults.length > 0 && !academicStanding.publishedResults) {
+    academicStanding.publishedResults = semesterResults.map((r) => ({
+      semester: r.semester,
+      sgpa: r.sgpa,
+      cgpa: r.cgpa,
+      creditsEarned: r.creditsEarned,
+      totalCredits: r.totalCredits,
+      status: r.status,
+      academicYear: r.academicYear,
+      subjects: r.subjects,
+    }));
   }
 
   // Determine overall primary source

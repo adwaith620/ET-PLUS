@@ -358,6 +358,84 @@ export const DEFAULT_DEPARTMENT = 'Computer Science (AI)';
 export const DEFAULT_BATCH = '2025-29';
 
 /**
+ * Trailing (B) / [B] regex for practical lab tutorials and sessions.
+ * Matches standalone trailing "(B)", "(b)", " (B)", "[B]", "[b]".
+ */
+export const LAB_COURSE_SUFFIX_REGEX = /[\(\[]\s*b\s*[\)\]]\s*$/i;
+
+/**
+ * Strips the trailing (B) / [B] lab suffix from a course code or name.
+ */
+export function stripLabSuffix(identifier?: string): string {
+  if (!identifier) return '';
+  return identifier.replace(LAB_COURSE_SUFFIX_REGEX, '').trim();
+}
+
+/**
+ * Authoritative course classification function to determine if a course represents
+ * a laboratory session, practical tutorial, or workshop.
+ *
+ * Rules:
+ * 1. Normalize course codes safely by trimming whitespace and handling letter case.
+ * 2. Detect a standalone trailing `(B)` or `[B]` suffix (e.g. '24MAP300(B)', '24MAP300 (B)', '24AIP305 (b)').
+ * 3. Detect KTU practical/lab course prefixes where 3rd character is 'L' (e.g. CYL100, ESL102, CSL331, MEL101).
+ * 4. Detect practical keywords in course name (e.g. 'Lab', 'Laboratory', 'Workshop', 'Practical').
+ * 5. Strictly avoid misclassifying theory courses containing 'B' (e.g. '24CST302', '24EST382', '24EST102', '24HUT101').
+ */
+export function isLabCourse(courseCode?: string, courseName?: string): boolean {
+  if (!courseCode && !courseName) return false;
+
+  const rawCode = (courseCode || '').trim();
+  const rawName = (courseName || '').trim();
+
+  // 1. Detect standalone trailing (B) or [B] suffix in code or name
+  if (LAB_COURSE_SUFFIX_REGEX.test(rawCode) || LAB_COURSE_SUFFIX_REGEX.test(rawName)) {
+    return true;
+  }
+
+  // 2. Check for explicit lab / laboratory / practical / workshop in name
+  const nameLower = rawName.toLowerCase();
+  if (
+    nameLower.includes('lab') ||
+    nameLower.includes('laboratory') ||
+    nameLower.includes('practical') ||
+    nameLower.includes('workshop')
+  ) {
+    return true;
+  }
+
+  // 3. Check for KTU lab code patterns (e.g. CYL100, 24CYL100, ESL102, 24ESL102)
+  const cleanCode = rawCode.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (/^(24)?[A-Z]{2}L\d{3}/.test(cleanCode)) {
+    return true;
+  }
+
+  // 4. Check known course definitions catalog
+  const def = getCourseDefinition(stripLabSuffix(rawCode));
+  if (def && def.category === 'Lab') {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Classifies a course into Theory, Lab, or Elective.
+ */
+export function classifyCourseCategory(
+  courseCode?: string,
+  courseName?: string
+): 'Theory' | 'Lab' | 'Elective' {
+  if (isLabCourse(courseCode, courseName)) {
+    return 'Lab';
+  }
+  const clean = stripLabSuffix(courseCode || '');
+  const def = getCourseDefinition(clean);
+  if (def) return def.category;
+  return 'Theory';
+}
+
+/**
  * Normalizes an authenticated or retrieved student profile according to verified Semester 3 identity.
  * Rule: Institutional email is strictly `[admissionNo]@tkmce.ac.in`.
  */

@@ -679,7 +679,10 @@ export const getMaterialsPageData = cache(async function getMaterialsPageData() 
  * Targeted data fetcher for the Results page.
  * Fetches only examination results and internal assessment records.
  */
-export const getResultsPageData = cache(async function getResultsPageData(forceRefresh: boolean = false) {
+export const getResultsPageData = cache(async function getResultsPageData(
+  forceRefresh: boolean = false,
+  semester?: number | string
+) {
   const session = await getSession();
   if (!session) return null;
 
@@ -690,10 +693,12 @@ export const getResultsPageData = cache(async function getResultsPageData(forceR
     hour12: true,
   });
 
+  const cacheSuffix = semester ? `_sem_${semester}` : '';
+
   // Check cache first if not explicitly forced to refresh
   if (!forceRefresh) {
-    const cachedResults = getCachedStudentData<SemesterResult[]>(session.username, 'results');
-    const cachedRecords = getCachedStudentData<EtlabAssessmentRecord[]>(session.username, 'assessmentRecords');
+    const cachedResults = getCachedStudentData<SemesterResult[]>(session.username, `results${cacheSuffix}`);
+    const cachedRecords = getCachedStudentData<EtlabAssessmentRecord[]>(session.username, `assessmentRecords${cacheSuffix}`);
     const cachedStanding = getCachedStudentData<AcademicStanding>(session.username, 'standing');
     const cachedHealth = getCachedStudentData<AcademicSourceHealth>(session.username, 'resultsSourceHealth');
     if (cachedResults && cachedRecords) {
@@ -715,11 +720,12 @@ export const getResultsPageData = cache(async function getResultsPageData(forceR
       studentsToken: session.studentsToken,
       username: session.username,
       instituteId: session.instituteId,
+      semester,
     });
 
     if (unified.assessmentRecords.length > 0 || unified.semesterResults.length > 0 || unified.academicStanding) {
-      setCachedStudentData(session.username, 'results', unified.semesterResults);
-      setCachedStudentData(session.username, 'assessmentRecords', unified.assessmentRecords);
+      setCachedStudentData(session.username, `results${cacheSuffix}`, unified.semesterResults);
+      setCachedStudentData(session.username, `assessmentRecords${cacheSuffix}`, unified.assessmentRecords);
       if (unified.academicStanding) {
         setCachedStudentData(session.username, 'standing', unified.academicStanding);
       }
@@ -745,10 +751,12 @@ export const getResultsPageData = cache(async function getResultsPageData(forceR
   const academicStanding: AcademicStanding | undefined = isStudentB ? undefined : {
     cgpa: 8.78,
     sgpa: 8.85,
-    creditsEarned: 37,
-    totalCredits: 60,
+    creditsEarned: 43,
+    totalCredits: 43,
+    totalPassed: 10,
+    totalFailed: 0,
     semester: 3,
-    status: 'In Progress',
+    status: 'In Good Standing',
     source: 'unified',
     lastUpdated: now,
     publishedResults: DEMO_RESULTS.map((r) => ({

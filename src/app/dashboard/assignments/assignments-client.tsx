@@ -33,7 +33,7 @@ export function AssignmentsClient({
   const router = useRouter();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'upcoming' | 'overdue' | 'completed'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'submitted' | 'evaluated' | 'overdue'>('all');
 
   const handleRefresh = async () => {
     try {
@@ -57,9 +57,22 @@ export function AssignmentsClient({
 
       if (!matchesSearch) return false;
       if (statusFilter === 'all') return true;
-      if (statusFilter === 'upcoming') return asg.status === 'upcoming';
-      if (statusFilter === 'overdue') return asg.status === 'overdue';
-      if (statusFilter === 'completed') return asg.status === 'completed' || asg.status === 'submitted';
+
+      const subStatus = (asg.submissionStatus || '').toLowerCase();
+      const st = (asg.status || '').toLowerCase();
+
+      if (statusFilter === 'pending') {
+        return subStatus === 'pending' || subStatus === 'not submitted' || st === 'pending' || st === 'upcoming';
+      }
+      if (statusFilter === 'submitted') {
+        return subStatus === 'submitted' || subStatus === 'awaiting marks' || st === 'submitted';
+      }
+      if (statusFilter === 'evaluated') {
+        return subStatus === 'evaluated' || st === 'completed' || asg.obtainedMarks !== undefined;
+      }
+      if (statusFilter === 'overdue') {
+        return subStatus === 'overdue' || st === 'overdue';
+      }
       return true;
     });
   }, [assignments, searchQuery, statusFilter]);
@@ -136,8 +149,8 @@ export function AssignmentsClient({
                 className="w-full pl-9 pr-3 py-1.5 text-xs rounded-lg bg-white dark:bg-[#1b1d22] border border-[#e7e4de] dark:border-[#2a2d35] text-[#1c1917] dark:text-[#f3f4f6] placeholder-[#78716c] dark:placeholder-[#9ca3af] focus:outline-none focus:ring-1 focus:ring-stone-500"
               />
             </div>
-            <div className="flex items-center gap-1.5">
-              {(['all', 'upcoming', 'overdue', 'completed'] as const).map((filterKey) => (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {(['all', 'pending', 'submitted', 'evaluated', 'overdue'] as const).map((filterKey) => (
                 <button
                   key={filterKey}
                   onClick={() => setStatusFilter(filterKey)}
@@ -158,6 +171,9 @@ export function AssignmentsClient({
             <div className="grid grid-cols-1 gap-3">
               {filteredAssignments.map((asg) => {
                 const countdown = getDeadlineCountdown(asg.dueDate);
+                const hasScore = asg.obtainedMarks !== undefined && asg.obtainedMarks !== null;
+                const displayStatus = asg.submissionStatus || (hasScore ? 'Evaluated' : asg.status === 'submitted' ? 'Submitted' : asg.status === 'overdue' ? 'Overdue' : 'Pending');
+
                 return (
                   <div
                     key={asg.id}
@@ -169,20 +185,44 @@ export function AssignmentsClient({
                           <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-[#f4f1eb] dark:bg-[#202227] text-stone-800 dark:text-stone-200 border border-[#e7e4de] dark:border-[#2a2d35]">
                             {asg.subjectCode} · {asg.subject}
                           </span>
-                          {asg.status === 'upcoming' ? (
+
+                          {/* Status Badge */}
+                          {displayStatus === 'Evaluated' ? (
                             <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60 flex items-center gap-1">
-                              <Clock className="w-3 h-3" />
-                              {countdown.text}
+                              <CheckCircle2 className="w-3 h-3" />
+                              Evaluated
                             </span>
-                          ) : asg.status === 'overdue' ? (
+                          ) : displayStatus === 'Submitted' ? (
+                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-400 border border-blue-200 dark:border-blue-800/60 flex items-center gap-1">
+                              <CheckCircle2 className="w-3 h-3" />
+                              Submitted
+                            </span>
+                          ) : displayStatus === 'Awaiting Marks' ? (
+                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 dark:bg-purple-950/60 dark:text-purple-400 border border-purple-200 dark:border-purple-800/60 flex items-center gap-1">
+                              <Clock className="w-3 h-3" />
+                              Awaiting Marks
+                            </span>
+                          ) : displayStatus === 'Overdue' ? (
                             <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400 border border-rose-200 dark:border-rose-800/60 flex items-center gap-1">
                               <AlertCircle className="w-3 h-3" />
                               Overdue
                             </span>
+                          ) : displayStatus === 'Not Submitted' ? (
+                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400 border border-amber-200 dark:border-amber-800/60 flex items-center gap-1">
+                              <AlertCircle className="w-3 h-3" />
+                              Not Submitted
+                            </span>
                           ) : (
-                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-400 border border-blue-200 dark:border-blue-800/60 flex items-center gap-1">
-                              <CheckCircle2 className="w-3 h-3" />
-                              {asg.status}
+                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-300 border border-stone-200 dark:border-stone-700 flex items-center gap-1">
+                              <Clock className="w-3 h-3" />
+                              {countdown.text || 'Pending'}
+                            </span>
+                          )}
+
+                          {/* Published Marks Score Badge */}
+                          {hasScore && (
+                            <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60">
+                              Score: {asg.obtainedMarks}{asg.maxMarks ? ` / ${asg.maxMarks}` : ''}
                             </span>
                           )}
                         </div>
@@ -192,6 +232,11 @@ export function AssignmentsClient({
                         {asg.description && (
                           <p className="text-xs text-[#78716c] dark:text-[#9ca3af] whitespace-pre-line leading-relaxed">
                             {asg.description}
+                          </p>
+                        )}
+                        {asg.feedback && (
+                          <p className="text-[11px] text-stone-600 dark:text-stone-400 bg-stone-50 dark:bg-[#181a1f] p-2 rounded border border-[#e7e4de] dark:border-[#2a2d35]">
+                            Feedback: {asg.feedback}
                           </p>
                         )}
                       </div>
