@@ -478,3 +478,39 @@ test('9. Permanent S Grade Star Effect - Continuous visibility without timeouts'
     assert.ok(css.includes('prefers-reduced-motion'), 'Must support prefers-reduced-motion');
   });
 });
+
+// -----------------------------------------------------------------------------
+// 10. Mobile Bottom Navigation - Fourth item is Credits linking to Credit Calculator
+// -----------------------------------------------------------------------------
+test('10. Mobile Bottom Navigation - Exactly 5 items with Credits in 4th position', () => {
+  import('node:fs').then((fs) => {
+    const mobileNavSrc = fs.readFileSync('src/components/layout/mobile-nav.tsx', 'utf8');
+
+    // Extract quick-access bar items array
+    const quickBarRegex = /{\/\* Mobile Bottom Quick-Access Bar \*\/}[\s\S]*?\[([\s\S]*?)\]\.map/;
+    const match = mobileNavSrc.match(quickBarRegex);
+    assert.ok(match, 'Must find quick-access bar items in mobile-nav.tsx');
+
+    const itemsContent = match[1];
+
+    // Verify 5 items in exact order: Overview, Attendance, Results, Credits, Profile
+    assert.ok(itemsContent.includes("{ label: 'Overview', href: '/dashboard'"));
+    assert.ok(itemsContent.includes("{ label: 'Attendance', href: '/dashboard/attendance'"));
+    assert.ok(itemsContent.includes("{ label: 'Results', href: '/dashboard/results'"));
+    assert.ok(itemsContent.includes("{ label: 'Credits', href: '/dashboard/calculator', icon: Calculator }"));
+    assert.ok(itemsContent.includes("{ label: 'Profile', href: '/dashboard/profile'"));
+
+    // Verify Credits appears after Results and before Profile
+    const resultsIndex = itemsContent.indexOf("label: 'Results'");
+    const creditsIndex = itemsContent.indexOf("label: 'Credits'");
+    const profileIndex = itemsContent.indexOf("label: 'Profile'");
+    assert.ok(resultsIndex !== -1 && creditsIndex !== -1 && profileIndex !== -1);
+    assert.ok(resultsIndex < creditsIndex, 'Results must come before Credits');
+    assert.ok(creditsIndex < profileIndex, 'Credits must come before Profile');
+
+    // Verify desktop sidebar navigation still has Assignments and Credit Calculator
+    const sidebarSrc = fs.readFileSync('src/components/layout/sidebar.tsx', 'utf8');
+    assert.ok(sidebarSrc.includes("href: '/dashboard/assignments'"), 'Desktop sidebar must retain Assignments');
+    assert.ok(sidebarSrc.includes("href: '/dashboard/calculator'"), 'Desktop sidebar must retain Credit Calculator');
+  });
+});

@@ -105,7 +105,7 @@ export function MobileNav({
           { label: 'Overview', href: '/dashboard', icon: LayoutDashboard },
           { label: 'Attendance', href: '/dashboard/attendance', icon: PieChart },
           { label: 'Results', href: '/dashboard/results', icon: ClipboardList },
-          { label: 'Assignments', href: '/dashboard/assignments', icon: FileCheck2 },
+          { label: 'Credits', href: '/dashboard/calculator', icon: Calculator },
           { label: 'Profile', href: '/dashboard/profile', icon: User },
         ].map((item) => {
           const isActive = pathname === item.href;
