@@ -102,7 +102,7 @@ export function MobileNav({
         {[
           { label: 'Overview', href: '/dashboard', icon: LayoutDashboard },
           { label: 'Attendance', href: '/dashboard/attendance', icon: PieChart },
-          { label: 'Timetable', href: '/dashboard/timetable', icon: CalendarDays },
+          { label: 'Results', href: '/dashboard/results', icon: ClipboardList },
           { label: 'Assignments', href: '/dashboard/assignments', icon: FileCheck2 },
           { label: 'Profile', href: '/dashboard/profile', icon: User },
         ].map((item) => {
