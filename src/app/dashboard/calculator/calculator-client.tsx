@@ -19,6 +19,7 @@ import {
   EvaluationConfig,
   GradeLetter,
   detectEvaluationType,
+  getDefaultEseMarks,
   checkPassingConditions,
   determineGrade,
   calculateTargetEse,
@@ -128,18 +129,101 @@ export function CalculatorClient({
 
   const activeRecords = syncedRecords ?? assessmentRecords;
 
-  // Manual ESE marks input per subject: Record<subjectId, number | undefined>
-  // Strictly excludes MINOR/REMEDIAL courses
-  const [manualEse, setManualEse] = useState<Record<string, number | undefined>>(() => {
-    return {
-      '24CSP304': 32, // Type 1: 52/60 + 32/40 = 84 -> A
-      '24AIJ303': 34, // Type 1: 50/60 + 34/40 = 84 -> A
-      '24AIP305': 48, // Type 2: 35/40 + 48/60 = 83 -> A
-      '24MAP300': 46, // Type 2: 36/40 + 46/60 = 82 -> A
-      '24EST382': 48, // Type 2: 34/40 + 48/60 = 82 -> A
-      '24EST372': 45, // Type 2: 32/40 + 45/60 = 77 -> B+
-    };
+  // Convert semester number to Roman numeral format matching ETLAB records
+  const currentSemLabel = useMemo(() => {
+    if (currentSemester === 1) return 'Ist Semester';
+    if (currentSemester === 2) return 'IInd Semester';
+    if (currentSemester === 3) return 'IIIrd Semester';
+    if (currentSemester === 4) return 'IVth Semester';
+    return `${currentSemester}th Semester`;
+  }, [currentSemester]);
+
+  // Scoped storage key for persistent ESE marks
+  const storageKey = useMemo(() => {
+    const user = profile?.admissionNo || profile?.rollNo || 'student';
+    return `etplus_calc_ese_${user}_sem_${currentSemester}`;
+  }, [profile, currentSemester]);
+
+  // Manual ESE marks input per subject: Record<subjectId, number | null>
+  // Initialized automatically to maximum possible marks (full marks) based on detected evaluation type:
+  // - Type 1 (60/40)   -> 40/40
+  // - Type 2 (40/60)   -> 60/60
+  // - Type 3 (100/NIL) -> NIL
+  const [manualEse, setManualEse] = useState<Record<string, number | null>>(() => {
+    // 1. Try restoring previously saved manual predictions from localStorage
+    if (typeof window !== 'undefined') {
+      try {
+        const user = profile?.admissionNo || profile?.rollNo || 'student';
+        const saved = localStorage.getItem(`etplus_calc_ese_${user}_sem_${currentSemester}`);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed && typeof parsed === 'object') {
+            return parsed;
+          }
+        }
+      } catch {
+        // Fall back to automatic full marks
+      }
+    }
+
+    // 2. Default: Automatically populate each eligible subject with full marks (eseMax)
+    const initialMap: Record<string, number> = {};
+    for (const rec of assessmentRecords) {
+      if (rec.semester === currentSemLabel && recordMatchesCategory(rec, 'Internal Marks')) {
+        const code = (rec.subjectCode || '').trim().toUpperCase();
+        if (isMinorOrRemedial(code, rec.subjectName)) continue;
+        const det = detectEvaluationType(rec.maxMarks);
+        if (det.config.hasEse) {
+          const isLab = rec.isLab === true || isLabCourse(rec.subjectCode, rec.subjectName);
+          const rowKey = `${code}::${isLab ? 'practical' : 'theory'}`;
+          initialMap[rowKey] = det.config.eseMax;
+          initialMap[code] = det.config.eseMax;
+        }
+      }
+    }
+
+    // Also include any registered semester courses without published CIA yet
+    for (const course of Object.values(SEMESTER_3_COURSES)) {
+      const code = course.code.trim().toUpperCase();
+      if (isMinorOrRemedial(code, course.name)) continue;
+      const det = detectEvaluationType(undefined);
+      if (det.config.hasEse) {
+        const rowKey = `${code}::theory`;
+        if (initialMap[rowKey] === undefined) {
+          initialMap[rowKey] = det.config.eseMax;
+          initialMap[code] = det.config.eseMax;
+        }
+      }
+    }
+
+    return initialMap;
   });
+
+  // Load saved manual predictions from localStorage on client mount if available
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0) {
+          setManualEse((prev) => ({ ...prev, ...parsed }));
+        }
+      }
+    } catch {
+      // Ignore storage errors
+    }
+  }, [storageKey]);
+
+  // Persist manual predictions to localStorage on change
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(manualEse));
+    } catch {
+      // Ignore storage errors
+    }
+  }, [manualEse, storageKey]);
 
   // Active target grades for interactive predictor: Record<subjectId, GradeLetter>
   const [targetGrades, setTargetGrades] = useState<Record<string, GradeLetter | undefined>>({});
@@ -174,15 +258,6 @@ export function CalculatorClient({
       setIsSyncing(false);
     }
   };
-
-  // Convert semester number to Roman numeral format matching ETLAB records
-  const currentSemLabel = useMemo(() => {
-    if (currentSemester === 1) return 'Ist Semester';
-    if (currentSemester === 2) return 'IInd Semester';
-    if (currentSemester === 3) return 'IIIrd Semester';
-    if (currentSemester === 4) return 'IVth Semester';
-    return `${currentSemester}th Semester`;
-  }, [currentSemester]);
 
   // Extract internal marks records from Results -> Internal for current semester
   const internalRecords = useMemo(() => {
@@ -222,9 +297,11 @@ export function CalculatorClient({
       const ciaObtained = typeof rec.obtainedMarks === 'number' && !isNaN(rec.obtainedMarks) ? rec.obtainedMarks : undefined;
       const hasPublishedCia = ciaObtained !== undefined;
 
-      // Current manual ESE prediction
+      // Current manual ESE prediction (defaults to full marks: activeConfig.eseMax)
       const rawEse = manualEse[rowKey] !== undefined ? manualEse[rowKey] : manualEse[code];
-      const eseInput = activeConfig.hasEse ? rawEse : undefined;
+      const eseInput = activeConfig.hasEse
+        ? (rawEse === null ? undefined : (rawEse !== undefined ? rawEse : activeConfig.eseMax))
+        : undefined;
 
       // Passing check
       const passingCheck = checkPassingConditions(ciaObtained, eseInput, activeConfig);
@@ -289,7 +366,9 @@ export function CalculatorClient({
       const detection = detectEvaluationType(undefined);
       const activeConfig = detection.config;
       const rawEse = manualEse[rowKey] !== undefined ? manualEse[rowKey] : manualEse[code];
-      const eseInput = activeConfig.hasEse ? rawEse : undefined;
+      const eseInput = activeConfig.hasEse
+        ? (rawEse === null ? undefined : (rawEse !== undefined ? rawEse : activeConfig.eseMax))
+        : undefined;
 
       const passingCheck = checkPassingConditions(undefined, eseInput, activeConfig);
 
@@ -321,16 +400,38 @@ export function CalculatorClient({
   // Overall summary metrics — automatically excludes MINOR/REMEDIAL because it is omitted from subjects
   const summary = useMemo(() => calculateSummary(subjects), [subjects]);
 
-  // Update manual ESE input
+  // Update manual ESE input with strict validation: 0 <= value <= eseMax, decimals allowed
   const handleEseChange = (rowKey: string, value: string, eseMax: number) => {
     if (value.trim() === '') {
-      setManualEse((prev) => ({ ...prev, [rowKey]: undefined }));
+      // User explicitly cleared input field; store null so it remains blank without snapping back
+      setManualEse((prev) => ({ ...prev, [rowKey]: null }));
       return;
     }
     const num = parseFloat(value);
     if (!isNaN(num)) {
       const clamped = Math.max(0, Math.min(eseMax, num));
       setManualEse((prev) => ({ ...prev, [rowKey]: clamped }));
+    }
+  };
+
+  // Reset all subjects back to maximum possible ESE marks (full marks)
+  const handleResetAllEse = () => {
+    const fullMap: Record<string, number> = {};
+    for (const sub of subjects) {
+      if (sub.config.hasEse) {
+        const rowKey = `${sub.subjectCode}::${sub.isLab ? 'practical' : 'theory'}`;
+        fullMap[rowKey] = sub.config.eseMax;
+        fullMap[sub.subjectCode] = sub.config.eseMax;
+      }
+    }
+    setManualEse(fullMap);
+    setTargetGrades({});
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(fullMap));
+      } catch {
+        // Ignore storage errors
+      }
     }
   };
 
@@ -514,6 +615,14 @@ export function CalculatorClient({
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              onClick={handleResetAllEse}
+              title="Reset all End Semester marks to maximum (full marks)"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#f4f1eb] dark:bg-[#23262c] text-stone-700 dark:text-stone-300 hover:bg-[#eae6de] dark:hover:bg-[#2d3038] border border-[#e7e4de] dark:border-[#2e3138] transition-colors cursor-pointer"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-stone-500" />
+              <span>Reset to Full Marks</span>
+            </button>
             <button
               onClick={() => setShowGradingReference(!showGradingReference)}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#f4f1eb] dark:bg-[#23262c] text-stone-700 dark:text-stone-300 hover:bg-[#eae6de] dark:hover:bg-[#2d3038] border border-[#e7e4de] dark:border-[#2e3138] transition-colors cursor-pointer"

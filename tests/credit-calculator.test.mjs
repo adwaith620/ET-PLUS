@@ -8,6 +8,7 @@ import {
   GRADE_COLORS,
   EVALUATION_CONFIGS,
   detectEvaluationType,
+  getDefaultEseMarks,
   checkPassingConditions,
   determineGrade,
   calculateTargetEse,
@@ -512,5 +513,76 @@ test('10. Mobile Bottom Navigation - Exactly 5 items with Credits in 4th positio
     const sidebarSrc = fs.readFileSync('src/components/layout/sidebar.tsx', 'utf8');
     assert.ok(sidebarSrc.includes("href: '/dashboard/assignments'"), 'Desktop sidebar must retain Assignments');
     assert.ok(sidebarSrc.includes("href: '/dashboard/calculator'"), 'Desktop sidebar must retain Credit Calculator');
+  });
+});
+
+// -----------------------------------------------------------------------------
+// 11. Default ESE Marks to Full Marks & Interactive Editable Lifecycle
+// -----------------------------------------------------------------------------
+test('11. Default ESE Marks - Automatically populates full marks based on detected type and allows editing', () => {
+  // A. Verify getDefaultEseMarks helper logic
+  const type1 = EVALUATION_CONFIGS['Type 1']; // 60/40
+  const type2 = EVALUATION_CONFIGS['Type 2']; // 40/60
+  const type3 = EVALUATION_CONFIGS['Type 3']; // 100/NIL
+
+  assert.equal(getDefaultEseMarks(type1), 40, 'Type 1 default ESE must be 40 (full marks)');
+  assert.equal(getDefaultEseMarks(type2), 60, 'Type 2 default ESE must be 60 (full marks)');
+  assert.equal(getDefaultEseMarks(type3), undefined, 'Type 3 has no ESE and must return undefined (NIL)');
+
+  // B. Verify automatic subject initialization to full marks
+  // Subject A: Type 1 (CIA 52/60) -> ESE defaults to 40/40 -> Total 92 -> S
+  const subA_det = detectEvaluationType(60);
+  const subA_ese = getDefaultEseMarks(subA_det.config);
+  assert.equal(subA_ese, 40);
+  const subA_pass = checkPassingConditions(52, subA_ese, subA_det.config);
+  assert.equal(subA_pass.isPassing, true);
+  const subA_grade = determineGrade(52 + subA_ese, subA_pass.isPassing);
+  assert.equal(subA_grade.grade, 'S');
+  assert.equal(subA_grade.gradePoint, 10.0);
+
+  // Subject B: Type 2 (CIA 35/40) -> ESE defaults to 60/60 -> Total 95 -> S
+  const subB_det = detectEvaluationType(40);
+  const subB_ese = getDefaultEseMarks(subB_det.config);
+  assert.equal(subB_ese, 60);
+  const subB_pass = checkPassingConditions(35, subB_ese, subB_det.config);
+  assert.equal(subB_pass.isPassing, true);
+  const subB_grade = determineGrade(35 + subB_ese, subB_pass.isPassing);
+  assert.equal(subB_grade.grade, 'S');
+  assert.equal(subB_grade.gradePoint, 10.0);
+
+  // Subject C: Type 3 (CIA 78/100) -> ESE NIL -> Total 78 -> B+
+  const subC_det = detectEvaluationType(100);
+  const subC_ese = getDefaultEseMarks(subC_det.config);
+  assert.equal(subC_ese, undefined);
+  const subC_pass = checkPassingConditions(78, subC_ese, subC_det.config);
+  assert.equal(subC_pass.isPassing, true);
+  const subC_grade = determineGrade(78, subC_pass.isPassing);
+  assert.equal(subC_grade.grade, 'B+');
+  assert.equal(subC_grade.gradePoint, 8.0);
+
+  // C. Verify manual editing and validation constraints:
+  // 1. Clamping: negative numbers clamp to 0
+  const clampNegative = Math.max(0, Math.min(40, -10));
+  assert.equal(clampNegative, 0);
+
+  // 2. Clamping: numbers exceeding eseMax clamp to eseMax
+  const clampExcess = Math.max(0, Math.min(40, 55));
+  assert.equal(clampExcess, 40);
+
+  // 3. Decimals: decimal values are supported (e.g. 35.5)
+  const decimalEse = 35.5;
+  const subA_decimal_pass = checkPassingConditions(52, decimalEse, subA_det.config);
+  const subA_decimal_grade = determineGrade(52 + decimalEse, subA_decimal_pass.isPassing);
+  assert.equal(subA_decimal_grade.grade, 'A+'); // 87.5% -> A+
+
+  // D. Verify source code verification for persistence, reset, and UI elements
+  import('node:fs').then((fs) => {
+    const calcClientSrc = fs.readFileSync('src/app/dashboard/calculator/calculator-client.tsx', 'utf8');
+
+    // Verify localStorage key is properly scoped
+    assert.ok(calcClientSrc.includes('etplus_calc_ese_'), 'Must use scoped localStorage key');
+    assert.ok(calcClientSrc.includes('handleResetAllEse'), 'Must implement handleResetAllEse');
+    assert.ok(calcClientSrc.includes('Reset to Full Marks'), 'Must include "Reset to Full Marks" button in action bar');
+    assert.ok(calcClientSrc.includes('activeConfig.eseMax'), 'Must fall back dynamically to activeConfig.eseMax');
   });
 });

@@ -171,6 +171,18 @@ export function detectEvaluationType(
   };
 }
 
+/**
+ * Automatically determines the default ESE marks for a subject based on its evaluation configuration.
+ * When the Credit Calculator is opened for the first time, all eligible subjects automatically
+ * populate with the maximum possible marks (full marks) for each subject:
+ * - Type 1 (60/40)   -> 40/40 (Full Marks)
+ * - Type 2 (40/60)   -> 60/60 (Full Marks)
+ * - Type 3 (100/NIL) -> undefined (NIL)
+ */
+export function getDefaultEseMarks(config: EvaluationConfig): number | undefined {
+  return config.hasEse ? config.eseMax : undefined;
+}
+
 export interface PassingConditionResult {
   isPassing: boolean;
   reasons: string[];
