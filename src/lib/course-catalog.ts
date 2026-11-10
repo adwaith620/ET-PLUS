@@ -7,6 +7,7 @@ export interface CourseDefinition {
   credits: number;
   category: 'Theory' | 'Lab' | 'Elective';
   room?: string;
+  evaluationType?: 'Type 1' | 'Type 2' | 'Type 3';
 }
 
 /**
@@ -21,6 +22,7 @@ export const SEMESTER_3_COURSES: Record<string, CourseDefinition> = {
     credits: 4,
     category: 'Theory',
     room: 'Not specified',
+    evaluationType: 'Type 1',
   },
   '24AIJ303': {
     code: '24AIJ303',
@@ -29,6 +31,7 @@ export const SEMESTER_3_COURSES: Record<string, CourseDefinition> = {
     credits: 4,
     category: 'Theory',
     room: 'Not specified',
+    evaluationType: 'Type 1',
   },
   '24AIP305': {
     code: '24AIP305',
@@ -37,6 +40,7 @@ export const SEMESTER_3_COURSES: Record<string, CourseDefinition> = {
     credits: 4,
     category: 'Theory',
     room: 'Not specified',
+    evaluationType: 'Type 2',
   },
   '24MAP300': {
     code: '24MAP300',
@@ -45,6 +49,7 @@ export const SEMESTER_3_COURSES: Record<string, CourseDefinition> = {
     credits: 4,
     category: 'Theory',
     room: 'Not specified',
+    evaluationType: 'Type 2',
   },
   '24EST382': {
     code: '24EST382',
@@ -53,6 +58,7 @@ export const SEMESTER_3_COURSES: Record<string, CourseDefinition> = {
     credits: 4,
     category: 'Theory',
     room: 'Not specified',
+    evaluationType: 'Type 2',
   },
   '24HUT310': {
     code: '24HUT310',
@@ -61,6 +67,7 @@ export const SEMESTER_3_COURSES: Record<string, CourseDefinition> = {
     credits: 2,
     category: 'Theory',
     room: 'Not specified',
+    evaluationType: 'Type 3',
   },
   '24EST372': {
     code: '24EST372',
@@ -69,6 +76,7 @@ export const SEMESTER_3_COURSES: Record<string, CourseDefinition> = {
     credits: 3,
     category: 'Theory',
     room: 'Not specified',
+    evaluationType: 'Type 2',
   },
   '24CSM3XX': {
     code: '24CSM3XX',
@@ -77,6 +85,7 @@ export const SEMESTER_3_COURSES: Record<string, CourseDefinition> = {
     credits: 4,
     category: 'Elective',
     room: 'Not specified',
+    evaluationType: 'Type 2',
   },
 };
 

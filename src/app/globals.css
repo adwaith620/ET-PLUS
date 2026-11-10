@@ -125,6 +125,52 @@ body {
   background: #33363f;
 }
 
+/* S Grade Permanent Starry Twinkle & Soft Purple Glow */
+@keyframes s-star-twinkle-a {
+  0%, 100% {
+    opacity: 0.95;
+    transform: scale(1) rotate(0deg);
+  }
+  50% {
+    opacity: 0.35;
+    transform: scale(0.65) rotate(15deg);
+  }
+}
+
+@keyframes s-star-twinkle-b {
+  0%, 100% {
+    opacity: 0.4;
+    transform: scale(0.7) translateY(0);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.15) translateY(-1.5px) rotate(-15deg);
+  }
+}
+
+@keyframes s-badge-glow {
+  0%, 100% {
+    box-shadow: 0 0 10px rgba(168, 85, 247, 0.25);
+  }
+  50% {
+    box-shadow: 0 0 16px rgba(168, 85, 247, 0.45), 0 0 4px rgba(192, 132, 252, 0.35);
+  }
+}
+
+.animate-s-star-twinkle-a {
+  animation: s-star-twinkle-a 2.4s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+.animate-s-star-twinkle-b {
+  animation: s-star-twinkle-b 2.8s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+.animate-s-badge-glow {
+  animation: s-badge-glow 3s ease-in-out infinite;
+}
+
 /* Accessibility: strictly respect prefers-reduced-motion */
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -134,5 +180,13 @@ body {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+
+  .animate-s-star-twinkle-a,
+  .animate-s-star-twinkle-b,
+  .animate-s-badge-glow {
+    animation: none !important;
+    opacity: 0.9 !important;
+    transform: none !important;
   }
 }

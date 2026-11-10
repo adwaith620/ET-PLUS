@@ -65,6 +65,7 @@ export function GlobalSearchDialog({
     { title: 'Assignments', subtitle: 'Deadlines, tasks, and submission links', url: '/dashboard/assignments' },
     { title: 'Study Materials', subtitle: 'Course notes, slides, and syllabus', url: '/dashboard/materials' },
     { title: 'Marks & Results', subtitle: 'SGPA, CGPA, and internal marks', url: '/dashboard/results' },
+    { title: 'Credit Calculator', subtitle: 'Interactive grade predictor and CIA/ESE calculator', url: '/dashboard/calculator' },
     { title: 'Announcements', subtitle: 'College, KTU, and department circulars', url: '/dashboard/announcements' },
     { title: 'Student Profile', subtitle: 'Official records and academic details', url: '/dashboard/profile' },
     { title: 'Settings', subtitle: 'Theme appearance, active session, and preferences', url: '/dashboard/settings' },

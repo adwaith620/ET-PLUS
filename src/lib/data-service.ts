@@ -823,6 +823,29 @@ export const getResultsPageData = cache(async function getResultsPageData(
 });
 
 /**
+ * Authoritative data fetcher for the Credit Calculator page.
+ * Uses Results -> Internal as the single source of truth for subject CIA marks.
+ * Automatically synchronizes with current semester academic assessments.
+ */
+export const getCreditCalculatorPageData = cache(async function getCreditCalculatorPageData(
+  forceRefresh: boolean = false
+) {
+  const session = await getSession();
+  if (!session) return null;
+
+  const currentSemNum = typeof session.profile?.semester === 'number' ? session.profile.semester : 3;
+
+  const resultsData = await getResultsPageData(forceRefresh, currentSemNum);
+  if (!resultsData) return null;
+
+  return {
+    ...resultsData,
+    profile: session.profile,
+    currentSemester: currentSemNum,
+  };
+});
+
+/**
  * Targeted data fetcher for the Announcements page.
  */
 export const getAnnouncementsPageData = cache(async function getAnnouncementsPageData() {
